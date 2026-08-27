@@ -1,0 +1,125 @@
+{
+  "id": "https://www.lemonde.fr/",
+  "analysisUTCTimestamp": "2026-08-27T15:39:07.489Z",
+  "loadingExperience": {
+    "id": "https://www.lemonde.fr/",
+    "metrics": {
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": {
+        "percentile": 0,
+        "distributions": [
+          {
+            "min": 0,
+            "max": 10,
+            "proportion": 0.8947
+          },
+          {
+            "min": 10,
+            "max": 25,
+            "proportion": 0.0376
+          },
+          {
+            "min": 25,
+            "proportion": 0.0678
+          }
+        ],
+        "category": "FAST"
+      },
+      "EXPERIMENTAL_TIME_TO_FIRST_BYTE": {
+        "percentile": 469,
+        "distributions": [
+          {
+            "min": 0,
+            "max": 800,
+            "proportion": 0.8866
+          },
+          {
+            "min": 800,
+            "max": 1800,
+            "proportion": 0.0785
+          },
+          {
+            "min": 1800,
+            "proportion": 0.0349
+          }
+        ],
+        "category": "FAST"
+      },
+      "FIRST_CONTENTFUL_PAINT_MS": {
+        "percentile": 1048,
+        "distributions": [
+          {
+            "min": 0,
+            "max": 1800,
+            "proportion": 0.9078
+          },
+          {
+            "min": 1800,
+            "max": 3000,
+            "proportion": 0.0592
+          },
+          {
+            "min": 3000,
+            "proportion": 0.033
+          }
+        ],
+        "category": "FAST"
+      },
+      "INTERACTION_TO_NEXT_PAINT": {
+        "percentile": 145,
+        "distributions": [
+          {
+            "min": 0,
+            "max": 200,
+            "proportion": 0.8549
+          },
+          {
+            "min": 200,
+            "max": 500,
+            "proportion": 0.1148
+          },
+          {
+            "min": 500,
+            "proportion": 0.0303
+          }
+        ],
+        "category": "FAST"
+      },
+      "LARGEST_CONTENTFUL_PAINT_MS": {
+        "percentile": 1176,
+        "distributions": [
+          {
+            "min": 0,
+            "max": 2500,
+            "proportion": 0.9344
+          },
+          {
+            "min": 2500,
+            "max": 4000,
+            "proportion": 0.0376
+          },
+          {
+            "min": 4000,
+            "proportion": 0.028
+          }
+        ],
+        "category": "FAST"
+      }
+    },
+    "overall_category": "FAST",
+    "initial_url": "https://www.lemonde.fr/"
+  },
+  "lighthouseResult": {
+    "requestedUrl": "https://www.lemonde.fr/",
+    "lighthouseVersion": "13.4.1",
+    "categories": {
+      "performance": {
+        "id": "performance",
+        "score": 0.59
+      },
+      "seo": {
+        "id": "seo",
+        "score": 0.92
+      }
+    }
+  }
+}
