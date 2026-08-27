@@ -1,0 +1,15 @@
+{
+  "name": "erom-seo",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test skills",
+    "collect": "bun skills/audit/scripts/collect.ts",
+    "check-sources": "bun skills/audit/scripts/check-sources.ts",
+    "lint-report": "bun skills/audit/scripts/lint-report.ts"
+  },
+  "dependencies": {
+    "node-html-parser": "9.0.1",
+    "robots-parser": "3.0.1"
+  }
+}
