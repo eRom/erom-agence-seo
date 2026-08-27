@@ -2,7 +2,7 @@ import { USER_AGENT, type FetchResult, type Hop } from "./types";
 
 export type FetchOptions = { timeoutMs?: number; maxHops?: number; userAgent?: string };
 
-/** Recupere une URL en suivant les redirections une par une, pour garder la chaine complete. Ne leve jamais : les erreurs vont dans `error`, status 0. */
+/** Récupère une URL en suivant les redirections une par une, pour garder la chaîne complète. Ne lève jamais : les erreurs vont dans `error`, status 0. */
 export async function fetchChain(url: string, opts: FetchOptions = {}): Promise<FetchResult> {
   const { timeoutMs = 15000, maxHops = 5, userAgent = USER_AGENT } = opts;
   const chain: Hop[] = [];

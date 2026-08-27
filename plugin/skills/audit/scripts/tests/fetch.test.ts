@@ -14,6 +14,8 @@ beforeAll(() => {
       if (p === "/loop") return new Response(null, { status: 302, headers: { location: "/loop" } });
       if (p === "/slow") return new Promise((r) => setTimeout(() => r(new Response("late")), 1500));
       if (p === "/ua") return new Response(req.headers.get("user-agent") ?? "");
+      if (p === "/absolute-redirect") return new Response(null, { status: 301, headers: { location: `${base}/redirected` } });
+      if (p === "/redirected") return new Response("<html><title>absolute</title></html>", { headers: { "content-type": "text/html" } });
       return new Response("nope", { status: 404 });
     },
   });
@@ -22,7 +24,7 @@ beforeAll(() => {
 afterAll(() => server.stop(true));
 
 describe("fetchChain", () => {
-  test("suit une redirection et garde la chaine", async () => {
+  test("suit une redirection et garde la chaîne", async () => {
     const r = await fetchChain(`${base}/old`);
     expect(r.status).toBe(200);
     expect(r.final).toBe(`${base}/new`);
@@ -37,7 +39,7 @@ describe("fetchChain", () => {
     expect(r.status).toBe(404);
     expect(r.chain).toHaveLength(1);
   });
-  test("s'arrete sur une boucle de redirections", async () => {
+  test("s'arrête sur une boucle de redirections", async () => {
     const r = await fetchChain(`${base}/loop`, { maxHops: 3 });
     expect(r.status).toBe(0);
     expect(r.error).toContain("redirections");
@@ -51,5 +53,13 @@ describe("fetchChain", () => {
   test("envoie le user-agent de l'outil", async () => {
     const r = await fetchChain(`${base}/ua`);
     expect(text(r)).toBe("erom-seo-audit/0.1");
+  });
+  test("suit une redirection vers URL absolue", async () => {
+    const r = await fetchChain(`${base}/absolute-redirect`);
+    expect(r.status).toBe(200);
+    expect(r.final).toBe(`${base}/redirected`);
+    expect(r.chain.map((h) => h.status)).toEqual([301, 200]);
+    expect(r.chain[0].location).toBe(`${base}/redirected`);
+    expect(text(r)).toContain("<title>absolute</title>");
   });
 });
