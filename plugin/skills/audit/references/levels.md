@@ -25,4 +25,4 @@ Niveau 2, à livrer au chantier 2 :
 
 ## Ce que le rapport écrit dans « Ce que je n'ai pas pu voir »
 
-Au niveau 0 : la liste ci-dessus des niveaux 1 et 2, chaque ligne avec son id et son nom, plus PERF-01 si la clé PageSpeed manque.
+Au niveau 0 : la liste ci-dessus des niveaux 1 et 2, chaque ligne avec son id et son nom, plus PERF-01 si la clé PageSpeed manque, plus toute vérification du niveau exécuté qui n'a pas pu être évaluée sur cette collecte précise (par exemple : toutes les pages de contenu derrière une protection anti-bot, aucun bloc JSON-LD de type page trouvé), avec son id et sa raison en une phrase courte. Aucune vérification du niveau exécuté ne doit rester absente des trois sections du rapport (Trouvailles, Vérifications passées, Ce que je n'ai pas pu voir).

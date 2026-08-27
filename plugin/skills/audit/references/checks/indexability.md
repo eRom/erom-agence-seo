@@ -29,7 +29,7 @@ Couche     : absolue
 Niveau     : 0
 Sévérité   : Critique
 Vérifie    : le site répond en HTTPS et http:// redirige en 301 ou 308 vers https://.
-Comment    : raw/manifest.json → site commence par https ; probes.httpToHttps.chain : premier saut 301 ou 308 vers une URL https. Un 200 direct en http, ou une absence de redirection, = trouvaille.
+Comment    : raw/manifest.json → site commence par https ; probes.httpToHttps.chain : premier saut 301 ou 308 vers une URL https. Un 200 direct en http, ou une absence de redirection, = trouvaille. Hôte localhost ou 127.0.0.1 : Info « non applicable en local », jamais Critique.
 Source     : https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls « Google prefers HTTPS pages over equivalent HTTP pages as canonical, except when there are issues or conflicting signals »
 Source     : https://web.dev/enable-https/ « Google uses HTTPS as a positive search quality indicator. »
 Correctif  : certificat TLS et redirection permanente de tout http:// vers https://.
@@ -40,7 +40,7 @@ Couche     : absolue
 Niveau     : 0
 Sévérité   : Important
 Vérifie    : l'autre variante d'hôte (www si le site est en apex, apex si le site est en www) redirige en permanent vers le site ; elle ne sert pas de 200.
-Comment    : raw/manifest.json → probes.hostVariant : status 200 sans redirection = deux versions servies, trouvaille ; 301 ou 308 vers l'origine du site = passé ; status 0 ou erreur DNS = Info « variante non résolue ».
+Comment    : raw/manifest.json → probes.hostVariant : status 200 sans redirection = deux versions servies, trouvaille ; 301 ou 308 vers l'origine du site = passé ; status 0 ou erreur DNS = Info « variante non résolue ». Hôte localhost ou 127.0.0.1 : Info « non applicable en local », jamais Important.
 Source     : https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls « Use this method when you want to get rid of existing duplicate pages. All permanent redirection methods have the same effect on Google Search »
 Source     : https://developers.google.com/search/docs/crawling-indexing/canonicalization « a canonical URL is the URL of a page that Google chose as the most representative from a set of duplicate pages. »
 Correctif  : rediriger en 301 la variante non retenue vers la version canonique, sur toutes les URL.

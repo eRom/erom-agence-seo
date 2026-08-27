@@ -24,7 +24,7 @@ Source     : https://support.claude.com/en/articles/8896518-does-anthropic-crawl
 Source     : https://support.claude.com/en/articles/8896518-does-anthropic-crawl-data-from-the-web-and-how-can-site-owners-block-the-crawler « Claude-SearchBot navigates the web to improve search result quality for users. »
 Source     : https://docs.perplexity.ai/docs/resources/perplexity-crawlers « designed to surface and link websites in search results on Perplexity. It is not used to crawl content for AI foundation models. »
 Source     : https://developers.openai.com/api/docs/bots « Because these actions are initiated by a user, robots.txt rules may not apply. »
-Correctif  : séparer entraînement et récupération. Exemple à adapter :
+Correctif  : séparer entraînement et récupération. Modifier le groupe existant du bot s'il en a déjà un (passer Disallow: / en Allow: /) ; n'ajouter un nouveau groupe que s'il n'en a pas. Exemple à adapter, pour un site sans groupe existant pour ces bots :
              User-agent: GPTBot
              Disallow: /
              User-agent: ClaudeBot

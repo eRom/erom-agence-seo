@@ -212,3 +212,96 @@ Diagnostic retenu : une collision entre deux processus concurrents écrivant dan
 AC-7 a été rejoué proprement dans un dossier isolé (`clients/_smoke_ac7/`), sous contrôle exclusif d'un seul processus à la fois, avec la preuve MD5 ci-dessus. Le dossier `clients/_smoke/` original, contaminé, n'a pas été utilisé comme preuve de recette ; il reste sur disque, gitignored, à titre d'artefact de diagnostic.
 
 Point à instruire hors périmètre v1 : si l'usage réel (plusieurs audits lancés par erreur en parallèle sur le même site le même jour) s'avère plausible, un verrou de fichier ou une vérification atomique du nom de dossier avant écriture du rapport serait la correction propre. Non fait ici : la spec et le plan supposent un usage séquentiel, un seul audit à la fois.
+
+## Correctifs post-revue
+
+Revue finale (Fable, `docs/superpowers/plans/2026-08-27-erom-seo-audit-niveau-0-revue.md`, non suivie par git) : 2 Important et 3 Mineur avant fusion. Corrigés sur la même branche, un par un ci-dessous. Le point « Point à instruire hors périmètre v1 » juste au-dessus est exactement ce que R-2 résout.
+
+### R-1 (Important) : le rapport ne rend pas compte de toutes les vérifications du niveau exécuté
+
+Changé :
+- `plugin/skills/audit/SKILL.md`, section « 2. Vérifier » : règle explicite, un check du niveau exécuté qui ne peut être évalué sur cette collecte précise va aussi dans « Ce que je n'ai pas pu voir » avec sa raison ; rappel que `lint-report.ts` fait respecter l'invariant mécaniquement. Section « 3. Rapporter » : précise l'origine de chaque partie de la liste des non-vues.
+- `plugin/skills/audit/references/report-template.md` : nouvelle ligne de gabarit pour la troisième catégorie dans « Ce que je n'ai pas pu voir » ; commentaire HTML (non rendu dans le rapport final) clarifiant `{{nb_checks}}` (R-4, voir plus bas).
+- `plugin/skills/audit/references/levels.md` : section « Ce que le rapport écrit... » étendue pour couvrir cette troisième catégorie, cohérent avec le fait que `SKILL.md` cite ce fichier comme source de la liste des non-vues.
+- `plugin/skills/audit/scripts/lint-report.ts` : refonte en deux parties, `export async function lintReport(md, checksDir): Promise<string[]>` (logique pure, testable) et un bloc `if (import.meta.main)` qui lit le fichier, appelle `lintReport`, affiche et fait `process.exit`. Nouvel invariant : charge les ids de niveau 0 via `parseChecks` sur `references/checks/*.md` (scope niveau 0 assumé, documenté en commentaire : aucun audit de niveau 2 n'existe encore en pratique), et pour chacun vérifie qu'il apparaît dans exactement une des trois sections (trouvailles / « Vérifications passées ligne `ID nom` » / « Ce que je n'ai pas pu voir », id cité littéralement). Absent des trois ou présent dans plus d'une = erreur `errors.push(...)`, même style que l'existant.
+- Nouveau test `plugin/skills/audit/scripts/tests/lint-report.test.ts` : 3 cas (rapport synthétique complet accepté, id manquant rejeté et nommé, id dupliqué entre trouvaille et passée rejeté et nommé), construit dynamiquement à partir des vrais fichiers `references/checks/` (pas de liste d'ids codée en dur).
+
+Preuve, deux commandes réelles :
+
+**Avant** (rapport synthétique reconstituant fidèlement le trou du rapport lemonde.fr décrit par la revue : le dossier `clients/_smoke_ac7/` original n'existe plus sur ce poste, reconstruction faite depuis les chiffres et les ids cités dans la revue, 4 trouvailles ROBOTS-02/ROBOTS-04/IDX-05/AI-01, PERF-01 en non-vue, 18 passées, et le trou SD-03/FRESH-01/FRESH-02) :
+```bash
+$ bun skills/audit/scripts/lint-report.ts /chemin/vers/avant-report.md
+ERREUR  SD-03 : absent du rapport (ni trouvaille, ni passée, ni « non vue » avec sa raison)
+ERREUR  FRESH-01 : absent du rapport (ni trouvaille, ni passée, ni « non vue » avec sa raison)
+ERREUR  FRESH-02 : absent du rapport (ni trouvaille, ni passée, ni « non vue » avec sa raison)
+$ echo $?
+1
+```
+
+**Après**, pipeline réel de bout en bout (pas un document reconstitué à la main) : site jouet local lancé (`bun skills/audit/scripts/tests/fixtures/site.ts`, port 8787), puis une vraie session imbriquée avec le `SKILL.md` corrigé, dans un dossier neuf :
+```bash
+$ cd clients/_verify_r1r2
+$ claude --plugin-dir ../../ -p "/erom-seo:audit http://localhost:8787 --max-pages 4" --permission-mode bypassPermissions
+$ bun skills/audit/scripts/lint-report.ts clients/_verify_r1r2/seo/audits/2026-08-27-n0/report.md
+rapport conforme : 10 trouvailles
+$ echo $?
+0
+```
+Le rapport produit contient bien `SD-03 non applicable, /a et /c portent un contenu de test générique...` dans « Ce que je n'ai pas pu voir », et IDX-03/IDX-04 y apparaissent en Info « non applicable en local » (R-3, voir plus bas), preuve que le modèle a suivi la règle ajoutée à `SKILL.md`, pas seulement que le lint l'accepterait après coup. Dossier de vérification (`clients/_verify_r1r2/`, hors gitignore existant) supprimé après capture des preuves, non commité.
+
+### R-2 (Important) : le nom du dossier d'audit est décidé en langage naturel, sans verrou
+
+Changé :
+- `plugin/skills/audit/scripts/collect.ts` : `CollectOptions.out` devient optionnel. Nouvelle fonction `reserveOutDir(level)` : `mkdir("seo/audits", {recursive:true})` pour le parent (sûr en concurrence, aucun contenu n'y est écrit directement), puis boucle `mkdir(candidate)` **non récursif** sur `seo/audits/<date>-n<niveau>`, `-2`, `-3`... : un `EEXIST` fait passer au suffixe suivant plutôt que d'écraser, ce qui rend la réservation atomique même entre deux process concurrents. `runCollect` retourne maintenant `Manifest & { out: string }` (le fichier `raw/manifest.json` sur disque, lui, n'a pas changé de forme). Le CLI n'exige plus `--out` et imprime `dossier : <chemin>` en toute première ligne de sortie (avant `collecte terminée : ...`), `--out` explicite reste possible et prioritaire (compatibilité avec les appels existants de `runCollect`).
+- `plugin/skills/audit/SKILL.md`, sections « 0. Préparer » et « 1. Collecter » : le modèle ne calcule plus le suffixe, il appelle `collect.ts` sans `--out`, lit `dossier : ...` sur la première ligne et l'utilise pour la suite.
+- Nouveau test dans `plugin/skills/audit/scripts/tests/collect.test.ts` : deux appels successifs de `runCollect` sans `out`, dans un répertoire de travail temporaire dédié (`process.chdir`), donnent deux dossiers distincts (`<base>` puis `<base>-2`), et le `raw/manifest.json` du premier dossier est comparé **par contenu** avant/après le second appel.
+
+Preuve, CLI réel, deux runs successifs dans un dossier neuf sur le site jouet :
+```bash
+$ bun collect.ts http://localhost:8787 --max-pages 2
+dossier : seo/audits/2026-08-27-n0
+collecte terminée : 2 pages, robots.txt 200, 2 sitemap(s), llms.txt 200, PageSpeed PSI_API_KEY absent : PERF-01 non exécutable
+$ bun collect.ts http://localhost:8787 --max-pages 2
+dossier : seo/audits/2026-08-27-n0-2
+collecte terminée : 2 pages, robots.txt 200, 2 sitemap(s), llms.txt 200, PageSpeed PSI_API_KEY absent : PERF-01 non exécutable
+$ ls seo/audits/
+2026-08-27-n0
+2026-08-27-n0-2
+```
+Deux dossiers distincts créés sans concertation entre les deux appels, `dossier :` bien en première ligne. Preuve « premier dossier inchangé au bit près » : test unitaire `collect.test.ts` (`bun test`, décrit ci-dessus), qui compare le contenu texte intégral de `raw/manifest.json` du premier dossier avant et après le second appel (`expect(manifest1After).toBe(manifest1Before)`), verte.
+
+### R-3 (Mineur) : IDX-03 et IDX-04, faux positifs sur localhost
+
+Changé : `plugin/skills/audit/references/checks/indexability.md`, champ `Comment` de IDX-03 et IDX-04, une clause ajoutée à chacun : hôte `localhost` ou `127.0.0.1` → Info « non applicable en local », jamais Critique (IDX-03) ni Important (IDX-04). Visible en pratique dans le rapport « après » de R-1 ci-dessus : IDX-03 et IDX-04 y sont en `[Info]`, pas en Critique/Important.
+
+### R-4 (Mineur) : `{{nb_checks}}` ambigu entre 26 et 27
+
+Changé : `plugin/skills/audit/references/report-template.md`, commentaire HTML ajouté juste après la ligne d'en-tête (non rendu dans le rapport final) : `{{nb_checks}}` = nombre de vérifications dont le niveau est inférieur ou égal au niveau exécuté (26 au niveau 0), jamais le total des blocs de `references/checks/`. Vérifié : `bun -e` comptant les checks de niveau 0 via `parseChecks` donne bien 26. Le rapport « après » de R-1 ci-dessus affiche « 26 vérifications ».
+
+### R-5 (Mineur) : correctif ROBOTS-02 mal formulé pour le cas lemonde
+
+Changé : `plugin/skills/audit/references/checks/robots.md`, bloc ROBOTS-02, champ `Correctif` : phrase ajoutée avant l'exemple, « modifier le groupe existant du bot s'il en a déjà un (passer Disallow: / en Allow: /) ; n'ajouter un nouveau groupe que s'il n'en a pas », l'exemple de blocs à ajouter est conservé pour le cas où le site n'a encore aucun groupe.
+
+### R-6 (Info) : commentaire trompeur dans `psi.ts`
+
+Changé : `plugin/skills/audit/scripts/lib/psi.ts`, commentaire au-dessus de `fetchPsi` reformulé : le code HTTP est conservé dans `PsiFacts.error`, à charge de l'appelant de le journaliser ou de l'afficher (au lieu de « on journalise le code HTTP »). Aucun changement de comportement.
+
+### Vérifications globales
+
+```bash
+$ bun test
+bun test v1.4.0 (34cbb9a40)
+
+ 57 pass
+ 0 fail
+ 569 expect() calls
+Ran 57 tests across 10 files. [1.59s]
+```
+(53 avant la revue, +4 : 3 dans `lint-report.test.ts`, 1 dans `collect.test.ts`.)
+
+```bash
+$ bun skills/audit/scripts/check-sources.ts
+...
+50 citations retrouvées, 0 en échec, 0 à vérifier à la main
+```
+Inchangé (50/0) : R-1 à R-6 ne touchent aucun champ `Source`, uniquement `Comment`, `Correctif` et la logique de `lint-report.ts`/`collect.ts`.

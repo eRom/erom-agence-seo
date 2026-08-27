@@ -10,7 +10,7 @@ import { ALL_BOTS, USER_AGENT, type FetchRecord, type FetchResult, type Manifest
 
 export type CollectOptions = {
   url: string;
-  out: string;
+  out?: string;
   maxPages?: number;
   pages?: string[];
   level?: 0 | 2;
@@ -22,13 +22,39 @@ function toRecord(r: FetchResult, file?: string): FetchRecord {
   return { requested: r.requested, final: r.final, status: r.status, chain: r.chain, contentType: r.headers["content-type"], bytes: r.body.length, fetchedAt: new Date().toISOString(), error: r.error, file, ms: r.ms };
 }
 
-export async function runCollect(o: CollectOptions): Promise<Manifest> {
+/**
+ * Réserve seo/audits/<date>-n<niveau>/ (ou son premier suffixe -2, -3… libre) sous le répertoire courant, de façon
+ * atomique : `mkdir` NON récursif sur le dossier candidat lui-même, pour obtenir EEXIST si un autre process l'a créé
+ * entre-temps plutôt que d'écrire dedans. Le parent seo/audits/ est créé récursivement en amont : c'est sûr même en
+ * concurrence, aucun contenu n'y est jamais écrit directement, une création concurrente du même parent réussit des
+ * deux côtés.
+ */
+async function reserveOutDir(level: 0 | 2): Promise<string> {
+  const date = new Date().toISOString().slice(0, 10);
+  const parent = "seo/audits";
+  await mkdir(parent, { recursive: true });
+  const base = `${parent}/${date}-n${level}`;
+  for (let n = 1; ; n++) {
+    const candidate = n === 1 ? base : `${base}-${n}`;
+    try {
+      await mkdir(candidate);
+      return candidate;
+    } catch (e) {
+      if ((e as NodeJS.ErrnoException).code === "EEXIST") continue;
+      throw e;
+    }
+  }
+}
+
+export async function runCollect(o: CollectOptions): Promise<Manifest & { out: string }> {
   const site = new URL(o.url);
   const origin = site.origin;
+  const level = o.level ?? 0;
+  const out = o.out ?? (await reserveOutDir(level));
   const maxPages = o.maxPages ?? 10;
   const delay = o.delayMs ?? 250;
-  const raw = join(o.out, "raw");
-  const derived = join(o.out, "derived");
+  const raw = join(out, "raw");
+  const derived = join(out, "derived");
   await mkdir(join(raw, "pages"), { recursive: true });
   await mkdir(derived, { recursive: true });
   const startedAt = new Date().toISOString();
@@ -106,7 +132,7 @@ export async function runCollect(o: CollectOptions): Promise<Manifest> {
     site: origin,
     startedAt,
     finishedAt: new Date().toISOString(),
-    level: o.level ?? 0,
+    level,
     userAgent: USER_AGENT,
     maxPages,
     robots,
@@ -118,7 +144,7 @@ export async function runCollect(o: CollectOptions): Promise<Manifest> {
     psi,
   };
   await Bun.write(join(raw, "manifest.json"), JSON.stringify(manifest, null, 2));
-  return manifest;
+  return { ...manifest, out };
 }
 
 if (import.meta.main) {
@@ -127,11 +153,11 @@ if (import.meta.main) {
   const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   const pages = args.flatMap((a, i) => (a === "--page" && args[i + 1] ? [args[i + 1]] : []));
   const out = opt("--out");
-  if (!url || url.startsWith("--") || !out) {
-    console.error("usage : bun collect.ts <url> --out <dossier> [--max-pages 10] [--page <url>]... [--level 0|2]");
+  if (!url || url.startsWith("--")) {
+    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|2]");
     process.exit(2);
   }
   const m = await runCollect({ url, out, maxPages: Number(opt("--max-pages") ?? 10), pages, level: Number(opt("--level") ?? 0) === 2 ? 2 : 0, psiKey: process.env.PSI_API_KEY ?? null });
+  console.log(`dossier : ${m.out}`);
   console.log(`collecte terminée : ${m.pages.length} pages, robots.txt ${m.robots.status}, ${m.sitemaps.filter((s) => s.status === 200).length} sitemap(s), llms.txt ${m.llms.status}, PageSpeed ${m.psi.ok ? "ok" : m.psi.error}`);
-  console.log(`dossier : ${out}`);
 }

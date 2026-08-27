@@ -67,4 +67,24 @@ describe("runCollect", () => {
     const m = await runCollect({ url: base, out: out2, maxPages: 2, pages: [`${base}/c`], delayMs: 0, psiKey: null });
     expect(m.pages.map((p) => p.final)).toEqual([`${base}/`, `${base}/c`]);
   });
+
+  test("sans --out : deux appels successifs réservent deux dossiers distincts, le premier reste inchangé au bit près", async () => {
+    const cwd = await mkdtemp(join(tmpdir(), "erom-seo-autodir-"));
+    const prevCwd = process.cwd();
+    process.chdir(cwd);
+    try {
+      const m1 = await runCollect({ url: base, maxPages: 1, delayMs: 0, psiKey: null });
+      expect(m1.out).toMatch(/^seo\/audits\/\d{4}-\d{2}-\d{2}-n0$/);
+      const manifest1Before = await Bun.file(join(cwd, m1.out, "raw/manifest.json")).text();
+
+      const m2 = await runCollect({ url: base, maxPages: 1, delayMs: 0, psiKey: null });
+      expect(m2.out).not.toBe(m1.out);
+      expect(m2.out).toBe(`${m1.out}-2`);
+
+      const manifest1After = await Bun.file(join(cwd, m1.out, "raw/manifest.json")).text();
+      expect(manifest1After).toBe(manifest1Before);
+    } finally {
+      process.chdir(prevCwd);
+    }
+  });
 });

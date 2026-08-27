@@ -16,7 +16,7 @@ export function parsePsi(json: unknown, strategy: "MOBILE" | "DESKTOP"): PsiFact
   return { ok: true, strategy, field, lab };
 }
 
-/** Un seul appel par audit. Le quota avec clé n'est pas documenté : on journalise le code HTTP et on n'insiste jamais. */
+/** Un seul appel par audit. Le quota avec clé n'est pas documenté : le code HTTP est conservé dans PsiFacts.error, à charge de l'appelant de le journaliser ou de l'afficher ; on n'insiste jamais. */
 export async function fetchPsi(url: string, key: string, strategy: "MOBILE" | "DESKTOP"): Promise<PsiFacts> {
   const q = new URLSearchParams({ url, strategy, key });
   q.append("category", "PERFORMANCE");

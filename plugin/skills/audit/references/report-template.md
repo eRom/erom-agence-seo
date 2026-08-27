@@ -1,5 +1,6 @@
 # Audit SEO/GEO : {{site}}
 {{date}} · Niveau {{niveau}} ({{entree}}) · {{nb_pages}} pages collectées · {{nb_checks}} vérifications
+<!-- nb_checks = nombre de vérifications dont le niveau est inférieur ou égal au niveau exécuté (26 au niveau 0), jamais le total de tous les blocs de references/checks/. -->
 Stack détecté : {{stack}} (Info)
 
 ## En bref
@@ -22,6 +23,7 @@ Effort    : {{rapide | moyen | lourd}}
 Niveau 1, avec les accès : {{liste id + nom}}
 Niveau 2, avec le code et la stratégie : {{liste id + nom}}
 {{PERF-01 si clé absente, avec la procédure}}
+{{vérifications du niveau {{niveau}} non évaluables sur cette collecte précise : une ligne par id, avec sa raison précise, par exemple « SD-03 non applicable, aucune page de contenu auditable derrière la protection anti-bot »}}
 
 ## Vérifications passées
 {{id}} {{nom}}
