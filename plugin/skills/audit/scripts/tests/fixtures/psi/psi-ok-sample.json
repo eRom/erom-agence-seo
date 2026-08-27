@@ -1,0 +1,20 @@
+{
+  "id": "https://developers.google.com/",
+  "loadingExperience": {
+    "id": "https://developers.google.com/",
+    "metrics": {
+      "LARGEST_CONTENTFUL_PAINT_MS": { "percentile": 1714, "distributions": [{ "min": 0, "max": 2500, "proportion": 0.8977 }, { "min": 2500, "max": 4000, "proportion": 0.0743 }, { "min": 4000, "proportion": 0.028 }], "category": "FAST" },
+      "INTERACTION_TO_NEXT_PAINT": { "percentile": 231, "distributions": [{ "min": 0, "max": 200, "proportion": 0.70 }, { "min": 200, "max": 500, "proportion": 0.22 }, { "min": 500, "proportion": 0.08 }], "category": "AVERAGE" },
+      "CUMULATIVE_LAYOUT_SHIFT_SCORE": { "percentile": 2, "distributions": [{ "min": 0, "max": 10, "proportion": 0.95 }, { "min": 10, "max": 25, "proportion": 0.03 }, { "min": 25, "proportion": 0.02 }], "category": "FAST" }
+    },
+    "overall_category": "AVERAGE",
+    "initial_url": "https://developers.google.com/",
+    "origin_fallback": true
+  },
+  "lighthouseResult": {
+    "requestedUrl": "https://developers.google.com/",
+    "lighthouseVersion": "12.6.0",
+    "categories": { "performance": { "id": "performance", "score": 0.86 }, "seo": { "id": "seo", "score": 0.92 } }
+  },
+  "analysisUTCTimestamp": "2026-08-27T15:00:00.000Z"
+}
