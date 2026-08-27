@@ -1955,13 +1955,13 @@ Effort     : rapide
 - [ ] **Step 4 : Vérifier le succès**
 
 Run: `bun test skills/audit/scripts/tests/checks-format.test.ts`
-Expected: 5 pass, sur 25 vérifications (6 ROBOTS, 3 SNIP, 5 IDX, 3 SD, 4 TAG, 2 FRESH, 1 REND, 1 PERF, 2 AI). Si `parseChecks` rate un champ, corriger le parseur, pas le format.
+Expected: 5 pass, sur 27 vérifications (6 ROBOTS, 3 SNIP, 5 IDX, 3 SD, 4 TAG, 2 FRESH, 1 REND, 1 PERF, 2 AI). Si `parseChecks` rate un champ, corriger le parseur, pas le format.
 
 - [ ] **Step 5 : Commit**
 
 ```bash
 git add skills/audit/scripts/lib/checks.ts skills/audit/scripts/tests/checks-format.test.ts skills/audit/references/checks
-git commit -m "feat(audit): 25 vérifications de niveau 0 ancrées sur la documentation officielle"
+git commit -m "feat(audit): 27 vérifications de niveau 0 ancrées sur la documentation officielle"
 ```
 
 ---
@@ -1977,7 +1977,7 @@ git commit -m "feat(audit): 25 vérifications de niveau 0 ancrées sur la docume
 - Consumes : `parseChecks`, `Check` de `lib/checks.ts` ; `fetchChain`, `text` de `lib/fetch.ts`.
 - Produces : `normalizePage(html: string): string`, `normalizeQuote(q: string): string` ; CLI `bun check-sources.ts [--only ROBOTS-02]` qui sort 0 si chaque citation est retrouvée, 1 sinon.
 
-Convention externe : validée par la sonde `docs/recherches/echantillons/sonde-normalize.ts` (23 citations sur 23 retrouvées après normalisation). Piège documenté : une citation peut contenir `<title>` ; la page l'encode `&lt;title&gt;`. On retire les balises de la page puis on décode les entités ; on ne retire jamais de balises dans la citation.
+Convention externe : logique de normalisation validée initialement par la sonde `docs/recherches/echantillons/sonde-normalize.ts` (23 citations sur 23 retrouvées) ; l'ensemble des 50 citations finales des 9 fichiers de références a été revérifié en réseau via `check-sources.ts` avant livraison (brief, section 9). Piège documenté : une citation peut contenir `<title>` ; la page l'encode `&lt;title&gt;`. On retire les balises de la page puis on décode les entités ; on ne retire jamais de balises dans la citation.
 
 - [ ] **Step 1 : Écrire le test qui échoue**
 
