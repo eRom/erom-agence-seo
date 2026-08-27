@@ -52,6 +52,17 @@ describe("lint-report : invariant R-1 (chaque vérification de niveau 0 exacteme
     expect(errors.some((e) => e.includes(missing.id) && e.includes("absent"))).toBe(true);
   });
 
+  test("un id noté « non applicable » dans « Ce que je n'ai pas pu voir » (absent des trouvailles et des passées) est accepté", async () => {
+    const skipped = level0[0];
+    const rest = level0.slice(1);
+    const md = report(rest).replace(
+      "Niveau 2, avec le code et la stratégie : aucun\n",
+      `Niveau 2, avec le code et la stratégie : aucun\n${skipped.id} non applicable, exemple de test\n`,
+    );
+    const errors = await lintReport(md, checksDir);
+    expect(errors).toEqual([]);
+  });
+
   test("un id présent à la fois en passée et en trouvaille est rejeté", async () => {
     const dup = level0[0];
     const md = report(level0).replace(
