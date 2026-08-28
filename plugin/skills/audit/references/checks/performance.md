@@ -7,7 +7,7 @@ Couche     : absolue
 Niveau     : 0
 Sévérité   : Important
 Vérifie    : la home passe les seuils CrUX au 75e percentile : LCP 2,5 s, INP 200 ms, CLS 0,1.
-Comment    : derived/psi.json → ok false = non vu (expliquer la clé). field absent = Info « pas assez de trafic réel, score labo : lab.performance ». field.overall SLOW = Important ; AVERAGE = Mineur ; FAST = passé. Citer les trois métriques (percentile, category) et field.originFallback.
+Comment    : raw/manifest.json → psi.error « non applicable en local » (niveau 2) ou « PageSpeed non demandé (--no-psi) » = non vue avec cette raison, sans procédure de clé. Sinon : derived/psi.json → ok false = non vu (expliquer la clé). field absent = Info « pas assez de trafic réel, score labo : lab.performance ». field.overall SLOW = Important ; AVERAGE = Mineur ; FAST = passé. Citer les trois métriques (percentile, category) et field.originFallback.
 Source     : https://web.dev/articles/vitals « LCP should occur within 2.5 seconds of when the page first starts loading »
 Source     : https://web.dev/articles/vitals « pages should have a INP of 200 milliseconds or less »
 Source     : https://web.dev/articles/vitals « pages should maintain a CLS of 0.1. or less »
