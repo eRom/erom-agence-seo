@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fetchChain, text } from "./lib/fetch";
 import { evaluateRobots } from "./lib/robots";
-import { collectSitemapUrls, sitemapCandidates } from "./lib/sitemap";
+import { collectSitemapUrls, formatSkippedWarning, pageKey, sameSite, sitemapCandidates } from "./lib/sitemap";
 import { extractPageFacts, slugFor } from "./lib/page";
 import { fetchPsi } from "./lib/psi";
 import { ALL_BOTS, USER_AGENT, type FetchRecord, type FetchResult, type Manifest, type PageFacts } from "./lib/types";
@@ -46,6 +46,22 @@ async function reserveOutDir(level: 0 | 2): Promise<string> {
   }
 }
 
+/** Liste des pages à collecter : la home, puis les --page, puis le sitemap ; même site (apex ou www), sans doublon. */
+export function wantedPages(origin: string, explicit: string[], fromSitemap: string[]): string[] {
+  const wanted: string[] = [];
+  const seen = new Set<string>();
+  for (const u of [`${origin}/`, ...explicit, ...fromSitemap]) {
+    try {
+      const abs = new URL(u, origin).toString();
+      const key = pageKey(abs);
+      if (!sameSite(abs, origin) || seen.has(key)) continue;
+      seen.add(key);
+      wanted.push(abs);
+    } catch { /* URL invalide ignorée */ }
+  }
+  return wanted;
+}
+
 export async function runCollect(o: CollectOptions): Promise<Manifest & { out: string }> {
   const site = new URL(o.url);
   const origin = site.origin;
@@ -76,11 +92,8 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
   const llmsRes = await fetchChain(`${origin}/llms.txt`);
   const llms = toRecord(llmsRes, llmsRes.status === 200 ? await save("llms.txt", text(llmsRes)) : undefined);
 
-  // 4. pages : home, puis les --page, puis le sitemap ; même origine, sans doublon
-  const wanted: string[] = [];
-  for (const u of [`${origin}/`, ...(o.pages ?? []), ...sm.urls]) {
-    try { const abs = new URL(u, origin).toString(); if (new URL(abs).origin === origin && !wanted.includes(abs)) wanted.push(abs); } catch { /* URL invalide ignorée */ }
-  }
+  // 4. pages : home, puis les --page, puis le sitemap ; même site, sans doublon
+  const wanted = wantedPages(origin, o.pages ?? [], sm.urls);
   const pages: FetchRecord[] = [];
   const facts: PageFacts[] = [];
   let homeHeaders: Record<string, string> = {};
@@ -137,6 +150,7 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
     maxPages,
     robots,
     sitemaps,
+    sitemapUrls: sm.stats,
     llms,
     pages,
     probes,
@@ -160,4 +174,6 @@ if (import.meta.main) {
   const m = await runCollect({ url, out, maxPages: Number(opt("--max-pages") ?? 10), pages, level: Number(opt("--level") ?? 0) === 2 ? 2 : 0, psiKey: process.env.PSI_API_KEY ?? null });
   console.log(`dossier : ${m.out}`);
   console.log(`collecte terminée : ${m.pages.length} pages, robots.txt ${m.robots.status}, ${m.sitemaps.filter((s) => s.status === 200).length} sitemap(s), llms.txt ${m.llms.status}, PageSpeed ${m.psi.ok ? "ok" : m.psi.error}`);
+  const warning = formatSkippedWarning(m.sitemapUrls);
+  if (warning) console.error(warning);
 }

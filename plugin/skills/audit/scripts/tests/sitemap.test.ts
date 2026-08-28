@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseSitemap, decodeSitemapBody, sitemapCandidates, collectSitemapUrls, type Fetcher } from "../lib/sitemap";
+import { parseSitemap, decodeSitemapBody, sitemapCandidates, collectSitemapUrls, sameSite, formatSkippedWarning, type Fetcher } from "../lib/sitemap";
 import type { FetchResult } from "../lib/types";
 
 const INDEX = `<?xml version="1.0" encoding="UTF-8"?>
@@ -54,7 +54,97 @@ describe("sitemapCandidates", () => {
   });
 });
 
+describe("sameSite", () => {
+  test("apex et www sont le même site, dans les deux sens", () => {
+    expect(sameSite("https://acme.fr/a", "https://www.acme.fr")).toBe(true);
+    expect(sameSite("https://www.acme.fr/a", "https://acme.fr")).toBe(true);
+  });
+  test("le schéma est indifférent", () => {
+    expect(sameSite("http://acme.fr/a", "https://www.acme.fr")).toBe(true);
+    expect(sameSite("https://www.acme.fr/a", "http://acme.fr")).toBe(true);
+  });
+  test("la casse de l'hôte est indifférente", () => {
+    expect(sameSite("https://WWW.Acme.FR/a", "https://acme.fr")).toBe(true);
+  });
+  test("un autre domaine est refusé, y compris s'il commence par l'hôte visé", () => {
+    expect(sameSite("https://autre.fr/a", "https://www.acme.fr")).toBe(false);
+    expect(sameSite("https://acme.fr.evil.com/a", "https://acme.fr")).toBe(false);
+  });
+  test("un sous-domaine autre que www reste un autre site", () => {
+    expect(sameSite("https://blog.acme.fr/a", "https://acme.fr")).toBe(false);
+  });
+  test("un seul www est retiré : www.www.acme.fr n'est pas acme.fr", () => {
+    expect(sameSite("https://www.www.acme.fr/a", "https://acme.fr")).toBe(false);
+  });
+  test("le port fait partie de l'identité du site", () => {
+    expect(sameSite("http://acme.fr:8080/a", "http://acme.fr:9090")).toBe(false);
+    expect(sameSite("http://www.acme.fr:8080/a", "http://acme.fr:8080")).toBe(true);
+  });
+  test("une URL non analysable est refusée", () => {
+    expect(sameSite("/relatif", "https://acme.fr")).toBe(false);
+  });
+});
+
+describe("formatSkippedWarning", () => {
+  test("rien d'écarté : aucun avertissement", () => {
+    expect(formatSkippedWarning({ listed: 3, kept: 3, skipped: [] })).toBeNull();
+  });
+  test("annonce le total écarté et les hôtes concernés", () => {
+    const msg = formatSkippedWarning({ listed: 6, kept: 3, skipped: [{ host: "autre.fr", count: 2 }, { host: "encore.fr", count: 1 }] });
+    expect(msg).toContain("3");
+    expect(msg).toContain("autre.fr");
+    expect(msg).toContain("encore.fr");
+  });
+});
+
 describe("collectSitemapUrls", () => {
+  test("sitemap listé en apex sur un site servi en www : les URLs sont gardées", async () => {
+    const f = fakeFetcher({
+      "https://www.acme.fr/sitemap.xml": { status: 200, body: urlset("https://acme.fr/a", "https://acme.fr/b", "https://acme.fr/c") },
+    });
+    const r = await collectSitemapUrls(["https://www.acme.fr/sitemap.xml"], f, { maxUrls: 10, origin: "https://www.acme.fr" });
+    expect(r.urls).toEqual(["https://acme.fr/a", "https://acme.fr/b", "https://acme.fr/c"]);
+    expect(r.stats).toEqual({ listed: 3, kept: 3, skipped: [] });
+  });
+  test("sitemap listé en www sur un site servi en apex : les URLs sont gardées", async () => {
+    const f = fakeFetcher({
+      "https://acme.fr/sitemap.xml": { status: 200, body: urlset("https://www.acme.fr/a", "https://www.acme.fr/b") },
+    });
+    const r = await collectSitemapUrls(["https://acme.fr/sitemap.xml"], f, { maxUrls: 10, origin: "https://acme.fr" });
+    expect(r.urls).toEqual(["https://www.acme.fr/a", "https://www.acme.fr/b"]);
+  });
+  test("les URLs sont gardées telles que listées, sans réécriture", async () => {
+    const f = fakeFetcher({ "https://www.acme.fr/sitemap.xml": { status: 200, body: urlset("http://acme.fr/a") } });
+    const r = await collectSitemapUrls(["https://www.acme.fr/sitemap.xml"], f, { maxUrls: 10, origin: "https://www.acme.fr" });
+    expect(r.urls).toEqual(["http://acme.fr/a"]);
+  });
+  test("la même page en apex et en www n'est gardée qu'une fois", async () => {
+    const f = fakeFetcher({
+      "https://www.acme.fr/sitemap.xml": { status: 200, body: urlset("https://www.acme.fr/", "https://acme.fr/", "https://acme.fr/x") },
+    });
+    const r = await collectSitemapUrls(["https://www.acme.fr/sitemap.xml"], f, { maxUrls: 10, origin: "https://www.acme.fr" });
+    expect(r.urls).toEqual(["https://www.acme.fr/", "https://acme.fr/x"]);
+  });
+  test("compte les URLs listées, gardées et écartées par hôte", async () => {
+    const f = fakeFetcher({
+      "https://a.fr/sitemap.xml": { status: 200, body: urlset("https://a.fr/1", "https://www.a.fr/2", "https://autre.fr/x", "https://autre.fr/y", "https://encore.fr/z") },
+    });
+    const r = await collectSitemapUrls(["https://a.fr/sitemap.xml"], f, { maxUrls: 10, origin: "https://a.fr" });
+    expect(r.urls).toEqual(["https://a.fr/1", "https://www.a.fr/2"]);
+    expect(r.stats).toEqual({ listed: 5, kept: 2, skipped: [{ host: "autre.fr", count: 2 }, { host: "encore.fr", count: 1 }] });
+  });
+  test("une loc relative, invalide selon le protocole sitemap, est écartée et signalée", async () => {
+    const f = fakeFetcher({ "https://a.fr/sitemap.xml": { status: 200, body: urlset("https://a.fr/ok", "/relatif") } });
+    const r = await collectSitemapUrls(["https://a.fr/sitemap.xml"], f, { maxUrls: 10, origin: "https://a.fr" });
+    expect(r.urls).toEqual(["https://a.fr/ok"]);
+    expect(r.stats.skipped).toEqual([{ host: "(url invalide)", count: 1 }]);
+  });
+  test("une URL écartée par le plafond n'est pas comptée comme hors site", async () => {
+    const f = fakeFetcher({ "https://a.fr/sitemap.xml": { status: 200, body: urlset("https://a.fr/1", "https://a.fr/2", "https://a.fr/3") } });
+    const r = await collectSitemapUrls(["https://a.fr/sitemap.xml"], f, { maxUrls: 2, origin: "https://a.fr" });
+    expect(r.urls).toEqual(["https://a.fr/1", "https://a.fr/2"]);
+    expect(r.stats).toEqual({ listed: 3, kept: 2, skipped: [] });
+  });
   test("lit un index sur 3 enfants maximum et plafonne les URLs", async () => {
     const f = fakeFetcher({
       "https://a.fr/sitemap.xml": { status: 200, body: INDEX, contentType: "text/xml" },

@@ -3,7 +3,7 @@ import { mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFixtureSite } from "./fixtures/site";
-import { runCollect } from "../collect";
+import { runCollect, wantedPages } from "../collect";
 import type { Manifest, PageFacts, RobotsEval } from "../lib/types";
 
 let server: ReturnType<typeof startFixtureSite>;
@@ -20,6 +20,27 @@ beforeAll(async () => {
 afterAll(() => server.stop(true));
 
 const exists = (p: string) => Bun.file(join(out, p)).exists();
+
+describe("wantedPages", () => {
+  test("la home d'abord, puis les URLs explicites, puis celles du sitemap", () => {
+    expect(wantedPages("https://acme.fr", ["https://acme.fr/x"], ["https://acme.fr/y"])).toEqual(["https://acme.fr/", "https://acme.fr/x", "https://acme.fr/y"]);
+  });
+  test("une URL de sitemap listée en apex est gardée sur un site servi en www", () => {
+    expect(wantedPages("https://www.acme.fr", [], ["https://acme.fr/a"])).toEqual(["https://www.acme.fr/", "https://acme.fr/a"]);
+  });
+  test("la home listée en apex ne fait pas collecter la home deux fois", () => {
+    expect(wantedPages("https://www.acme.fr", [], ["https://acme.fr/", "https://acme.fr/a"])).toEqual(["https://www.acme.fr/", "https://acme.fr/a"]);
+  });
+  test("une URL hors site est écartée", () => {
+    expect(wantedPages("https://acme.fr", [], ["https://autre.fr/x"])).toEqual(["https://acme.fr/"]);
+  });
+  test("une URL explicite relative est résolue sur l'origine", () => {
+    expect(wantedPages("https://acme.fr", ["/contact"], [])).toEqual(["https://acme.fr/", "https://acme.fr/contact"]);
+  });
+  test("une URL invalide est ignorée sans faire tomber le reste", () => {
+    expect(wantedPages("https://acme.fr", [], ["http://", "https://acme.fr/a"])).toEqual(["https://acme.fr/", "https://acme.fr/a"]);
+  });
+});
 
 describe("runCollect", () => {
   test("écrit raw/ et derived/", async () => {
@@ -38,6 +59,12 @@ describe("runCollect", () => {
     expect(manifest.stack.generator).toBe("Jouet 1.0");
     expect(manifest.stack.server).toBe("jouet");
     expect(manifest.psi.attempted).toBe(false);
+  });
+  test("le manifeste consigne l'URL de sitemap hors site au lieu de l'écarter en silence", () => {
+    expect(manifest.sitemapUrls.skipped).toEqual([{ host: "autre.fr", count: 1 }]);
+    // tout ce que le sitemap a gardé a bien été collecté, la home en plus
+    expect(manifest.sitemapUrls.kept).toBe(manifest.pages.length - 1);
+    expect(manifest.sitemapUrls.listed).toBeGreaterThan(manifest.sitemapUrls.kept);
   });
   test("verdicts robots sur les pages collectées", async () => {
     const e = (await Bun.file(join(out, "derived/robots-eval.json")).json()) as RobotsEval;

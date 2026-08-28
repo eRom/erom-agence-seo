@@ -44,6 +44,13 @@ export type RobotsEval = {
   bots: Record<string, { root: boolean | null; pages: Record<string, boolean | null> }>;
 };
 
+/** Sort des <loc> d'un sitemap : combien listées, combien retenues, et ce qui a été écarté comme hors site (par hôte). */
+export type SitemapUrlStats = {
+  listed: number;
+  kept: number;
+  skipped: { host: string; count: number }[];
+};
+
 export type JsonLdBlock = { valid: boolean; hasContext: boolean; types: string[] };
 
 export type PageFacts = {
@@ -89,6 +96,7 @@ export type Manifest = {
   maxPages: number;
   robots: FetchRecord;
   sitemaps: FetchRecord[];
+  sitemapUrls: SitemapUrlStats;
   llms: FetchRecord;
   pages: FetchRecord[];
   probes: { httpToHttps: FetchRecord; hostVariant: FetchRecord; notFound: FetchRecord };

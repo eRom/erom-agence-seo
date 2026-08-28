@@ -14,7 +14,8 @@ export function startFixtureSite(port = 0) {
         case "/sitemap.xml":
           return new Response(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>${origin}/sitemap-pages.xml</loc></sitemap></sitemapindex>`, { headers: { "content-type": "application/xml" } });
         case "/sitemap-pages.xml":
-          return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/a</loc></url><url><loc>${origin}/b</loc></url><url><loc>${origin}/c</loc></url></urlset>`, { headers: { "content-type": "application/xml" } });
+          // la dernière loc est volontairement hors site : elle doit être écartée ET comptée, jamais écartée en silence
+          return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/a</loc></url><url><loc>${origin}/b</loc></url><url><loc>${origin}/c</loc></url><url><loc>https://autre.fr/hors-site</loc></url></urlset>`, { headers: { "content-type": "application/xml" } });
         case "/llms.txt":
           return new Response("# Site jouet\n", { headers: { "content-type": "text/plain" } });
         case "/":
