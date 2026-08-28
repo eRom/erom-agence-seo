@@ -92,6 +92,9 @@ export type PsiFacts = {
   lab?: { performance: number | null; seo: number | null };
 };
 
+/** Référence à la stratégie lue par la collecte : chemin, extraits utiles au rapport, ou l'erreur si inanalysable. */
+export type StrategyRef = { path: string; date?: string; statut?: string; pages?: number; error?: string };
+
 export type Manifest = {
   site: string;
   startedAt: string;
@@ -107,4 +110,6 @@ export type Manifest = {
   probes: { httpToHttps: FetchRecord; hostVariant: FetchRecord; notFound: FetchRecord };
   stack: { generator: string | null; server: string | null; poweredBy: string | null };
   psi: { attempted: boolean; ok: boolean; error?: string };
+  strategy: StrategyRef | null;
+  indexnow: FetchRecord | null;
 };

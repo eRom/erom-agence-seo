@@ -5,13 +5,15 @@ const page = (title: string, extraHead: string, body: string) =>
 /**
  * `homeInSitemap` : le sitemap liste aussi la home, montage courant qui coûtait un slot de plafond avant le correctif.
  * `prodHost` : les locs a/b/c du sitemap sont construites sur cet hôte de prod au lieu de l'origine servie (niveau 2).
+ * `indexnowKey` : sert `/<indexnowKey>.txt` avec la clé en corps, pour simuler la vérification IndexNow.
  */
-export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prodHost?: string } = {}) {
+export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prodHost?: string; indexnowKey?: string } = {}) {
   const server = Bun.serve({
     port,
     fetch(req) {
       const u = new URL(req.url);
       const origin = `${u.protocol}//${u.host}`;
+      if (opts.indexnowKey && u.pathname === `/${opts.indexnowKey}.txt`) return new Response(opts.indexnowKey, { headers: { "content-type": "text/plain" } });
       switch (u.pathname) {
         case "/robots.txt":
           return new Response(`User-agent: Claude-User\nDisallow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });

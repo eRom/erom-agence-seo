@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { startFixtureSite } from "./fixtures/site";
 import { detectLevel, runCollect, wantedPages } from "../collect";
 import type { Manifest, PageFacts, RobotsEval } from "../lib/types";
+import { VALID } from "../../../../lib/tests/fixtures/strategy-valide";
 
 let server: ReturnType<typeof startFixtureSite>;
 let base = "";
@@ -15,7 +16,7 @@ beforeAll(async () => {
   server = startFixtureSite(0);
   base = `http://localhost:${server.port}`;
   out = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
-  manifest = await runCollect({ url: base, out, maxPages: 5, delayMs: 0, psiKey: null, level: 0 });
+  manifest = await runCollect({ url: base, out, maxPages: 5, delayMs: 0, psiKey: null, level: 0, strategyPath: null });
 });
 afterAll(() => server.stop(true));
 
@@ -172,5 +173,40 @@ describe("runCollect", () => {
     } finally {
       process.chdir(prevCwd);
     }
+  });
+});
+
+describe("stratégie présente", () => {
+  const strategyWith = (indexnow: string, pages: string) => VALID.replace("IndexNow : non", `IndexNow : ${indexnow}`).replace(
+    "| / | navigationnelle | institut chico | bonheur, coaching | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |\n| /methode | informationnelle | méthode bonheur | bonheur au travail | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |",
+    pages,
+  );
+  test("pages prévues collectées avant le sitemap, plafond relevé, clé IndexNow récupérée, manifeste renseigné", async () => {
+    const s = startFixtureSite(0, { indexnowKey: "a1b2c3d4e5f6" });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const sp = join(o, "strategy.md");
+      await Bun.write(sp, strategyWith("a1b2c3d4e5f6", "| /c | informationnelle | page c | | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |\n| /b | informationnelle | page b | | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: sp });
+      expect(m.pages.map((p) => p.final)).toEqual([`http://localhost:${s.port}/`, `http://localhost:${s.port}/c`, `http://localhost:${s.port}/b`]);
+      expect(m.maxPages).toBe(3);
+      expect(m.strategy).toEqual({ path: sp, date: "2026-08-28", statut: "brouillon", pages: 2 });
+      expect(m.indexnow?.status).toBe(200);
+      expect(await Bun.file(join(o, "raw/indexnow.txt")).text()).toBe("a1b2c3d4e5f6");
+    } finally { s.stop(true); }
+  });
+  test("stratégie inanalysable : manifeste avec l'erreur, collecte normale", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const sp = join(o, "strategy.md");
+    await Bun.write(sp, VALID.replace("IndexNow : non", "IndexNow : abc"));
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: sp });
+    expect(m.strategy?.path).toBe(sp);
+    expect(m.strategy?.error).toMatch(/clé IndexNow mal formée/);
+    expect(m.indexnow).toBeNull();
+    expect(m.pages).toHaveLength(2);
+  });
+  test("sans stratégie : strategy null, indexnow null", () => {
+    expect(manifest.strategy).toBeNull();
+    expect(manifest.indexnow).toBeNull();
   });
 });
