@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseSitemap, decodeSitemapBody, sitemapCandidates, collectSitemapUrls, sameSite, formatSkippedWarning, type Fetcher } from "../lib/sitemap";
+import { parseSitemap, decodeSitemapBody, sitemapCandidates, collectSitemapUrls, sameSite, formatSkippedWarning, rewriteToOrigin, type Fetcher } from "../lib/sitemap";
 import type { FetchResult } from "../lib/types";
 
 const INDEX = `<?xml version="1.0" encoding="UTF-8"?>
@@ -95,6 +95,19 @@ describe("formatSkippedWarning", () => {
     expect(msg).toContain("autre.fr");
     expect(msg).toContain("encore.fr");
   });
+});
+
+test("rewriteToOrigin garde chemin et requête, change schéma et hôte", () => {
+  expect(rewriteToOrigin("https://commentchercherbonheur.org/methode?x=1", "http://localhost:3000")).toBe("http://localhost:3000/methode?x=1");
+  expect(rewriteToOrigin("https://commentchercherbonheur.org", "http://localhost:3000")).toBe("http://localhost:3000/");
+  expect(rewriteToOrigin("http://", "http://localhost:3000")).toBeNull();
+});
+
+test("rewriteTo : les locs d'un autre hôte sont ramenées sur l'origine et l'hôte d'origine est consigné", async () => {
+  const f = fakeFetcher({ "http://localhost:3000/sitemap.xml": { status: 200, body: urlset("https://acme.fr/a", "https://acme.fr/b") } });
+  const r = await collectSitemapUrls(["http://localhost:3000/sitemap.xml"], f, { maxUrls: 10, origin: "http://localhost:3000", rewriteTo: "http://localhost:3000" });
+  expect(r.urls).toEqual(["http://localhost:3000/a", "http://localhost:3000/b"]);
+  expect(r.stats).toEqual({ listed: 2, kept: 2, skipped: [], rewrittenFrom: ["acme.fr"] });
 });
 
 describe("collectSitemapUrls", () => {

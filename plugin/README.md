@@ -22,6 +22,18 @@ Sortie : `seo/audits/<date>-n0/report.md`, avec la collecte brute dans `raw/` et
 
 Clé PageSpeed (gratuite, facultative) : `export PSI_API_KEY=...` avant de lancer Claude. Sans elle, la vérification PERF-01 est reportée.
 
+## Écrire la stratégie
+
+Depuis le même dossier, une interview d'une question à la fois :
+
+```
+/erom-seo:strategy
+```
+
+Sortie : `seo/strategy.md` (le contrat, lisible par le client) et `seo/strategy/<date>/` (réponses brutes de Bing et de Wikipédia, `derived/keywords.json`). Clé Bing Webmaster Tools, gratuite : `export BING_WMT_API_KEY=...`. Sans elle, les mots-clés sont « non interrogé ».
+
+Dès que `seo/strategy.md` existe, l'audit ajoute la couche stratégique (STRAT-01 à STRAT-04, AI-02), à tout niveau. Site lancé en local : `/erom-seo:audit http://localhost:3000` fait un audit de niveau 2.
+
 ## Vérifier que les références n'ont pas dérivé
 
 ```bash

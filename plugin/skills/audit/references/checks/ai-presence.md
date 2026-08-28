@@ -13,11 +13,11 @@ Correctif  : aucun. Pour un site à destination des développeurs, un llms.txt r
 Effort     : rapide
 
 ### AI-02 : clé IndexNow déposée
-Couche     : absolue
-Niveau     : 2
+Couche     : stratégique
+Niveau     : 0
 Sévérité   : Mineur
-Vérifie    : un fichier clé IndexNow est servi à la racine et son contenu correspond à la clé connue du projet.
-Comment    : niveau 2 seulement : la clé est lue dans le repo, puis GET https://<hôte>/<clé>.txt doit répondre 200 avec la clé en contenu. Au niveau 0 : non vérifiable, le nom du fichier est la clé elle-même.
+Vérifie    : la clé IndexNow déclarée dans strategy.md est servie à la racine du site, avec la clé pour contenu.
+Comment    : derived/strategy-eval.json → indexnow : declared null (« IndexNow : non » dans la stratégie) = trouvaille « aucune clé prévue » ; declared présent et contentMatches true = passée ; sinon trouvaille, citer status et le contenu de raw/indexnow.txt s'il existe. Sans strategy.md : non vue.
 Source     : https://www.indexnow.org/documentation « You must host a UTF-8 encoded text key file {your-key}.txt listing the key in the file at the root directory of your website. »
-Correctif  : générer une clé (8 à 128 caractères), la servir en /<clé>.txt, la soumettre à Bing.
+Correctif  : générer une clé (8 à 128 caractères, lettres, chiffres, tirets), la déclarer dans strategy.md, la servir en /<clé>.txt, la soumettre à Bing.
 Effort     : rapide

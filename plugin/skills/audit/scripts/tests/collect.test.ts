@@ -1,10 +1,11 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFixtureSite } from "./fixtures/site";
-import { runCollect, wantedPages } from "../collect";
+import { detectLevel, runCollect, wantedPages } from "../collect";
 import type { Manifest, PageFacts, RobotsEval } from "../lib/types";
+import { VALID } from "../../../../lib/tests/fixtures/strategy-valide";
 
 let server: ReturnType<typeof startFixtureSite>;
 let base = "";
@@ -15,7 +16,7 @@ beforeAll(async () => {
   server = startFixtureSite(0);
   base = `http://localhost:${server.port}`;
   out = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
-  manifest = await runCollect({ url: base, out, maxPages: 5, delayMs: 0, psiKey: null });
+  manifest = await runCollect({ url: base, out, maxPages: 5, delayMs: 0, psiKey: null, level: 0, strategyPath: null });
 });
 afterAll(() => server.stop(true));
 
@@ -39,6 +40,48 @@ describe("wantedPages", () => {
   });
   test("une URL invalide est ignorée sans faire tomber le reste", () => {
     expect(wantedPages("https://acme.fr", [], ["http://", "https://acme.fr/a"])).toEqual(["https://acme.fr/", "https://acme.fr/a"]);
+  });
+});
+
+test("detectLevel", () => {
+  expect(detectLevel("http://localhost:3000")).toBe(2);
+  expect(detectLevel("http://127.0.0.1:8787/")).toBe(2);
+  expect(detectLevel("https://www.commentchercherbonheur.org/")).toBe(0);
+  expect(detectLevel("https://localhost.evil.com/")).toBe(0);
+});
+
+describe("niveau 2", () => {
+  test("sur localhost : niveau 2 détecté, sitemap de prod ramené en local, PageSpeed et sondes d'hôte non applicables", async () => {
+    const s = startFixtureSite(0, { prodHost: "acme.fr" });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 10, delayMs: 0, psiKey: "cle-factice" });
+      expect(m.level).toBe(2);
+      expect(m.pages.map((p) => p.final)).toEqual([`http://localhost:${s.port}/`, `http://localhost:${s.port}/a`, `http://localhost:${s.port}/b`, `http://localhost:${s.port}/c`, `http://localhost:${s.port}/hors-site`]);
+      expect(m.sitemapUrls.rewrittenFrom).toEqual(["acme.fr", "autre.fr"]);
+      expect(m.sitemapUrls.skipped).toEqual([]);
+      expect(m.psi).toEqual({ attempted: false, ok: false, error: "non applicable en local" });
+      expect(m.probes.httpToHttps).toMatchObject({ status: 0, error: "non applicable en local" });
+      expect(m.probes.hostVariant).toMatchObject({ status: 0, error: "non applicable en local" });
+      expect(m.probes.notFound.status).toBe(200);
+      expect(JSON.parse(await Bun.file(join(o, "derived/psi.json")).text()).error).toBe("non applicable en local");
+    } finally { s.stop(true); }
+  });
+  test("niveau 0 forcé sur le même site : rien n'est réécrit, les locs de prod sont écartées et comptées", async () => {
+    const s = startFixtureSite(0, { prodHost: "acme.fr" });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 10, delayMs: 0, psiKey: null, level: 0 });
+      expect(m.level).toBe(0);
+      expect(m.pages).toHaveLength(1);
+      expect(m.sitemapUrls.rewrittenFrom).toBeUndefined();
+      expect(m.sitemapUrls.skipped).toEqual([{ host: "acme.fr", count: 3 }, { host: "autre.fr", count: 1 }]);
+    } finally { s.stop(true); }
+  });
+  test("--no-psi : PageSpeed non tenté même avec une clé", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: "cle-factice", noPsi: true, level: 0 });
+    expect(m.psi).toEqual({ attempted: false, ok: false, error: "PageSpeed non demandé (--no-psi)" });
   });
 });
 
@@ -70,7 +113,7 @@ describe("runCollect", () => {
     const s = startFixtureSite(0, { homeInSitemap: true });
     try {
       const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
-      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 3, delayMs: 0, psiKey: null });
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 3, delayMs: 0, psiKey: null, level: 0 });
       expect(m.pages).toHaveLength(3);
       expect(new Set(m.pages.map((p) => p.final)).size).toBe(3);
     } finally {
@@ -79,7 +122,7 @@ describe("runCollect", () => {
   });
   test("--max-pages 3 donne 3 pages quand la home n'est pas listée dans le sitemap", async () => {
     const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
-    const m = await runCollect({ url: base, out: o, maxPages: 3, delayMs: 0, psiKey: null });
+    const m = await runCollect({ url: base, out: o, maxPages: 3, delayMs: 0, psiKey: null, level: 0 });
     expect(m.pages).toHaveLength(3);
     expect(new Set(m.pages.map((p) => p.final)).size).toBe(3);
   });
@@ -108,7 +151,7 @@ describe("runCollect", () => {
   });
   test("--page ajoute une URL explicite en tête de liste après la home", async () => {
     const out2 = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
-    const m = await runCollect({ url: base, out: out2, maxPages: 2, pages: [`${base}/c`], delayMs: 0, psiKey: null });
+    const m = await runCollect({ url: base, out: out2, maxPages: 2, pages: [`${base}/c`], delayMs: 0, psiKey: null, level: 0 });
     expect(m.pages.map((p) => p.final)).toEqual([`${base}/`, `${base}/c`]);
   });
 
@@ -117,11 +160,11 @@ describe("runCollect", () => {
     const prevCwd = process.cwd();
     process.chdir(cwd);
     try {
-      const m1 = await runCollect({ url: base, maxPages: 1, delayMs: 0, psiKey: null });
+      const m1 = await runCollect({ url: base, maxPages: 1, delayMs: 0, psiKey: null, level: 0 });
       expect(m1.out).toMatch(/^seo\/audits\/\d{4}-\d{2}-\d{2}-n0$/);
       const manifest1Before = await Bun.file(join(cwd, m1.out, "raw/manifest.json")).text();
 
-      const m2 = await runCollect({ url: base, maxPages: 1, delayMs: 0, psiKey: null });
+      const m2 = await runCollect({ url: base, maxPages: 1, delayMs: 0, psiKey: null, level: 0 });
       expect(m2.out).not.toBe(m1.out);
       expect(m2.out).toBe(`${m1.out}-2`);
 
@@ -130,5 +173,68 @@ describe("runCollect", () => {
     } finally {
       process.chdir(prevCwd);
     }
+  });
+});
+
+describe("stratégie présente", () => {
+  const strategyWith = (indexnow: string, pages: string) => VALID.replace("IndexNow : non", `IndexNow : ${indexnow}`).replace(
+    "| / | navigationnelle | institut chico | bonheur, coaching | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |\n| /methode | informationnelle | méthode bonheur | bonheur au travail | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |",
+    pages,
+  );
+  test("pages prévues collectées avant le sitemap, plafond relevé, clé IndexNow récupérée, manifeste renseigné", async () => {
+    const s = startFixtureSite(0, { indexnowKey: "a1b2c3d4e5f6" });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const sp = join(o, "strategy.md");
+      await Bun.write(sp, strategyWith("a1b2c3d4e5f6", "| /c | informationnelle | page c | | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |\n| /b | informationnelle | page b | | trimestriel | Bing FR : rien, non mesurable gratuitement (2026-08-28) |"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: sp });
+      expect(m.pages.map((p) => p.final)).toEqual([`http://localhost:${s.port}/`, `http://localhost:${s.port}/c`, `http://localhost:${s.port}/b`]);
+      expect(m.maxPages).toBe(3);
+      expect(m.strategy).toEqual({ path: sp, date: "2026-08-28", statut: "brouillon", pages: 2 });
+      expect(m.indexnow?.status).toBe(200);
+      expect(await Bun.file(join(o, "raw/indexnow.txt")).text()).toBe("a1b2c3d4e5f6");
+    } finally { s.stop(true); }
+  });
+  test("stratégie inanalysable : manifeste avec l'erreur, collecte normale", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const sp = join(o, "strategy.md");
+    await Bun.write(sp, VALID.replace("IndexNow : non", "IndexNow : abc"));
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: sp });
+    expect(m.strategy?.path).toBe(sp);
+    expect(m.strategy?.error).toMatch(/clé IndexNow mal formée/);
+    expect(m.indexnow).toBeNull();
+    expect(m.pages).toHaveLength(2);
+  });
+  test("sans stratégie : strategy null, indexnow null", () => {
+    expect(manifest.strategy).toBeNull();
+    expect(manifest.indexnow).toBeNull();
+  });
+  // Trouvaille de revue de branche : collect.ts lancé sur un concurrent depuis le dossier du client lisait par défaut
+  // seo/strategy.md du CLIENT (les pages prévues du client polluaient la collecte du concurrent). --strategy-path none
+  // doit produire le même comportement que strategyPath: null (test ci-dessus), même avec un seo/strategy.md présent
+  // dans le cwd : c'est le chemin CLI réel emprunté par skills/strategy/SKILL.md étape 3.
+  test("--strategy-path none : le seo/strategy.md du cwd n'est pas lu même s'il existe", async () => {
+    const s = startFixtureSite(0);
+    try {
+      const cwd = await mkdtemp(join(tmpdir(), "erom-seo-nostrat-cwd-"));
+      await mkdir(join(cwd, "seo"), { recursive: true });
+      await Bun.write(join(cwd, "seo/strategy.md"), VALID);
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-nostrat-out-"));
+      // Bun.spawn (async), pas spawnSync : le sous-processus appelle le site jouet servi dans CE process ;
+      // spawnSync bloquerait la boucle d'événements et empêcherait Bun.serve de répondre (deadlock observé).
+      const proc = Bun.spawn(
+        ["bun", `${import.meta.dir}/../collect.ts`, `http://localhost:${s.port}`, "--out", o, "--max-pages", "2", "--no-psi", "--strategy-path", "none"],
+        { cwd, stdout: "pipe", stderr: "pipe" },
+      );
+      const exitCode = await proc.exited;
+      expect(exitCode, await new Response(proc.stderr).text()).toBe(0);
+      const m = JSON.parse(await Bun.file(join(o, "raw/manifest.json")).text()) as Manifest;
+      // strategy.md du cwd déclare 2 pages prévues (/, /methode) : si le flag était ignoré, maxPages passerait à 3 et
+      // /methode (absente du site jouet) serait collectée avant le sitemap.
+      expect(m.strategy).toBeNull();
+      expect(m.indexnow).toBeNull();
+      expect(m.maxPages).toBe(2);
+      expect(m.pages).toHaveLength(2);
+    } finally { s.stop(true); }
   });
 });

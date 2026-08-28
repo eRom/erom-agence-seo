@@ -1,5 +1,5 @@
 import { parse, type HTMLElement } from "node-html-parser";
-import type { JsonLdBlock, PageFacts } from "./types";
+import type { JsonLdBlock, OrganizationFacts, PageFacts } from "./types";
 
 export function slugFor(url: string): string {
   const u = new URL(url);
@@ -41,15 +41,65 @@ const DATE_PATTERNS = [
 /** Pages de protection anti-bot servies à la place du contenu, parfois en 200 (lemonde.fr, 2026-08-27 : « Client Challenge », 3 038 octets). */
 const CHALLENGE = /client challenge|just a moment|attention required|access denied|are you a human|verify you are human|un instant/i;
 
+function findOrganization(node: unknown): Record<string, unknown> | null {
+  if (Array.isArray(node)) { for (const n of node) { const r = findOrganization(n); if (r) return r; } return null; }
+  if (node && typeof node === "object") {
+    const o = node as Record<string, unknown>;
+    const types = ([] as unknown[]).concat(o["@type"] ?? []).filter((t): t is string => typeof t === "string");
+    if (types.some((t) => t === "Organization" || t.endsWith("Organization") || t.endsWith("Business"))) return o;
+    if (o["@graph"]) return findOrganization(o["@graph"]);
+  }
+  return null;
+}
+
+/** Premier bloc JSON-LD de type Organization (ou sous-type), y compris dans un @graph. */
+export function extractOrganization(blocks: unknown[]): OrganizationFacts | null {
+  for (const b of blocks) {
+    const o = findOrganization(b);
+    if (o) {
+      const sameAs = ([] as unknown[]).concat(o.sameAs ?? []).filter((s): s is string => typeof s === "string");
+      return { name: typeof o.name === "string" ? o.name : null, description: typeof o.description === "string" ? o.description : null, sameAs };
+    }
+  }
+  return null;
+}
+
+/** Texte visible d'un élément : scripts, styles et gabarits retirés, un espace entre blocs (structuredText), espaces réduits. */
+export function visibleText(el: HTMLElement | null): string {
+  if (!el) return "";
+  for (const x of el.querySelectorAll("script, style, noscript, template")) (x as HTMLElement).remove();
+  return el.structuredText.replace(/\s+/g, " ").trim();
+}
+
+/** Les 400 premiers caractères de <main> s'il existe, sinon de <body>. */
+export function opening(html: string): string {
+  const doc = parse(html);
+  const main = doc.querySelector("main");
+  return visibleText(main ?? doc.querySelector("body")).slice(0, 400);
+}
+
+export function bodyText(html: string): string {
+  return visibleText(parse(html).querySelector("body"));
+}
+
+export function jsonLdBlocks(html: string): unknown[] {
+  const out: unknown[] = [];
+  for (const s of parse(html).querySelectorAll('script[type="application/ld+json"]')) { try { out.push(JSON.parse(s.text)); } catch { /* bloc invalide, déjà compté par SD-01 */ } }
+  return out;
+}
+
 export function extractPageFacts(html: string, url: string, status: number, headers: Record<string, string>, slug: string): PageFacts {
   const doc = parse(html);
+  const openingText = opening(html);
   const attr = (sel: string, a: string) => doc.querySelector(sel)?.getAttribute(a) ?? null;
   const jsonld: JsonLdBlock[] = [];
+  const parsedBlocks: unknown[] = [];
   let datePublished: string | null = null;
   let dateModified: string | null = null;
   for (const s of doc.querySelectorAll('script[type="application/ld+json"]')) {
     try {
       const j = JSON.parse(s.text);
+      parsedBlocks.push(j);
       const types: string[] = [];
       collectTypes(j, types);
       jsonld.push({ valid: true, hasContext: findKey(j, "@context") !== null, types });
@@ -77,6 +127,8 @@ export function extractPageFacts(html: string, url: string, status: number, head
     canonical: attr('link[rel="canonical"]', "href"),
     h1: doc.querySelectorAll("h1").map((h) => h.text.replace(/\s+/g, " ").trim()),
     jsonld,
+    organization: extractOrganization(parsedBlocks),
+    opening: openingText,
     datePublished,
     dateModified,
     lastModified: headers["last-modified"] ?? null,

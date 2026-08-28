@@ -49,9 +49,12 @@ export type SitemapUrlStats = {
   listed: number;
   kept: number;
   skipped: { host: string; count: number }[];
+  rewrittenFrom?: string[];  // hôtes d'origine des <loc> ramenées sur l'origine locale (niveau 2)
 };
 
 export type JsonLdBlock = { valid: boolean; hasContext: boolean; types: string[] };
+
+export type OrganizationFacts = { name: string | null; description: string | null; sameAs: string[] };
 
 export type PageFacts = {
   url: string;
@@ -65,6 +68,8 @@ export type PageFacts = {
   canonical: string | null;
   h1: string[];
   jsonld: JsonLdBlock[];
+  organization: OrganizationFacts | null;   // premier bloc Organization (ou sous-type), y compris dans un @graph
+  opening: string;                          // 400 premiers caractères de <main>, sinon de <body>
   datePublished: string | null;
   dateModified: string | null;
   lastModified: string | null;
@@ -87,6 +92,9 @@ export type PsiFacts = {
   lab?: { performance: number | null; seo: number | null };
 };
 
+/** Référence à la stratégie lue par la collecte : chemin, extraits utiles au rapport, ou l'erreur si inanalysable. */
+export type StrategyRef = { path: string; date?: string; statut?: string; pages?: number; error?: string };
+
 export type Manifest = {
   site: string;
   startedAt: string;
@@ -102,4 +110,6 @@ export type Manifest = {
   probes: { httpToHttps: FetchRecord; hostVariant: FetchRecord; notFound: FetchRecord };
   stack: { generator: string | null; server: string | null; poweredBy: string | null };
   psi: { attempted: boolean; ok: boolean; error?: string };
+  strategy: StrategyRef | null;
+  indexnow: FetchRecord | null;
 };

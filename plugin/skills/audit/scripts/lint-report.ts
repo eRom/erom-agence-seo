@@ -15,16 +15,16 @@ function findingBlocks(md: string): string[] {
   return md.split(/^### \[/m).slice(1);
 }
 
-/**
- * Ids des vérifications de niveau 0 déclarées dans references/checks/*.md.
- * Choix assumé pour ce chantier : scope niveau 0 uniquement (aucun audit de niveau 2 n'existe encore en pratique,
- * il arrivera avec le chantier 2 ; l'invariant sera étendu à ce moment-là).
- */
-async function level0Ids(checksDir: string): Promise<string[]> {
+/** Vérifications attendues dans un rapport : niveau inférieur ou égal au niveau exécuté, couche absolue toujours, couche stratégique si active. */
+export function expectedIds(checks: ReturnType<typeof parseChecks>, niveau: number, couche: boolean): string[] {
+  return checks.filter((c) => c.niveau <= niveau && (c.couche === "absolue" || couche)).map((c) => c.id);
+}
+
+async function allChecks(checksDir: string) {
   const files = (await readdir(checksDir)).filter((f) => f.endsWith(".md"));
   const all: ReturnType<typeof parseChecks> = [];
   for (const f of files) all.push(...parseChecks(await Bun.file(`${checksDir}/${f}`).text()));
-  return all.filter((c) => c.niveau === 0).map((c) => c.id);
+  return all;
 }
 
 /** Lint pur : rend la liste des erreurs (vide = rapport conforme). Ne touche ni au disque ni à process.exit. */
@@ -58,7 +58,16 @@ export async function lintReport(md: string, checksDir: string): Promise<string[
   const passedSection = section(md, "## Vérifications passées");
   const passedIds = new Set([...passedSection.matchAll(/^([A-Z]+-\d{2})\b/gm)].map((m) => m[1]));
   const notSeenSection = section(md, "## Ce que je n'ai pas pu voir");
-  for (const id of await level0Ids(checksDir)) {
+
+  const head = md.split("\n").slice(0, 3).join("\n");
+  const niveau = head.match(/Niveau (\d)/);
+  const couche = head.match(/Couche stratégique : (oui|non)/);
+  if (!niveau || !couche) errors.push("en-tête : Niveau ou Couche stratégique manquant sur la deuxième ligne");
+  const checks = await allChecks(checksDir);
+  const expected = expectedIds(checks, niveau ? Number(niveau[1]) : 0, couche?.[1] === "oui");
+  const known = new Set(checks.map((c) => c.id));
+
+  for (const id of expected) {
     const where = [
       findingIds.includes(id) ? "trouvailles" : null,
       passedIds.has(id) ? "passées" : null,
@@ -67,6 +76,8 @@ export async function lintReport(md: string, checksDir: string): Promise<string[
     if (where.length === 0) errors.push(`${id} : absent du rapport (ni trouvaille, ni passée, ni « non vue » avec sa raison)`);
     else if (where.length > 1) errors.push(`${id} : présent dans plus d'une section (${where.join(", ")})`);
   }
+  // un id connu mais hors de l'ensemble attendu (couche inactive, niveau supérieur) ne peut être que « non vu »
+  for (const id of [...findingIds, ...passedIds]) if (known.has(id) && !expected.includes(id)) errors.push(`${id} : hors du périmètre de ce rapport (niveau ou couche), ne peut figurer qu'en « Ce que je n'ai pas pu voir »`);
 
   return errors;
 }
