@@ -56,10 +56,19 @@ export function keywordSlug(keyword: string): string {
   return keyword.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "") || "mot_cle";
 }
 
-/** Bornes mensuelles pour Wikimedia : 12 mois pleins avant le mois courant, au format AAAAMMJJ. */
+/** Nom de fichier sûr pour un titre d'article Wikipédia fourni par --wiki : retire les séparateurs de
+ * chemin (/ et \) et les points en tête, sans toucher à la casse ni aux underscores existants — un titre
+ * légitime comme « Optimisation_pour_les_moteurs_de_recherche » ressort identique. Empêche une valeur du
+ * type « ../../../../tmp/X » d'écrire hors de out/raw/. */
+export function safeArticleFilename(article: string): string {
+  return article.replace(/[/\\]/g, "").replace(/^\.+/, "");
+}
+
+/** Bornes mensuelles pour Wikimedia : 12 mois pleins avant le mois courant (le mois en cours est exclu
+ * car incomplet), au format AAAAMMJJ. */
 export function wikimediaRange(today: Date): { start: string; end: string } {
   const y = today.getUTCFullYear(), m = today.getUTCMonth();
-  const start = new Date(Date.UTC(y, m - 12, 1)), end = new Date(Date.UTC(y, m, 1));
+  const start = new Date(Date.UTC(y, m - 12, 1)), end = new Date(Date.UTC(y, m, 0));
   const f = (d: Date) => d.toISOString().slice(0, 10).replace(/-/g, "");
   return { start: f(start), end: f(end) };
 }

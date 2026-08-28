@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
-import { assertNoSecret, bingSummary, entryFor, keywordSlug, parseBingStats, parseWikimediaMonthly, wikiSummary, wikimediaRange, type KeywordEntry, type WikiSummary } from "./lib/keywords";
+import { assertNoSecret, bingSummary, entryFor, keywordSlug, parseBingStats, parseWikimediaMonthly, safeArticleFilename, wikiSummary, wikimediaRange, type KeywordEntry, type WikiSummary } from "./lib/keywords";
 
 export const BING_API_BASE = "https://ssl.bing.com/webmaster/api.svc/json";
 const WIKIMEDIA_BASE = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/user";
@@ -14,8 +14,14 @@ export type KeywordsOptions = {
 };
 
 const defaultFetcher: Fetcher = async (url, headers = {}) => {
-  const res = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
-  return { status: res.status, text: await res.text() };
+  try {
+    const res = await fetch(url, { headers, signal: AbortSignal.timeout(30000) });
+    return { status: res.status, text: await res.text() };
+  } catch (e) {
+    // Ne jamais laisser passer l'objet Error brut : sur un échec réseau, Bun/undici peut attacher l'URL
+    // complète (donc la clé apikey) à des propriétés autres que .message. On ne relaie que .message.
+    throw new Error(`Bing ou Wikimedia injoignable : ${e instanceof Error ? e.message : String(e)}`);
+  }
 };
 
 /** Réserve seo/strategy/<date>/ (ou -2, -3…) sous le répertoire courant, même mécanique atomique que collect.ts. */
@@ -65,7 +71,7 @@ export async function runKeywords(o: KeywordsOptions): Promise<{ out: string; en
       const ua = o.contact ? `${UA} (contact: ${o.contact})` : UA;
       const r = await fetcher(`${WIKIMEDIA_BASE}/${encodeURIComponent(article)}/monthly/${start}/${end}`, { "user-agent": ua, accept: "application/json" });
       if (r.status === 200) {
-        await write(`raw/wikimedia-${article}.json`, r.text);
+        await write(`raw/wikimedia-${safeArticleFilename(article)}.json`, r.text);
         try { wikipedia = wikiSummary(article, parseWikimediaMonthly(JSON.parse(r.text)), fetchedAt); } catch (e) { warnings.push(`${keyword} : Wikimedia illisible, ${e instanceof Error ? e.message : String(e)}`); }
       } else warnings.push(`${keyword} : Wikimedia HTTP ${r.status} sur ${article}`);
     }

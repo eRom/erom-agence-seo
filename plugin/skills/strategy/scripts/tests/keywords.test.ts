@@ -1,8 +1,8 @@
 import { describe, test, expect } from "bun:test";
 import { mkdtemp, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { assertNoSecret, bingSummary, entryFor, keywordSlug, parseBingStats, parseWikimediaMonthly, wikiSummary, wikimediaRange } from "../lib/keywords";
+import { join, resolve } from "node:path";
+import { assertNoSecret, bingSummary, entryFor, keywordSlug, parseBingStats, parseWikimediaMonthly, safeArticleFilename, wikiSummary, wikimediaRange } from "../lib/keywords";
 import { runKeywords, type Fetcher } from "../keywords";
 
 const fx = (name: string) => Bun.file(`${import.meta.dir}/fixtures/${name}`).text();
@@ -58,8 +58,21 @@ describe("assertNoSecret, keywordSlug, wikimediaRange", () => {
     expect(keywordSlug("plombier nantes")).toBe("plombier_nantes");
     expect(keywordSlug("Méthode  bonheur !")).toBe("methode_bonheur");
   });
-  test("wikimediaRange : 12 mois pleins avant le mois courant", () => {
-    expect(wikimediaRange(new Date("2026-08-28T10:00:00Z"))).toEqual({ start: "20250801", end: "20260801" });
+  test("safeArticleFilename : un titre légitime ressort identique", () => {
+    expect(safeArticleFilename("Optimisation_pour_les_moteurs_de_recherche")).toBe("Optimisation_pour_les_moteurs_de_recherche");
+  });
+  test("safeArticleFilename : neutralise une traversée de chemin", () => {
+    const safe = safeArticleFilename("../../../../tmp/EROM_TRAVERSAL_PROOF");
+    expect(safe).not.toContain("/");
+    expect(safe).not.toContain("\\");
+    expect(safe.startsWith(".")).toBe(false);
+    // le fichier bâti à partir du nom assaini reste sous out/raw/, même en résolvant le chemin
+    const out = "/tmp/erom-seo-out-test";
+    const resolved = resolve(out, "raw", `wikimedia-${safe}.json`);
+    expect(resolved.startsWith(resolve(out, "raw") + "/")).toBe(true);
+  });
+  test("wikimediaRange : 12 mois pleins avant le mois courant, le mois en cours (incomplet) est exclu", () => {
+    expect(wikimediaRange(new Date("2026-08-28T10:00:00Z"))).toEqual({ start: "20250801", end: "20260731" });
   });
 });
 
@@ -123,5 +136,35 @@ describe("runKeywords", () => {
     const piege: Fetcher = async () => ({ status: 200, text: `{"d":[],"echo":"${KEY}"}` });
     await expect(runKeywords({ keywords: ["seo"], key: KEY, out: o, fetcher: piege, delayMs: 0 })).rejects.toThrow(/contient la clé/);
     expect(await Bun.file(join(o, "raw/bing-keywordstats-seo.json")).exists()).toBe(false);
+  });
+
+  test("échec réseau (fetcher par défaut) : la clé ne fuit jamais dans l'erreur propagée", async () => {
+    // Simule ce que Bun/undici fait vraiment sur un échec réseau : l'URL complète (donc apikey=<clé>)
+    // peut se retrouver sur des propriétés de l'Error autres que .message (cause, url, request…).
+    const originalFetch = globalThis.fetch;
+    const secretUrl = `https://ssl.bing.com/webmaster/api.svc/json/GetKeywordStats?q=seo&apikey=${KEY}`;
+    globalThis.fetch = (async () => {
+      const err = new Error("fetch failed") as Error & Record<string, unknown>;
+      err.cause = { code: "ECONNREFUSED", url: secretUrl };
+      err.url = secretUrl;
+      err.request = { url: secretUrl };
+      throw err;
+    }) as typeof fetch;
+    try {
+      let caught: unknown;
+      try {
+        await runKeywords({ keywords: ["seo"], key: KEY, out: await out(), delayMs: 0 });
+      } catch (e) {
+        caught = e;
+      }
+      expect(caught).toBeInstanceOf(Error);
+      const message = caught instanceof Error ? caught.message : String(caught);
+      expect(message).not.toContain(KEY);
+      expect(message).not.toContain("apikey=");
+      expect(String(caught)).not.toContain(KEY);
+      expect(Bun.inspect(caught)).not.toContain(KEY);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });
