@@ -82,12 +82,6 @@ export function bodyText(html: string): string {
   return visibleText(parse(html).querySelector("body"));
 }
 
-export function jsonLdBlocks(html: string): unknown[] {
-  const out: unknown[] = [];
-  for (const s of parse(html).querySelectorAll('script[type="application/ld+json"]')) { try { out.push(JSON.parse(s.text)); } catch { /* bloc invalide, déjà compté par SD-01 */ } }
-  return out;
-}
-
 export function extractPageFacts(html: string, url: string, status: number, headers: Record<string, string>, slug: string): PageFacts {
   const doc = parse(html);
   const openingText = opening(html);

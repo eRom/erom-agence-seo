@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
 import { extractPageFacts, slugFor } from "../lib/page";
-import { bodyText, extractOrganization, jsonLdBlocks, opening } from "../lib/page";
+import { bodyText, extractOrganization, opening } from "../lib/page";
 
 const ORG_HTML = `<!DOCTYPE html><html lang="fr"><head><title>T</title>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"x"},{"@type":"Organization","name":"Acme","description":"Acme est un cabinet qui conseille les PME.","sameAs":["https://www.linkedin.com/company/acme","https://x.com/acme"]}]}</script>
@@ -9,7 +9,7 @@ const ORG_HTML = `<!DOCTYPE html><html lang="fr"><head><title>T</title>
 
 describe("extractOrganization", () => {
   test("dans un @graph, avec sameAs tableau", () => {
-    expect(extractOrganization(jsonLdBlocks(ORG_HTML))).toEqual({ name: "Acme", description: "Acme est un cabinet qui conseille les PME.", sameAs: ["https://www.linkedin.com/company/acme", "https://x.com/acme"] });
+    expect(extractPageFacts(ORG_HTML, "https://acme.fr/", 200, {}, "index").organization).toEqual({ name: "Acme", description: "Acme est un cabinet qui conseille les PME.", sameAs: ["https://www.linkedin.com/company/acme", "https://x.com/acme"] });
   });
   test("sous-type LocalBusiness, sameAs chaîne", () => {
     expect(extractOrganization([{ "@type": "LocalBusiness", name: "Plomb", sameAs: "https://x.com/plomb" }])).toEqual({ name: "Plomb", description: null, sameAs: ["https://x.com/plomb"] });
