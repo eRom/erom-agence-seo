@@ -34,13 +34,23 @@ Sortie : `seo/strategy.md` (le contrat, lisible par le client) et `seo/strategy/
 
 Dès que `seo/strategy.md` existe, l'audit ajoute la couche stratégique (STRAT-01 à STRAT-04, AI-02), à tout niveau. Site lancé en local : `/erom-seo:audit http://localhost:3000` fait un audit de niveau 2.
 
+## Construire
+
+Depuis le repo du site, avec `seo/strategy.md` et un audit :
+
+```
+/erom-seo:build
+```
+
+Build propose les textes (title, description, h1, ouverture) de chaque page en défaut, attend le OK, corrige le code une trouvaille par commit (`seo(ID): …`), lance le site en local, refait un audit de niveau 2, et recommence une fois si besoin. Terminé quand l'audit n'a plus ni Critique ni Important. Ce qui n'est pas dans le code (redirection chez l'hébergeur, performance) est listé à la fin avec l'endroit où agir. Next.js App Router d'abord ; autre stack : Claude lit le repo et vise le même HTML.
+
 ## Vérifier que les références n'ont pas dérivé
 
 ```bash
 cd plugin && bun skills/audit/scripts/check-sources.ts
 ```
 
-Chaque citation des références doit être retrouvée sur sa page officielle. Une citation absente se corrige depuis la page, jamais en l'assouplissant.
+Chaque citation des références (vérifications de l'audit et recettes de build) doit être retrouvée sur sa page officielle. Une citation absente se corrige depuis la page, jamais en l'assouplissant.
 
 ## Tests
 
