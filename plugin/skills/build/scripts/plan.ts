@@ -21,7 +21,6 @@ if (import.meta.main) {
     if (!auditDir) { console.error(`erreur : aucun audit avec rapport dans ${join(seoDir, "audits")} ; lancer /erom-seo:audit d'abord`); process.exit(1); }
     const read = async (rel: string) => { const f = Bun.file(join(auditDir, rel)); if (!(await f.exists())) throw new Error(`${join(auditDir, rel)} absent`); return f.text(); };
     const report = parseReport(await read("report.md"));
-    const manifest = JSON.parse(await read("raw/manifest.json")) as Manifest;
     const pages = JSON.parse(await read("derived/pages.json")) as PageFacts[];
     const evalFile = Bun.file(join(auditDir, "derived/strategy-eval.json"));
     const strategyEval = (await evalFile.exists()) ? (JSON.parse(await evalFile.text()) as StrategyEval) : null;
@@ -29,7 +28,7 @@ if (import.meta.main) {
     const homeFinalUrl = n0 ? ((JSON.parse(await Bun.file(join(n0, "raw/manifest.json")).text()) as Manifest).pages[0]?.final ?? null) : null;
     const pkg = Bun.file("package.json");
     const deps = (await pkg.exists()) ? Object.keys({ ...(JSON.parse(await pkg.text()).dependencies ?? {}), ...(JSON.parse(await pkg.text()).devDependencies ?? {}) }) : [];
-    const plan = buildPlan({ strategy, strategyPath, report, manifest, pages, strategyEval, homeFinalUrl, deps, auditDir });
+    const plan = buildPlan({ strategy, strategyPath, report, pages, strategyEval, homeFinalUrl, deps, auditDir });
     await Bun.write(join(auditDir, "derived/build-plan.json"), JSON.stringify(plan, null, 2));
     console.log(`dossier : ${auditDir}`);
     console.log(planSummary(plan));

@@ -73,9 +73,9 @@ export function parseReport(md: string): Report {
   return { site: site!, date: date!, niveau: Number(niveau), couche: couche === "oui", nbPages: Number(nbPages), nbChecks: Number(nbChecks), findings, passed, notSeen, counts };
 }
 
-/** Trie les audits par date du nom, puis par nom (alphabétique), puis par mtime. */
+/** Trie les audits par date du nom, puis par date de modification du fichier, puis par nom (départage numérique). */
 export function sortAuditDirs<T extends { date: string; name: string; mtime: number }>(found: T[]): T[] {
-  return [...found].sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.mtime - b.mtime);
+  return [...found].sort((a, b) => a.date.localeCompare(b.date) || a.mtime - b.mtime || a.name.localeCompare(b.name, undefined, { numeric: true }));
 }
 
 /**

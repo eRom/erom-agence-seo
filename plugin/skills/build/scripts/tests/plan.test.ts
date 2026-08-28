@@ -14,7 +14,7 @@ const manifest = JSON.parse(await Bun.file(`${F}/manifest.json`).text()) as Mani
 const pages = JSON.parse(await Bun.file(`${F}/pages.json`).text()) as PageFacts[];
 const strategyEval = JSON.parse(await Bun.file(`${F}/strategy-eval.json`).text()) as StrategyEval;
 const input: BuildPlanInput = {
-  strategy, strategyPath: "seo/strategy.md", report, manifest, pages, strategyEval,
+  strategy, strategyPath: "seo/strategy.md", report, pages, strategyEval,
   homeFinalUrl: manifest.pages[0].final, deps: ["next", "react"], auditDir: "seo/audits/2026-08-28-n0", now: "2026-08-28T13:00:00.000Z",
 };
 

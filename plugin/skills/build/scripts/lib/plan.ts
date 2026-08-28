@@ -1,7 +1,7 @@
 // Logique pure de plan.ts : joint la stratégie, le rapport et les faits collectés en un plan de build. Aucun réseau, aucun disque.
 import type { Strategy } from "../../../../lib/strategy";
 import type { Report, Severity } from "../../../../lib/report";
-import type { Manifest, PageFacts } from "../../../audit/scripts/lib/types";
+import type { PageFacts } from "../../../audit/scripts/lib/types";
 import { pathOf, type StrategyEval } from "../../../audit/scripts/lib/strategy-eval";
 
 export type Kind = "code" | "texte" | "hors-build";
@@ -59,7 +59,7 @@ const SEV_RANK: Record<Severity, number> = { Critique: 0, Important: 1, Mineur: 
 const KIND_RANK: Record<Kind, number> = { code: 0, texte: 1, "hors-build": 2 };
 
 export type BuildPlanInput = {
-  strategy: Strategy; strategyPath: string; report: Report; manifest: Manifest; pages: PageFacts[]; strategyEval: StrategyEval | null;
+  strategy: Strategy; strategyPath: string; report: Report; pages: PageFacts[]; strategyEval: StrategyEval | null;
   homeFinalUrl: string | null; deps: string[]; auditDir: string; now?: string;
 };
 

@@ -106,11 +106,58 @@ describe("latestAuditDir", () => {
     expect(await latestAuditDir(join(seo, "absent"))).toBeNull();
   });
 
+  test("un rapport accepté par lint-report.ts (même gabarit) se parse sans erreur", () => {
+    // Même gabarit que le helper report() de skills/audit/scripts/tests/lint-report.test.ts (non exporté, non importable
+    // depuis ici : c'est un fichier de test). Invariant couvert : ce que le linter accepte, le parseur l'accepte aussi.
+    const md = [
+      "# Audit SEO/GEO : exemple.test",
+      "2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : non · 1 pages collectées · 26 vérifications",
+      "Stack détecté : inconnu (Info)",
+      "",
+      "## En bref",
+      "0 Critique · 0 Important · 0 Mineur · 0 Info",
+      "Les trois choses à dire en RDV :",
+      "1. rien à signaler",
+      "2. rien à signaler",
+      "3. rien à signaler",
+      "",
+      "## Trouvailles",
+      "",
+      "## Ce que je n'ai pas pu voir",
+      "Niveau 1, avec les accès : aucun",
+      "Couche stratégique, avec seo/strategy.md : aucune",
+      "",
+      "## Vérifications passées",
+      "ROBOTS-01 robots.txt présent et lisible",
+      "",
+      "## Annexe : collecte",
+      "| Ressource | URL | Statut | Octets | Fichier |",
+      "|---|---|---|---|---|",
+    ].join("\n");
+    expect(() => parseReport(md)).not.toThrow();
+  });
+
   test("sortAuditDirs départage par nom quand date et mtime sont identiques", () => {
     const found = [
       { date: "2026-08-28", name: "2026-08-28-n2-2", mtime: 1000 },
       { date: "2026-08-28", name: "2026-08-28-n0", mtime: 1000 },
     ];
     expect(sortAuditDirs(found).map((f) => f.name)).toEqual(["2026-08-28-n0", "2026-08-28-n2-2"]);
+  });
+
+  test("sortAuditDirs départage par nom numériquement, pas lexicalement (n2-9 avant n2-10)", () => {
+    const found = [
+      { date: "2026-08-28", name: "2026-08-28-n2-10", mtime: 1000 },
+      { date: "2026-08-28", name: "2026-08-28-n2-9", mtime: 1000 },
+    ];
+    expect(sortAuditDirs(found).map((f) => f.name)).toEqual(["2026-08-28-n2-9", "2026-08-28-n2-10"]);
+  });
+
+  test("sortAuditDirs : le mtime prime sur le nom quand ils diffèrent (le dernier écrit gagne)", () => {
+    const found = [
+      { date: "2026-08-28", name: "2026-08-28-n0", mtime: 9999 },
+      { date: "2026-08-28", name: "2026-08-28-n2", mtime: 1000 },
+    ];
+    expect(sortAuditDirs(found).map((f) => f.name)).toEqual(["2026-08-28-n2", "2026-08-28-n0"]);
   });
 });
