@@ -1,0 +1,317 @@
+{
+  "site": "https://www.commentchercherbonheur.org",
+  "startedAt": "2026-08-28T08:56:13.959Z",
+  "finishedAt": "2026-08-28T08:56:20.193Z",
+  "level": 0,
+  "userAgent": "erom-seo-audit/0.1",
+  "maxPages": 11,
+  "robots": {
+    "requested": "https://www.commentchercherbonheur.org/robots.txt",
+    "final": "https://www.commentchercherbonheur.org/robots.txt",
+    "status": 200,
+    "chain": [
+      {
+        "url": "https://www.commentchercherbonheur.org/robots.txt",
+        "status": 200
+      }
+    ],
+    "contentType": "text/plain",
+    "bytes": 123,
+    "fetchedAt": "2026-08-28T08:56:14.320Z",
+    "file": "robots.txt",
+    "ms": 360
+  },
+  "sitemaps": [
+    {
+      "requested": "https://commentchercherbonheur.org/sitemap.xml",
+      "final": "https://www.commentchercherbonheur.org/sitemap.xml",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://commentchercherbonheur.org/sitemap.xml",
+          "status": 307,
+          "location": "https://www.commentchercherbonheur.org/sitemap.xml"
+        },
+        {
+          "url": "https://www.commentchercherbonheur.org/sitemap.xml",
+          "status": 200
+        }
+      ],
+      "contentType": "application/xml",
+      "bytes": 1793,
+      "fetchedAt": "2026-08-28T08:56:14.926Z",
+      "file": "sitemap-0.xml",
+      "ms": 605
+    }
+  ],
+  "sitemapUrls": {
+    "listed": 10,
+    "kept": 10,
+    "skipped": []
+  },
+  "llms": {
+    "requested": "https://www.commentchercherbonheur.org/llms.txt",
+    "final": "https://www.commentchercherbonheur.org/llms.txt",
+    "status": 404,
+    "chain": [
+      {
+        "url": "https://www.commentchercherbonheur.org/llms.txt",
+        "status": 404
+      }
+    ],
+    "contentType": "text/html; charset=utf-8",
+    "bytes": 32333,
+    "fetchedAt": "2026-08-28T08:56:14.947Z",
+    "ms": 21
+  },
+  "pages": [
+    {
+      "requested": "https://www.commentchercherbonheur.org/",
+      "final": "https://www.commentchercherbonheur.org/",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 73677,
+      "fetchedAt": "2026-08-28T08:56:15.149Z",
+      "file": "pages/index.html",
+      "ms": 192
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/methode",
+      "final": "https://www.commentchercherbonheur.org/methode",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/methode",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 61587,
+      "fetchedAt": "2026-08-28T08:56:15.576Z",
+      "file": "pages/methode.html",
+      "ms": 171
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/telekinesie",
+      "final": "https://www.commentchercherbonheur.org/telekinesie",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/telekinesie",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 49878,
+      "fetchedAt": "2026-08-28T08:56:16.227Z",
+      "file": "pages/telekinesie.html",
+      "ms": 397
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/studies",
+      "final": "https://www.commentchercherbonheur.org/studies",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/studies",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 67126,
+      "fetchedAt": "2026-08-28T08:56:17.040Z",
+      "file": "pages/studies.html",
+      "ms": 559
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/institut",
+      "final": "https://www.commentchercherbonheur.org/institut",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/institut",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 43511,
+      "fetchedAt": "2026-08-28T08:56:17.440Z",
+      "file": "pages/institut.html",
+      "ms": 146
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/ascension",
+      "final": "https://www.commentchercherbonheur.org/ascension",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/ascension",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 58240,
+      "fetchedAt": "2026-08-28T08:56:17.847Z",
+      "file": "pages/ascension.html",
+      "ms": 153
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/tkt-tomorrow",
+      "final": "https://www.commentchercherbonheur.org/tkt-tomorrow",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/tkt-tomorrow",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 61235,
+      "fetchedAt": "2026-08-28T08:56:18.264Z",
+      "file": "pages/tkt-tomorrow.html",
+      "ms": 161
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/audit",
+      "final": "https://www.commentchercherbonheur.org/audit",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/audit",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 39602,
+      "fetchedAt": "2026-08-28T08:56:18.685Z",
+      "file": "pages/audit.html",
+      "ms": 168
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/newsletter",
+      "final": "https://www.commentchercherbonheur.org/newsletter",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/newsletter",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 41449,
+      "fetchedAt": "2026-08-28T08:56:19.339Z",
+      "file": "pages/newsletter.html",
+      "ms": 401
+    },
+    {
+      "requested": "https://www.commentchercherbonheur.org/legal",
+      "final": "https://www.commentchercherbonheur.org/legal",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/legal",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 37565,
+      "fetchedAt": "2026-08-28T08:56:19.763Z",
+      "file": "pages/legal.html",
+      "ms": 168
+    }
+  ],
+  "probes": {
+    "httpToHttps": {
+      "requested": "http://www.commentchercherbonheur.org/",
+      "final": "https://www.commentchercherbonheur.org/",
+      "status": 200,
+      "chain": [
+        {
+          "url": "http://www.commentchercherbonheur.org/",
+          "status": 308,
+          "location": "https://www.commentchercherbonheur.org/"
+        },
+        {
+          "url": "https://www.commentchercherbonheur.org/",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 73677,
+      "fetchedAt": "2026-08-28T08:56:20.135Z",
+      "ms": 58
+    },
+    "hostVariant": {
+      "requested": "https://commentchercherbonheur.org/",
+      "final": "https://www.commentchercherbonheur.org/",
+      "status": 200,
+      "chain": [
+        {
+          "url": "https://commentchercherbonheur.org/",
+          "status": 307,
+          "location": "https://www.commentchercherbonheur.org/"
+        },
+        {
+          "url": "https://www.commentchercherbonheur.org/",
+          "status": 200
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 73677,
+      "fetchedAt": "2026-08-28T08:56:20.193Z",
+      "ms": 59
+    },
+    "notFound": {
+      "requested": "https://www.commentchercherbonheur.org/erom-seo-probe-b75c201b",
+      "final": "https://www.commentchercherbonheur.org/erom-seo-probe-b75c201b",
+      "status": 404,
+      "chain": [
+        {
+          "url": "https://www.commentchercherbonheur.org/erom-seo-probe-b75c201b",
+          "status": 404
+        }
+      ],
+      "contentType": "text/html; charset=utf-8",
+      "bytes": 32333,
+      "fetchedAt": "2026-08-28T08:56:20.193Z",
+      "ms": 29
+    }
+  },
+  "stack": {
+    "generator": null,
+    "server": "Vercel",
+    "poweredBy": null
+  },
+  "psi": {
+    "attempted": false,
+    "ok": false,
+    "error": "PSI_API_KEY absent : PERF-01 non exécutable"
+  },
+  "strategy": {
+    "path": "seo/strategy.md",
+    "date": "2026-08-28",
+    "statut": "validée",
+    "pages": 10
+  },
+  "indexnow": {
+    "requested": "https://www.commentchercherbonheur.org/bf498d4959b94b88aa7bb3902433735f.txt",
+    "final": "https://www.commentchercherbonheur.org/bf498d4959b94b88aa7bb3902433735f.txt",
+    "status": 404,
+    "chain": [
+      {
+        "url": "https://www.commentchercherbonheur.org/bf498d4959b94b88aa7bb3902433735f.txt",
+        "status": 404
+      }
+    ],
+    "contentType": "text/html; charset=utf-8",
+    "bytes": 32333,
+    "fetchedAt": "2026-08-28T08:56:20.044Z",
+    "ms": 25
+  }
+}

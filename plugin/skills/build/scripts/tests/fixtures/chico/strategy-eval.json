@@ -1,0 +1,179 @@
+{
+  "strategy": {
+    "path": "seo/strategy.md",
+    "date": "2026-08-28",
+    "statut": "validée",
+    "site": "commentchercherbonheur.org"
+  },
+  "pages": [
+    {
+      "page": "/",
+      "url": "https://www.commentchercherbonheur.org/",
+      "found": true,
+      "status": 200,
+      "keyword": "institut chico",
+      "inTitle": true,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/methode",
+      "url": "https://www.commentchercherbonheur.org/methode",
+      "found": true,
+      "status": 200,
+      "keyword": "méthode quantique chico",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/telekinesie",
+      "url": "https://www.commentchercherbonheur.org/telekinesie",
+      "found": true,
+      "status": 200,
+      "keyword": "télékinésie",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/studies",
+      "url": "https://www.commentchercherbonheur.org/studies",
+      "found": true,
+      "status": 200,
+      "keyword": "études télékinésie",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/institut",
+      "url": "https://www.commentchercherbonheur.org/institut",
+      "found": true,
+      "status": 200,
+      "keyword": "jean-pierre chico",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": true,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/ascension",
+      "url": "https://www.commentchercherbonheur.org/ascension",
+      "found": true,
+      "status": 200,
+      "keyword": "ascension chico",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "4 semaines",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/tkt-tomorrow",
+      "url": "https://www.commentchercherbonheur.org/tkt-tomorrow",
+      "found": true,
+      "status": 200,
+      "keyword": "tkt tomorrow",
+      "inTitle": false,
+      "inH1": true,
+      "inOpening": true,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/audit",
+      "url": "https://www.commentchercherbonheur.org/audit",
+      "found": true,
+      "status": 200,
+      "keyword": "audit karmique gratuit",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "4 semaines",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/newsletter",
+      "url": "https://www.commentchercherbonheur.org/newsletter",
+      "found": true,
+      "status": 200,
+      "keyword": "newsletter chico",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "trimestriel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    },
+    {
+      "page": "/legal",
+      "url": "https://www.commentchercherbonheur.org/legal",
+      "found": true,
+      "status": 200,
+      "keyword": "mentions légales chico",
+      "inTitle": false,
+      "inH1": false,
+      "inOpening": false,
+      "cadence": "annuel",
+      "lastKnownDate": null,
+      "cadenceRespected": null,
+      "challenge": false
+    }
+  ],
+  "identity": {
+    "sentence": "L'Institut C.H.I.C.O. est un site satirique qui parodie l'industrie du bien-être, du coaching et de la tech spirituelle, à travers les méthodes absurdes du Dr Jean-Pierre Chico.",
+    "onHome": false,
+    "organizationPresent": false,
+    "inOrganization": false,
+    "expectedName": "L'Institut C.H.I.C.O.",
+    "organizationName": null,
+    "nameMatches": false
+  },
+  "sameAs": [
+    {
+      "url": "https://fr.tipeee.com/rebondir-apres-lavc-ma-carriere-dans-la-tech",
+      "present": false
+    },
+    {
+      "url": "https://x.com/CloudinNantes",
+      "present": false
+    },
+    {
+      "url": "https://www.romain-ecarnot.com/",
+      "present": false
+    }
+  ],
+  "indexnow": {
+    "declared": "bf498d4959b94b88aa7bb3902433735f",
+    "fetched": true,
+    "status": 404,
+    "contentMatches": false
+  }
+}
