@@ -26,6 +26,8 @@ Ne pas passer `--out` : `collect.ts` réserve lui-même le dossier (voir étape 
 
 Sortie attendue : `dossier : <chemin>` en première ligne, puis `collecte terminée : N pages, robots.txt <code>, ...`. Si la collecte échoue (site injoignable, 403 partout), écrire un `report.md` court qui le dit, avec `raw/manifest.json` en annexe, et s'arrêter : pas de trouvailles inventées.
 
+Si la collecte écrit sur la sortie d'erreur `attention : N URL(s) du sitemap ignorées, hors site : <hôtes>`, le rapport le dit en une ligne Info dans « Ce que je n'ai pas pu voir », avec les hôtes et le compte, preuve `raw/manifest.json` champ `sitemapUrls`. Pas de nouveau check : c'est une limite de la collecte, pas une vérification.
+
 ## 2. Vérifier
 
 Lire dans l'ordre : `raw/manifest.json`, `derived/robots-eval.json`, `derived/pages.json`, `derived/psi.json`. Ouvrir `raw/robots.txt` et `raw/pages/*.html` seulement pour citer une preuve avec ses lignes.

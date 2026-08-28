@@ -2,7 +2,8 @@
 const page = (title: string, extraHead: string, body: string) =>
   `<!DOCTYPE html><html lang="fr"><head><title>${title}</title><meta name="description" content="${title} - description">${extraHead}</head><body><h1>${title}</h1><p>${"Contenu réel visible sans JavaScript. ".repeat(20)}</p></body></html>`;
 
-export function startFixtureSite(port = 0) {
+/** `homeInSitemap` : le sitemap liste aussi la home, montage courant qui coûtait un slot de plafond avant le correctif. */
+export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean } = {}) {
   const server = Bun.serve({
     port,
     fetch(req) {
@@ -13,9 +14,11 @@ export function startFixtureSite(port = 0) {
           return new Response(`User-agent: Claude-User\nDisallow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
         case "/sitemap.xml":
           return new Response(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>${origin}/sitemap-pages.xml</loc></sitemap></sitemapindex>`, { headers: { "content-type": "application/xml" } });
-        case "/sitemap-pages.xml":
+        case "/sitemap-pages.xml": {
           // la dernière loc est volontairement hors site : elle doit être écartée ET comptée, jamais écartée en silence
-          return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>${origin}/a</loc></url><url><loc>${origin}/b</loc></url><url><loc>${origin}/c</loc></url><url><loc>https://autre.fr/hors-site</loc></url></urlset>`, { headers: { "content-type": "application/xml" } });
+          const locs = [...(opts.homeInSitemap ? [`${origin}/`] : []), `${origin}/a`, `${origin}/b`, `${origin}/c`, "https://autre.fr/hors-site"];
+          return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locs.map((l) => `<url><loc>${l}</loc></url>`).join("")}</urlset>`, { headers: { "content-type": "application/xml" } });
+        }
         case "/llms.txt":
           return new Response("# Site jouet\n", { headers: { "content-type": "text/plain" } });
         case "/":

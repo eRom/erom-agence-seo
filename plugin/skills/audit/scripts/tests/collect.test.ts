@@ -66,6 +66,23 @@ describe("runCollect", () => {
     expect(manifest.sitemapUrls.kept).toBe(manifest.pages.length - 1);
     expect(manifest.sitemapUrls.listed).toBeGreaterThan(manifest.sitemapUrls.kept);
   });
+  test("--max-pages 3 donne 3 pages quand la home est listée dans le sitemap", async () => {
+    const s = startFixtureSite(0, { homeInSitemap: true });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 3, delayMs: 0, psiKey: null });
+      expect(m.pages).toHaveLength(3);
+      expect(new Set(m.pages.map((p) => p.final)).size).toBe(3);
+    } finally {
+      s.stop(true);
+    }
+  });
+  test("--max-pages 3 donne 3 pages quand la home n'est pas listée dans le sitemap", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const m = await runCollect({ url: base, out: o, maxPages: 3, delayMs: 0, psiKey: null });
+    expect(m.pages).toHaveLength(3);
+    expect(new Set(m.pages.map((p) => p.final)).size).toBe(3);
+  });
   test("verdicts robots sur les pages collectées", async () => {
     const e = (await Bun.file(join(out, "derived/robots-eval.json")).json()) as RobotsEval;
     expect(e.semantics).toBe("rules");

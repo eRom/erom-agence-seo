@@ -83,7 +83,9 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
   const declared = robotsTxt ? [...robotsTxt.matchAll(/^\s*sitemap:\s*(\S+)/gim)].map((m) => m[1]) : [];
 
   // 2. sitemaps
-  const sm = await collectSitemapUrls(sitemapCandidates(declared, origin), (u) => fetchChain(u), { maxUrls: Math.max(0, maxPages - 1), origin });
+  // maxUrls vaut maxPages, pas maxPages - 1 : la home peut être listée dans le sitemap et se dédoublonner ensuite,
+  // réserver un slot pour elle en coûtait un pour rien. C'est wantedPages puis le slice(0, maxPages) qui tranchent.
+  const sm = await collectSitemapUrls(sitemapCandidates(declared, origin), (u) => fetchChain(u), { maxUrls: maxPages, origin });
   const sitemaps: FetchRecord[] = [];
   let n = 0;
   for (const f of sm.fetched) sitemaps.push(toRecord(f.result, f.result.status === 200 ? await save(`sitemap-${n++}.xml`, f.text) : undefined));
