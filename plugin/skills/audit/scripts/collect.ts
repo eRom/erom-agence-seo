@@ -3,7 +3,7 @@ import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { fetchChain, text } from "./lib/fetch";
 import { evaluateRobots } from "./lib/robots";
-import { collectSitemapUrls, formatSkippedWarning, pageKey, sameSite, sitemapCandidates } from "./lib/sitemap";
+import { collectSitemapUrls, formatSkippedWarning, pageKey, rewriteToOrigin, sameSite, sitemapCandidates } from "./lib/sitemap";
 import { extractPageFacts, slugFor } from "./lib/page";
 import { fetchPsi } from "./lib/psi";
 import { ALL_BOTS, USER_AGENT, type FetchRecord, type FetchResult, type Manifest, type PageFacts } from "./lib/types";
@@ -16,6 +16,7 @@ export type CollectOptions = {
   level?: 0 | 2;
   psiKey?: string | null;
   delayMs?: number;
+  noPsi?: boolean;
 };
 
 function toRecord(r: FetchResult, file?: string): FetchRecord {
@@ -62,10 +63,16 @@ export function wantedPages(origin: string, explicit: string[], fromSitemap: str
   return wanted;
 }
 
+/** Niveau 2 si l'hôte est local. `--level` reste disponible pour forcer. */
+export function detectLevel(url: string): 0 | 2 {
+  const h = new URL(url).hostname;
+  return h === "localhost" || h === "127.0.0.1" ? 2 : 0;
+}
+
 export async function runCollect(o: CollectOptions): Promise<Manifest & { out: string }> {
   const site = new URL(o.url);
   const origin = site.origin;
-  const level = o.level ?? 0;
+  const level = o.level ?? detectLevel(o.url);
   const out = o.out ?? (await reserveOutDir(level));
   const maxPages = o.maxPages ?? 10;
   const delay = o.delayMs ?? 250;
@@ -85,7 +92,8 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
   // 2. sitemaps
   // maxUrls vaut maxPages, pas maxPages - 1 : la home peut être listée dans le sitemap et se dédoublonner ensuite,
   // réserver un slot pour elle en coûtait un pour rien. C'est wantedPages puis le slice(0, maxPages) qui tranchent.
-  const sm = await collectSitemapUrls(sitemapCandidates(declared, origin), (u) => fetchChain(u), { maxUrls: maxPages, origin });
+  const declaredLocal = level === 2 ? declared.map((d) => rewriteToOrigin(d, origin) ?? d) : declared;
+  const sm = await collectSitemapUrls(sitemapCandidates(declaredLocal, origin), (u) => fetchChain(u), { maxUrls: maxPages, origin, rewriteTo: level === 2 ? origin : undefined });
   const sitemaps: FetchRecord[] = [];
   let n = 0;
   for (const f of sm.fetched) sitemaps.push(toRecord(f.result, f.result.status === 200 ? await save(`sitemap-${n++}.xml`, f.text) : undefined));
@@ -123,17 +131,21 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
   const httpUrl = site.protocol === "https:" ? `http://${site.host}/` : `${origin}/`;
   const altHost = site.hostname.startsWith("www.") ? site.hostname.slice(4) : `www.${site.hostname}`;
   const altPort = site.port ? `:${site.port}` : "";
+  const notApplicable = (url: string): FetchRecord => ({ requested: url, final: url, status: 0, chain: [], bytes: 0, fetchedAt: new Date().toISOString(), error: "non applicable en local", ms: 0 });
+  const altUrl = `${site.protocol}//${altHost}${altPort}/`;
   const notFoundRes = await fetchChain(`${origin}/erom-seo-probe-${crypto.randomUUID().slice(0, 8)}`);
   const probes = {
-    httpToHttps: toRecord(await fetchChain(httpUrl)),
-    hostVariant: toRecord(await fetchChain(`${site.protocol}//${altHost}${altPort}/`)),
+    httpToHttps: level === 2 ? notApplicable(httpUrl) : toRecord(await fetchChain(httpUrl)),
+    hostVariant: level === 2 ? notApplicable(altUrl) : toRecord(await fetchChain(altUrl)),
     // le corps est gardé : un 200 peut être un vrai soft 404 ou une page de challenge anti-bot, seul le contenu le dit
     notFound: toRecord(notFoundRes, notFoundRes.status === 200 ? await save("probe-notfound.html", text(notFoundRes)) : undefined),
   };
 
   // 7. PageSpeed, un seul appel, mobile
   let psi: Manifest["psi"] = { attempted: false, ok: false, error: "PSI_API_KEY absent : PERF-01 non exécutable" };
-  if (o.psiKey) {
+  if (level === 2) psi = { attempted: false, ok: false, error: "non applicable en local" };
+  else if (o.noPsi) psi = { attempted: false, ok: false, error: "PageSpeed non demandé (--no-psi)" };
+  if (level !== 2 && !o.noPsi && o.psiKey) {
     const p = await fetchPsi(`${origin}/`, o.psiKey, "MOBILE");
     await Bun.write(join(derived, "psi.json"), JSON.stringify(p, null, 2));
     psi = { attempted: true, ok: p.ok, error: p.error };
@@ -170,12 +182,21 @@ if (import.meta.main) {
   const pages = args.flatMap((a, i) => (a === "--page" && args[i + 1] ? [args[i + 1]] : []));
   const out = opt("--out");
   if (!url || url.startsWith("--")) {
-    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|2]");
+    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|2] [--no-psi]");
     process.exit(2);
   }
-  const m = await runCollect({ url, out, maxPages: Number(opt("--max-pages") ?? 10), pages, level: Number(opt("--level") ?? 0) === 2 ? 2 : 0, psiKey: process.env.PSI_API_KEY ?? null });
+  const m = await runCollect({
+    url,
+    out,
+    maxPages: Number(opt("--max-pages") ?? 10),
+    pages,
+    level: args.includes("--level") ? (Number(opt("--level")) === 2 ? 2 : 0) : undefined,
+    psiKey: process.env.PSI_API_KEY ?? null,
+    noPsi: args.includes("--no-psi"),
+  });
   console.log(`dossier : ${m.out}`);
   console.log(`collecte terminée : ${m.pages.length} pages, robots.txt ${m.robots.status}, ${m.sitemaps.filter((s) => s.status === 200).length} sitemap(s), llms.txt ${m.llms.status}, PageSpeed ${m.psi.ok ? "ok" : m.psi.error}`);
+  if (m.level === 2 && m.sitemapUrls.rewrittenFrom?.length) console.error(`info : sitemap sur l'hôte de production ${m.sitemapUrls.rewrittenFrom.join(", ")}, URLs ramenées sur ${m.site}`);
   const warning = formatSkippedWarning(m.sitemapUrls);
   if (warning) console.error(warning);
 }

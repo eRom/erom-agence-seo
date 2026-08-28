@@ -50,6 +50,17 @@ export function pageKey(u: string): string {
   try { const p = new URL(u); return `${bareHost(p.host)}${p.pathname}${p.search}`; } catch { return u; }
 }
 
+/** Même chemin et même requête, mais sur l'origine donnée. Rend null si l'URL est inanalysable. */
+export function rewriteToOrigin(u: string, origin: string): string | null {
+  try {
+    const p = new URL(u);
+    const o = new URL(origin);
+    p.protocol = o.protocol;
+    p.host = o.host;
+    return p.toString();
+  } catch { return null; }
+}
+
 /** Avertissement lisible quand des <loc> ont été écartées, null s'il n'y a rien à signaler. */
 export function formatSkippedWarning(stats: SitemapUrlStats): string | null {
   if (stats.skipped.length === 0) return null;
@@ -61,7 +72,7 @@ export function formatSkippedWarning(stats: SitemapUrlStats): string | null {
 export async function collectSitemapUrls(
   candidates: string[],
   fetcher: Fetcher,
-  opts: { maxUrls: number; origin: string; maxChildren?: number },
+  opts: { maxUrls: number; origin: string; maxChildren?: number; rewriteTo?: string },
 ): Promise<{ fetched: { url: string; result: FetchResult; kind: SitemapKind; text: string }[]; urls: string[]; stats: SitemapUrlStats }> {
   const maxChildren = opts.maxChildren ?? 3;
   const fetched: { url: string; result: FetchResult; kind: SitemapKind; text: string }[] = [];
@@ -74,14 +85,24 @@ export async function collectSitemapUrls(
     const e = stats.skipped.find((s) => s.host === host);
     if (e) e.count++; else stats.skipped.push({ host, count: 1 });
   };
+  const rewrite = (u: string): string => {
+    if (!opts.rewriteTo) return u;
+    const r = rewriteToOrigin(u, opts.rewriteTo);
+    if (r === null || r === u) return u;
+    let host: string;
+    try { host = new URL(u).host.toLowerCase(); } catch { return u; }
+    if (host !== new URL(opts.rewriteTo).host.toLowerCase()) { stats.rewrittenFrom ??= []; if (!stats.rewrittenFrom.includes(host)) stats.rewrittenFrom.push(host); }
+    return r;
+  };
   const take = (locs: string[]) => {
     for (const u of locs) {
       stats.listed++;
-      if (!sameSite(u, opts.origin)) { skip(u); continue; }
-      const key = pageKey(u);
+      const loc = rewrite(u);
+      if (!sameSite(loc, opts.origin)) { skip(u); continue; }
+      const key = pageKey(loc);
       if (seen.has(key) || urls.length >= opts.maxUrls) continue;
       seen.add(key);
-      urls.push(u);
+      urls.push(loc);
       stats.kept++;
     }
   };
@@ -98,7 +119,7 @@ export async function collectSitemapUrls(
     if (parsed.kind === "index") {
       for (const child of parsed.locs.slice(0, maxChildren)) {
         if (urls.length >= opts.maxUrls) break;
-        take((await read(child)).locs);
+        take((await read(rewrite(child))).locs);
       }
       return { fetched, urls, stats };
     }

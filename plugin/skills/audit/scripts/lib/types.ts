@@ -49,6 +49,7 @@ export type SitemapUrlStats = {
   listed: number;
   kept: number;
   skipped: { host: string; count: number }[];
+  rewrittenFrom?: string[];  // hôtes d'origine des <loc> ramenées sur l'origine locale (niveau 2)
 };
 
 export type JsonLdBlock = { valid: boolean; hasContext: boolean; types: string[] };
