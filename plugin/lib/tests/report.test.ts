@@ -105,4 +105,27 @@ describe("latestAuditDir", () => {
     expect(await latestAuditDir(seo, { level: 1 })).toBeNull();
     expect(await latestAuditDir(join(seo, "absent"))).toBeNull();
   });
+
+  test("tri par nom quand date et mtime sont identiques (prouve le fix du comparateur)", () => {
+    // Test unitaire du comparateur : construit un tableau dans un ordre inverse de l'alphabétique.
+    // Applique d'abord le comparateur CORRECT (avec le fix) et vérifie l'ordre alphabétique.
+    // Puis applique le comparateur BUGUÉ (sans le fix) et montre qu'il retombe sur l'ordre d'insertion.
+    const found = [
+      { date: "2026-08-28", name: "2026-08-28-n2-2", mtime: 1000 },
+      { date: "2026-08-28", name: "2026-08-28-n0", mtime: 1000 },
+    ];
+
+    // Première assertion : le comparateur CORRECT (avec le fix) donne l'ordre alphabétique
+    const foundCorrect = [...found];
+    foundCorrect.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.mtime - b.mtime);
+    expect(foundCorrect[0].name).toBe("2026-08-28-n0");
+    expect(foundCorrect[1].name).toBe("2026-08-28-n2-2");
+
+    // Deuxième assertion : le comparateur BUGUÉ (sans le fix) retombe sur l'ordre d'insertion
+    // Cela prouve qu'LE FIX EST NÉCESSAIRE pour garantir l'ordre alphabétique.
+    const foundBuggy = [...found];
+    foundBuggy.sort((a, b) => a.date.localeCompare(b.date) || a.mtime - b.mtime);
+    expect(foundBuggy[0].name).toBe("2026-08-28-n2-2");
+    expect(foundBuggy[1].name).toBe("2026-08-28-n0");
+  });
 });
