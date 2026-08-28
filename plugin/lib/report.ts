@@ -73,6 +73,11 @@ export function parseReport(md: string): Report {
   return { site: site!, date: date!, niveau: Number(niveau), couche: couche === "oui", nbPages: Number(nbPages), nbChecks: Number(nbChecks), findings, passed, notSeen, counts };
 }
 
+/** Trie les audits par date du nom, puis par nom (alphabétique), puis par mtime. */
+export function sortAuditDirs<T extends { date: string; name: string; mtime: number }>(found: T[]): T[] {
+  return [...found].sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.mtime - b.mtime);
+}
+
 /**
  * Dernier dossier d'audit sous `<seoDir>/audits/` qui contient `file` (report.md par défaut) : par date du nom, puis par
  * date de modification du fichier (deux audits le même jour, niveaux 0 et 2 : le dernier écrit gagne). `level` restreint
@@ -91,6 +96,5 @@ export async function latestAuditDir(seoDir = "seo", opts: { level?: number; fil
     if (!(await f.exists())) continue;
     found.push({ dir: join(dir, n), date: m[1], name: n, mtime: f.lastModified });
   }
-  found.sort((a, b) => a.date.localeCompare(b.date) || a.name.localeCompare(b.name) || a.mtime - b.mtime);
-  return found.at(-1)?.dir ?? null;
+  return sortAuditDirs(found).at(-1)?.dir ?? null;
 }
