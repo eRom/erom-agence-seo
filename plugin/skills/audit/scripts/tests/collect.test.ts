@@ -217,6 +217,20 @@ describe("stratégie présente", () => {
     expect(m.indexnow).toBeNull();
     expect(m.pages).toHaveLength(2);
   });
+  test("--strategy-path vers un fichier absent est une erreur consignée, pas un silence", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const sp = join(o, "absent.md");
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: sp });
+    expect(m.strategy).toEqual({ path: sp, error: "fichier absent" });
+    expect(m.indexnow).toBeNull();
+    expect(m.pages).toHaveLength(2);
+    expect(m.maxPages).toBe(2);
+  });
+  test("chemin par défaut absent : pas d'erreur, strategy reste null", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: undefined });
+    expect(m.strategy).toBeNull();
+  });
   test("sans stratégie : strategy null, indexnow null", () => {
     expect(manifest.strategy).toBeNull();
     expect(manifest.indexnow).toBeNull();

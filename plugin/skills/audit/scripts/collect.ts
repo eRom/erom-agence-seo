@@ -71,10 +71,14 @@ export function detectLevel(url: string): 0 | 2 {
   return h === "localhost" || h === "127.0.0.1" ? 2 : 0;
 }
 
-/** Lit et parse seo/strategy.md. `null` si le fichier n'existe pas ; erreur consignée dans `ref` si inanalysable. */
-async function readStrategy(path: string): Promise<{ ref: StrategyRef; strategy: Strategy | null } | null> {
+/**
+ * Lit et parse une stratégie. `explicit` distingue un chemin passé par `--strategy-path` du défaut `seo/strategy.md` :
+ * défaut absent = `null`, silencieux ; chemin explicite absent = erreur consignée (une faute de frappe ne doit pas
+ * faire tourner l'audit sans couche stratégique en silence).
+ */
+async function readStrategy(path: string, explicit: boolean): Promise<{ ref: StrategyRef; strategy: Strategy | null } | null> {
   const f = Bun.file(path);
-  if (!(await f.exists())) return null;
+  if (!(await f.exists())) return explicit ? { ref: { path, error: "fichier absent" }, strategy: null } : null;
   try {
     const s = parseStrategy(await f.text());
     return { ref: { path, date: s.date, statut: s.statut, pages: s.pages.length }, strategy: s };
@@ -88,7 +92,8 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
   const origin = site.origin;
   const level = o.level ?? detectLevel(o.url);
   const out = o.out ?? (await reserveOutDir(level));
-  const strat = o.strategyPath === null ? null : await readStrategy(o.strategyPath ?? "seo/strategy.md");
+  const explicit = o.strategyPath !== undefined && o.strategyPath !== null;
+  const strat = o.strategyPath === null ? null : await readStrategy(o.strategyPath ?? "seo/strategy.md", explicit);
   const planned = strat?.strategy?.pages.map((p) => p.page) ?? [];
   const maxPages = Math.max(o.maxPages ?? 10, 1 + planned.length);
   const delay = o.delayMs ?? 250;
