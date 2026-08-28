@@ -63,9 +63,15 @@ export async function lintReport(md: string, checksDir: string): Promise<string[
   const niveau = head.match(/Niveau (\d)/);
   const couche = head.match(/Couche stratégique : (oui|non)/);
   if (!niveau || !couche) errors.push("en-tête : Niveau ou Couche stratégique manquant sur la deuxième ligne");
+  const niveauEff = niveau ? Number(niveau[1]) : 0;
+  const coucheEff = couche?.[1] === "oui";
   const checks = await allChecks(checksDir);
-  const expected = expectedIds(checks, niveau ? Number(niveau[1]) : 0, couche?.[1] === "oui");
+  const expected = expectedIds(checks, niveauEff, coucheEff);
   const known = new Set(checks.map((c) => c.id));
+
+  const nb = head.match(/(\d+) vérifications/);
+  if (!nb) errors.push("en-tête : nombre de vérifications manquant");
+  else if (Number(nb[1]) !== expected.length) errors.push(`en-tête : ${nb[1]} vérifications annoncées, ${expected.length} attendues (niveau ${niveauEff}, couche stratégique ${coucheEff ? "oui" : "non"})`);
 
   for (const id of expected) {
     const where = [

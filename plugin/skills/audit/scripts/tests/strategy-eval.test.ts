@@ -118,4 +118,31 @@ describe("strategy-eval CLI", () => {
       expect(r.stdout.toString()).toContain("évaluation stratégique");
     } finally { s.stop(true); }
   });
+
+  test("dossier d'audit inexistant : erreur lisible, pas de stack", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-eval-"));
+    const sp = join(o, "strategy.md");
+    await Bun.write(sp, VALID);
+    const r = Bun.spawnSync(["bun", `${import.meta.dir}/../strategy-eval.ts`, join(o, "absent"), "--strategy", sp, "--today", "2026-08-28"]);
+    const stderr = r.stderr.toString();
+    expect(r.exitCode).toBe(1);
+    expect(stderr.startsWith("erreur :")).toBe(true);
+    expect(stderr).not.toContain("    at ");
+  });
+
+  test("stratégie invalide : erreur « inanalysable », sans lire le dossier d'audit", async () => {
+    const { mkdtemp } = await import("node:fs/promises");
+    const { tmpdir } = await import("node:os");
+    const { join } = await import("node:path");
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-eval-"));
+    const sp = join(o, "strategy.md");
+    await Bun.write(sp, VALID.replace("IndexNow : non", "IndexNow : abc"));
+    const r = Bun.spawnSync(["bun", `${import.meta.dir}/../strategy-eval.ts`, o, "--strategy", sp, "--today", "2026-08-28"]);
+    const stderr = r.stderr.toString();
+    expect(r.exitCode).toBe(1);
+    expect(stderr).toContain("inanalysable");
+  });
 });

@@ -345,7 +345,7 @@ Cobaye : `chico-happiness`, répertoire courant `/Users/recarnot/dev/chico-happi
 
 - **AC-3**
   Comportement : quand je lance `/erom-seo:audit https://www.commentchercherbonheur.org/` dans `chico-happiness` avec `seo/strategy.md` présent, alors le rapport dit « Niveau 0 » et « Couche stratégique : oui », et STRAT-01, STRAT-02, STRAT-03, STRAT-04, AI-02 apparaissent chacun exactement une fois. Sur l'état actuel du site (titles identiques, aucun JSON-LD, aucune clé), STRAT-01, STRAT-02 et AI-02 sont des trouvailles avec leur preuve dans `derived/strategy-eval.json`.
-  Vérifié par : `bun lint-report.ts seo/audits/<date>-n0/report.md` sort 0 ; `grep -c "STRAT-0\|AI-02" report.md` ; lecture des blocs.
+  Vérifié par : `bun lint-report.ts seo/audits/<date>-n0/report.md` sort 0 ; `grep -o "STRAT-0[1-4]\|AI-02" report.md | sort -u | wc -l` égale 5 ; lecture des blocs.
 
 - **AC-4**
   Comportement : quand le site tourne en local (`bun run dev`, port 3000) et que je lance `/erom-seo:audit http://localhost:3000`, alors le dossier est `seo/audits/<date>-n2/`, 10 pages sont collectées avec `sitemapUrls.rewrittenFrom` égal à `["commentchercherbonheur.org"]`, PERF-01, IDX-03 et IDX-04 sont dans « Ce que je n'ai pas pu voir » avec « non applicable en local », et la couche stratégique est évaluée.
@@ -357,7 +357,7 @@ Cobaye : `chico-happiness`, répertoire courant `/Users/recarnot/dev/chico-happi
 
 - **AC-6**
   Comportement : quand je lance l'audit niveau 0 dans un dossier sans `seo/strategy.md` (par exemple `clients/_smoke/`), alors le rapport dit « Couche stratégique : non », les cinq ids sont dans « Ce que je n'ai pas pu voir » avec la raison « pas de seo/strategy.md », et rien d'autre ne change par rapport au chantier 1.
-  Vérifié par : `bun lint-report.ts` sort 0 ; `grep -c "STRAT-0\|AI-02" report.md` égale 5 ; `cd plugin && bun test` vert.
+  Vérifié par : `bun lint-report.ts` sort 0 ; `grep -o "STRAT-0[1-4]\|AI-02" report.md | sort -u | wc -l` égale 5 ; `cd plugin && bun test` vert.
 
 - **AC-7**
   Comportement : quand je lance `bun plugin/skills/audit/scripts/check-sources.ts`, alors chaque Source des cinq vérifications de la couche stratégique répond 200 et contient sa citation.

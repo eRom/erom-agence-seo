@@ -67,6 +67,18 @@ describe("niveau 2", () => {
       expect(JSON.parse(await Bun.file(join(o, "derived/psi.json")).text()).error).toBe("non applicable en local");
     } finally { s.stop(true); }
   });
+  test("sitemap déclaré sur l'hôte de prod ramené en local au niveau 2", async () => {
+    const s = startFixtureSite(0, { prodHost: "prod.invalid", prodSitemaps: true });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 10, delayMs: 0, psiKey: null });
+      expect(m.level).toBe(2);
+      expect(m.sitemaps.map((sm) => sm.requested)).toEqual([`http://localhost:${s.port}/sitemap.xml`, `http://localhost:${s.port}/sitemap-pages.xml`]);
+      expect(m.sitemaps.every((sm) => sm.status === 200)).toBe(true);
+      expect(m.sitemapUrls.rewrittenFrom).toEqual(["prod.invalid", "autre.fr"]);
+      expect(m.pages.map((p) => p.final)).toEqual([`http://localhost:${s.port}/`, `http://localhost:${s.port}/a`, `http://localhost:${s.port}/b`, `http://localhost:${s.port}/c`, `http://localhost:${s.port}/hors-site`]);
+    } finally { s.stop(true); }
+  });
   test("niveau 0 forcé sur le même site : rien n'est réécrit, les locs de prod sont écartées et comptées", async () => {
     const s = startFixtureSite(0, { prodHost: "acme.fr" });
     try {
@@ -204,6 +216,20 @@ describe("stratégie présente", () => {
     expect(m.strategy?.error).toMatch(/clé IndexNow mal formée/);
     expect(m.indexnow).toBeNull();
     expect(m.pages).toHaveLength(2);
+  });
+  test("--strategy-path vers un fichier absent est une erreur consignée, pas un silence", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const sp = join(o, "absent.md");
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: sp });
+    expect(m.strategy).toEqual({ path: sp, error: "fichier absent" });
+    expect(m.indexnow).toBeNull();
+    expect(m.pages).toHaveLength(2);
+    expect(m.maxPages).toBe(2);
+  });
+  test("chemin par défaut absent : pas d'erreur, strategy reste null", async () => {
+    const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+    const m = await runCollect({ url: base, out: o, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: undefined });
+    expect(m.strategy).toBeNull();
   });
   test("sans stratégie : strategy null, indexnow null", () => {
     expect(manifest.strategy).toBeNull();

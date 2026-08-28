@@ -12,7 +12,7 @@ const strategic = all.filter((c) => c.couche === "stratégique");
 
 /** Rapport synthétique minimal, conforme à toutes les règles existantes du lint (sections présentes, aucune
  * trouvaille), avec les ids donnés listés dans « Vérifications passées ». */
-function report(ids: Check[], head = "2026-08-27 · Niveau 0 (URL seule) · Couche stratégique : non · 1 pages collectées · 26 vérifications"): string {
+function report(ids: Check[], head = `2026-08-27 · Niveau 0 (URL seule) · Couche stratégique : non · 1 pages collectées · ${absolute0.length} vérifications`): string {
   const passed = ids.map((c) => `${c.id} ${c.title}`).join("\n");
   return [
     "# Audit SEO/GEO : exemple.test",
@@ -92,6 +92,20 @@ describe("lint-report : couche stratégique et niveau", () => {
     expect(errors.some((e) => e.includes(s.id))).toBe(true);
     const md = report(absolute0).replace("Couche stratégique, avec seo/strategy.md : aucune\n", `Couche stratégique, avec seo/strategy.md : aucune\n${s.id} ${s.title}, pas de seo/strategy.md\n`);
     expect(await lintReport(md, checksDir)).toEqual([]);
+  });
+  test("couche active : le nombre de vérifications annoncé correspond à l'union", async () => {
+    const head = `2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · ${absolute0.length + strategic.length} vérifications`;
+    expect(await lintReport(report([...absolute0, ...strategic], head), checksDir)).toEqual([]);
+  });
+  test("nombre de vérifications annoncé faux : rejeté", async () => {
+    const head = `2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · ${absolute0.length} vérifications`;
+    const errors = await lintReport(report([...absolute0, ...strategic], head), checksDir);
+    expect(errors.some((e) => e.includes("attendues"))).toBe(true);
+  });
+  test("en-tête sans « vérifications » : rejeté", async () => {
+    const head = "2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : non · 10 pages collectées";
+    const errors = await lintReport(report(absolute0, head), checksDir);
+    expect(errors.some((e) => e.includes("nombre de vérifications manquant"))).toBe(true);
   });
   test("niveau 2 : PERF-01, IDX-03 et IDX-04 acceptés en non vues avec leur raison", async () => {
     const head = "2026-08-28 · Niveau 2 (site en local) · Couche stratégique : non · 10 pages collectées · 26 vérifications";
