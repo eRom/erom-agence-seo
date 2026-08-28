@@ -70,8 +70,26 @@ describe("evaluateStrategy", () => {
       indexnow: { status: null, content: null },
     });
     expect(r.pages.map((p) => p.found)).toEqual([false, false]);
+    // /  : trouvée sur disque mais protégée par un challenge -> challenge true, jamais une trouvaille STRAT-01.
+    // /methode : vraiment absente de la collecte (404, pas un challenge) -> challenge false, distincte du cas ci-dessus
+    // bien que les deux rendent found false.
+    expect(r.pages.map((p) => p.challenge)).toEqual([true, false]);
     expect(r.identity).toMatchObject({ onHome: false, organizationPresent: false, inOrganization: false, nameMatches: false, organizationName: null });
     expect(r.indexnow).toEqual({ declared: null, fetched: false, status: null, contentMatches: null });
+  });
+  test("challenge distingue une page prévue jamais collectée (absente du disque) d'une page trouvée mais protégée", () => {
+    const s2 = parseStrategy(VALID);
+    const r = evaluateStrategy({
+      strategy: s2, strategyPath: "seo/strategy.md", today: "2026-08-28", homeText: "",
+      // seule la home a été collectée (en challenge) ; /methode n'a jamais été ajoutée à `pages`, comme une page
+      // jamais fetchée (r.status === 0 côté collect.ts, absente de derived/pages.json).
+      pages: [page({ url: "https://www.commentchercherbonheur.org/", challenge: true })],
+      indexnow: { status: null, content: null },
+    });
+    expect(r.pages.map((p) => ({ page: p.page, found: p.found, challenge: p.challenge }))).toEqual([
+      { page: "/", found: false, challenge: true },
+      { page: "/methode", found: false, challenge: false },
+    ]);
   });
 });
 

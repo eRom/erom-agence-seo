@@ -206,8 +206,9 @@ if (import.meta.main) {
   const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   const pages = args.flatMap((a, i) => (a === "--page" && args[i + 1] ? [args[i + 1]] : []));
   const out = opt("--out");
+  const strategyPathOpt = opt("--strategy-path");
   if (!url || url.startsWith("--")) {
-    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|2] [--no-psi]");
+    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|2] [--no-psi] [--strategy-path <chemin|none>]");
     process.exit(2);
   }
   const m = await runCollect({
@@ -218,6 +219,9 @@ if (import.meta.main) {
     level: args.includes("--level") ? (Number(opt("--level")) === 2 ? 2 : 0) : undefined,
     psiKey: process.env.PSI_API_KEY ?? null,
     noPsi: args.includes("--no-psi"),
+    // --strategy-path none désactive la lecture de toute stratégie (strategyPath: null) ; toute autre valeur
+    // remplace le chemin par défaut seo/strategy.md. Absent : comportement inchangé (défaut interne à runCollect).
+    strategyPath: strategyPathOpt === "none" ? null : strategyPathOpt,
   });
   console.log(`dossier : ${m.out}`);
   console.log(`collecte terminée : ${m.pages.length} pages, robots.txt ${m.robots.status}, ${m.sitemaps.filter((s) => s.status === 200).length} sitemap(s), llms.txt ${m.llms.status}, PageSpeed ${m.psi.ok ? "ok" : m.psi.error}`);

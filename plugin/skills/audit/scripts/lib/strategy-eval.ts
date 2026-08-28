@@ -12,6 +12,8 @@ export type PageEval = {
   page: string; url: string | null; found: boolean; status: number | null; keyword: string;
   inTitle: boolean | null; inH1: boolean | null; inOpening: boolean | null;
   cadence: Cadence; lastKnownDate: string | null; cadenceRespected: boolean | null;
+  /** Vrai si la page prévue a été trouvée dans la collecte mais protégée par un challenge anti-bot ; faux sinon (y compris page vraiment absente). */
+  challenge: boolean;
 };
 export type StrategyEval = {
   strategy: { path: string; date: string; statut: string; site: string };
@@ -74,6 +76,7 @@ export function evaluateStrategy(input: {
       inH1: found ? p!.h1.some((h) => keywordMatches(plan.motCle, h)) : null,
       inOpening: found ? keywordMatches(plan.motCle, p!.opening) : null,
       cadence: plan.cadence, lastKnownDate: last, cadenceRespected: respected,
+      challenge: Boolean(p?.challenge),
     };
   });
 

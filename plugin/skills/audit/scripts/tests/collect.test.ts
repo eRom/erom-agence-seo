@@ -1,5 +1,5 @@
 import { describe, test, expect, beforeAll, afterAll } from "bun:test";
-import { mkdtemp } from "node:fs/promises";
+import { mkdir, mkdtemp } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { startFixtureSite } from "./fixtures/site";
@@ -208,5 +208,33 @@ describe("stratégie présente", () => {
   test("sans stratégie : strategy null, indexnow null", () => {
     expect(manifest.strategy).toBeNull();
     expect(manifest.indexnow).toBeNull();
+  });
+  // Trouvaille de revue de branche : collect.ts lancé sur un concurrent depuis le dossier du client lisait par défaut
+  // seo/strategy.md du CLIENT (les pages prévues du client polluaient la collecte du concurrent). --strategy-path none
+  // doit produire le même comportement que strategyPath: null (test ci-dessus), même avec un seo/strategy.md présent
+  // dans le cwd : c'est le chemin CLI réel emprunté par skills/strategy/SKILL.md étape 3.
+  test("--strategy-path none : le seo/strategy.md du cwd n'est pas lu même s'il existe", async () => {
+    const s = startFixtureSite(0);
+    try {
+      const cwd = await mkdtemp(join(tmpdir(), "erom-seo-nostrat-cwd-"));
+      await mkdir(join(cwd, "seo"), { recursive: true });
+      await Bun.write(join(cwd, "seo/strategy.md"), VALID);
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-nostrat-out-"));
+      // Bun.spawn (async), pas spawnSync : le sous-processus appelle le site jouet servi dans CE process ;
+      // spawnSync bloquerait la boucle d'événements et empêcherait Bun.serve de répondre (deadlock observé).
+      const proc = Bun.spawn(
+        ["bun", `${import.meta.dir}/../collect.ts`, `http://localhost:${s.port}`, "--out", o, "--max-pages", "2", "--no-psi", "--strategy-path", "none"],
+        { cwd, stdout: "pipe", stderr: "pipe" },
+      );
+      const exitCode = await proc.exited;
+      expect(exitCode, await new Response(proc.stderr).text()).toBe(0);
+      const m = JSON.parse(await Bun.file(join(o, "raw/manifest.json")).text()) as Manifest;
+      // strategy.md du cwd déclare 2 pages prévues (/, /methode) : si le flag était ignoré, maxPages passerait à 3 et
+      // /methode (absente du site jouet) serait collectée avant le sitemap.
+      expect(m.strategy).toBeNull();
+      expect(m.indexnow).toBeNull();
+      expect(m.maxPages).toBe(2);
+      expect(m.pages).toHaveLength(2);
+    } finally { s.stop(true); }
   });
 });
