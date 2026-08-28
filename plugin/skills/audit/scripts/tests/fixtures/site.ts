@@ -5,20 +5,23 @@ const page = (title: string, extraHead: string, body: string) =>
 /**
  * `homeInSitemap` : le sitemap liste aussi la home, montage courant qui coûtait un slot de plafond avant le correctif.
  * `prodHost` : les locs a/b/c du sitemap sont construites sur cet hôte de prod au lieu de l'origine servie (niveau 2).
+ * `prodSitemaps` (avec `prodHost`) : robots.txt déclare le sitemap sur l'hôte de prod, et l'index de sitemaps y pointe
+ * aussi ; sans cette option robots.txt et l'index restent sur l'origine servie, seules les locs a/b/c changent d'hôte.
  * `indexnowKey` : sert `/<indexnowKey>.txt` avec la clé en corps, pour simuler la vérification IndexNow.
  */
-export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prodHost?: string; indexnowKey?: string } = {}) {
+export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prodHost?: string; prodSitemaps?: boolean; indexnowKey?: string } = {}) {
   const server = Bun.serve({
     port,
     fetch(req) {
       const u = new URL(req.url);
       const origin = `${u.protocol}//${u.host}`;
       if (opts.indexnowKey && u.pathname === `/${opts.indexnowKey}.txt`) return new Response(opts.indexnowKey, { headers: { "content-type": "text/plain" } });
+      const sitemapBase = opts.prodSitemaps && opts.prodHost ? `https://${opts.prodHost}` : origin;
       switch (u.pathname) {
         case "/robots.txt":
-          return new Response(`User-agent: Claude-User\nDisallow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: ${origin}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
+          return new Response(`User-agent: Claude-User\nDisallow: /\n\nUser-agent: *\nAllow: /\n\nSitemap: ${sitemapBase}/sitemap.xml\n`, { headers: { "content-type": "text/plain" } });
         case "/sitemap.xml":
-          return new Response(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>${origin}/sitemap-pages.xml</loc></sitemap></sitemapindex>`, { headers: { "content-type": "application/xml" } });
+          return new Response(`<?xml version="1.0" encoding="UTF-8"?><sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><sitemap><loc>${sitemapBase}/sitemap-pages.xml</loc></sitemap></sitemapindex>`, { headers: { "content-type": "application/xml" } });
         case "/sitemap-pages.xml": {
           // la dernière loc est volontairement hors site : elle doit être écartée ET comptée, jamais écartée en silence
           const base = opts.prodHost ? `https://${opts.prodHost}` : origin;
