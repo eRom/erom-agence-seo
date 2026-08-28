@@ -31,7 +31,7 @@ Tu produis `seo/strategy.md`, un contrat lisible par le client et lu par des scr
 ## 2. Ce que la cellule Signaux écrit
 
 Dans l'ordre, chaque élément daté (AAAA-MM-JJ) :
-- `Bing FR : <last> / semaine, <total> sur <weeks> semaines (<date>)`, ou `Bing FR : rien, non mesurable gratuitement (<date>)`, ou `Bing non interrogé (clé absente) (<date>)`, ou `Bing non interrogé (endpoint indisponible) (<date>)`.
+- `Bing FR : <last> / semaine, <total> sur <weeks> semaines (<date>)`, ou `Bing FR : rien, non mesurable gratuitement (<date>)`, ou `Bing non interrogé (clé absente) (<date>)` (statuts émis tels quels par `keywords.ts`) ; ou `Bing non interrogé (endpoint indisponible) (<date>)` : pas un statut émis par le script, à écrire toi-même si `derived/keywords.json` porte `erreur : ...` sur tous les mots-clés et que l'erreur ressemble à une panne de l'endpoint Bing plutôt qu'à un incident ponctuel sur un seul mot-clé.
 - `Wikipédia fr : <average> vues / mois sur 12 mois (<date>)` si mesuré.
 - `autocomplétion : « … », « … » (relevé manuel <date>)`, ou `autocomplétion : non relevée`.
 
