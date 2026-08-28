@@ -53,6 +53,8 @@ export type SitemapUrlStats = {
 
 export type JsonLdBlock = { valid: boolean; hasContext: boolean; types: string[] };
 
+export type OrganizationFacts = { name: string | null; description: string | null; sameAs: string[] };
+
 export type PageFacts = {
   url: string;
   slug: string;
@@ -65,6 +67,8 @@ export type PageFacts = {
   canonical: string | null;
   h1: string[];
   jsonld: JsonLdBlock[];
+  organization: OrganizationFacts | null;   // premier bloc Organization (ou sous-type), y compris dans un @graph
+  opening: string;                          // 400 premiers caractères de <main>, sinon de <body>
   datePublished: string | null;
   dateModified: string | null;
   lastModified: string | null;

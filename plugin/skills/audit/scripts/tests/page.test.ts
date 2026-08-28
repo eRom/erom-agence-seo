@@ -1,5 +1,47 @@
 import { describe, test, expect } from "bun:test";
 import { extractPageFacts, slugFor } from "../lib/page";
+import { bodyText, extractOrganization, jsonLdBlocks, opening } from "../lib/page";
+
+const ORG_HTML = `<!DOCTYPE html><html lang="fr"><head><title>T</title>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","name":"x"},{"@type":"Organization","name":"Acme","description":"Acme est un cabinet qui conseille les PME.","sameAs":["https://www.linkedin.com/company/acme","https://x.com/acme"]}]}</script>
+<script type="application/ld+json">{pas du json</script>
+</head><body><nav>Accueil Contact</nav><main><h1>Acme</h1><p>Acme est un cabinet qui conseille les PME. ${"Suite. ".repeat(100)}</p></main><script>x()</script><footer>Pied</footer></body></html>`;
+
+describe("extractOrganization", () => {
+  test("dans un @graph, avec sameAs tableau", () => {
+    expect(extractOrganization(jsonLdBlocks(ORG_HTML))).toEqual({ name: "Acme", description: "Acme est un cabinet qui conseille les PME.", sameAs: ["https://www.linkedin.com/company/acme", "https://x.com/acme"] });
+  });
+  test("sous-type LocalBusiness, sameAs chaîne", () => {
+    expect(extractOrganization([{ "@type": "LocalBusiness", name: "Plomb", sameAs: "https://x.com/plomb" }])).toEqual({ name: "Plomb", description: null, sameAs: ["https://x.com/plomb"] });
+  });
+  test("aucune organisation", () => {
+    expect(extractOrganization([{ "@type": "Article" }])).toBeNull();
+    expect(extractOrganization([])).toBeNull();
+  });
+});
+
+describe("opening, bodyText et PageFacts", () => {
+  test("opening lit <main> sans la navigation, 400 caractères", () => {
+    const o = opening(ORG_HTML);
+    expect(o.startsWith("Acme Acme est un cabinet")).toBe(true);
+    expect(o).not.toContain("Accueil");
+    expect(o.length).toBe(400);
+  });
+  test("opening se replie sur <body> sans <main>", () => {
+    expect(opening("<html><body><p>Bonjour</p><script>x()</script></body></html>")).toBe("Bonjour");
+  });
+  test("bodyText contient la navigation et le pied, pas les scripts", () => {
+    const t = bodyText(ORG_HTML);
+    expect(t).toContain("Accueil Contact");
+    expect(t).toContain("Pied");
+    expect(t).not.toContain("x()");
+  });
+  test("extractPageFacts porte organization et opening", () => {
+    const f = extractPageFacts(ORG_HTML, "https://acme.fr/", 200, {}, "index");
+    expect(f.organization?.name).toBe("Acme");
+    expect(f.opening.startsWith("Acme Acme est")).toBe(true);
+  });
+});
 
 const HTML = `<!DOCTYPE html><html lang="fr"><head>
 <title>Acme, cabinet de conseil à Nantes</title>
