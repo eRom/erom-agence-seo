@@ -58,6 +58,8 @@ Même liste de vérifications quel que soit le contexte. Chaque vérification d�
 
 Le rapport indique le niveau exécuté et liste nommément ce qu'il n'a pas pu voir. En RDV, « voilà ce que je verrai une fois les accès ouverts » vend le niveau suivant.
 
+Amendé le 2026-08-28 (D9 de `2026-08-28-erom-seo-strategy-design.md`) : la couche stratégique n'est plus liée au niveau 2 ; elle s'allume dès que `seo/strategy.md` existe, à tout niveau. Le niveau dit d'où on regarde, la couche dit s'il y a une stratégie à comparer.
+
 Battu : deux audits séparés, dev et prod. Perdu parce que c'est la même liste, seule l'entrée change.
 
 ### D4. Collecte par script, octets exacts
@@ -75,6 +77,8 @@ Battu : accepter les « bonnes pratiques » consensuelles du corpus. Perdu parce
 ### D6. Le niveau 2 est un niveau 0 sur localhost, plus la couche stratégique
 
 En dev, le site tourne en local et le script collecte sur `http://localhost:<port>`. L'audit reste agnostique du stack. Seul `build` connaît le stack.
+
+Amendé le 2026-08-28 (D9 et D14 de la spec du chantier 2) : le niveau 2 se détecte à l'hôte seul (`localhost`, `127.0.0.1`), la couche stratégique dépend de la seule présence de `seo/strategy.md` ; au niveau 2 la collecte ramène sur l'origine locale les URLs d'un sitemap qui liste l'hôte de production.
 
 Battu : des vérifications qui lisent le code source (`app/robots.ts`, `generateMetadata`). Perdu parce que spécifique à Next.js et redondant avec l'observation du site rendu.
 
@@ -338,6 +342,8 @@ Volumes de mots-clés : signaux gratuits utilisés et leurs limites.
 ```
 
 Les volumes de mots-clés restent le point faible du « zéro abonnement ». Le fichier dit sur quels signaux gratuits chaque choix repose. Instruit au chantier 2.
+
+Spec du chantier 2 (2026-08-28) : `docs/superpowers/specs/2026-08-28-erom-seo-strategy-design.md`. Le gabarit ci-dessus y devient strict (vocabulaires fermés, lint), la colonne Type est retirée (D12), la demande est écrite avec Bing seul (D11).
 
 ### 6.2 `build`
 
