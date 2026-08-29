@@ -145,6 +145,9 @@ export function computeChecklist(i: ChecklistInput): Checklist {
   const line = (def: LineDef, kind: LineKind, checked: boolean, note: string, sub: string[] = []): Line =>
     ({ id: def.id, label: renderedLabel(def, i.miseEnLigne), kind, phase: def.phase, checked, note, sub });
   const lines: Line[] = [];
+  // un ancien sitemap déclaré un jour reste déclaré : sa copie présente, ou sa disparition déjà constatée
+  const prevCl06 = prev("CL-06")?.note ?? "";
+  const ancienDisparu = !i.ancienSitemap && /(ancien-sitemap\.xml · \d+ URL|disparu : redonne --ancien-sitemap)$/.test(prevCl06);
 
   for (const def of LINES) {
     switch (def.id) {
@@ -172,8 +175,7 @@ export function computeChecklist(i: ChecklistInput): Checklist {
       }
       case "CL-06": {
         if (i.ancienSitemap) { lines.push(line(def, "auto", true, `${i.ancienSitemap.path} · ${i.ancienSitemap.count} URL`)); break; }
-        // sauvegardé lors d'un passage précédent (la note portait le chemin et le compte) mais absent maintenant : dire pourquoi la case se vide
-        if (/ancien-sitemap\.xml · \d+ URL$/.test(prev(def.id)?.note ?? "")) { lines.push(line(def, "auto", false, "seo/checklist/ancien-sitemap.xml disparu : redonne --ancien-sitemap")); break; }
+        if (ancienDisparu) { lines.push(line(def, "auto", false, "seo/checklist/ancien-sitemap.xml disparu : redonne --ancien-sitemap")); break; }
         lines.push(line(def, "auto", true, "sans objet (pas d'ancien site)"));
         break;
       }
@@ -186,6 +188,7 @@ export function computeChecklist(i: ChecklistInput): Checklist {
       }
       case "CL-08": {
         if (!i.miseEnLigne) { lines.push(line(def, "auto", false, "pas encore déployé")); break; }
+        if (ancienDisparu) { lines.push(line(def, "auto", false, "ancien sitemap disparu, voir la ligne « Ancien sitemap sauvegardé »")); break; }
         if (!i.ancienSitemap) { lines.push(line(def, "auto", true, "sans objet (pas d'ancien site)")); break; }
         if (!i.redirections) { lines.push(line(def, "auto", false, "ancien sitemap pas encore suivi")); break; }
         const ko = i.redirections.filter((r) => !r.ok);

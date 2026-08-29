@@ -129,12 +129,23 @@ describe("après le déploiement", () => {
     expect(l.sub).toEqual(["https://old.fr/b → 404"]);
     expect(cl.lines.find((l) => l.id === "CL-06")!.note).toContain("2 URL");
   });
-  test("un ancien sitemap sauvegardé puis disparu vide la ligne 6 avec la raison", () => {
+  test("un ancien sitemap sauvegardé puis disparu vide la ligne 6 avec la raison, et le reste sur les passages suivants", () => {
     const saved = computeChecklist({ ...base, ancienSitemap: { path: "seo/checklist/ancien-sitemap.xml", count: 2 } });
-    const next = computeChecklist({ ...base, previous: parseChecklist(renderChecklist(saved)) });
-    const l = next.lines.find((l) => l.id === "CL-06")!;
-    expect(l.checked).toBe(false);
-    expect(l.note).toContain("disparu");
+    let prev = parseChecklist(renderChecklist(saved));
+    for (let n = 0; n < 3; n++) {
+      const cl = computeChecklist({ ...base, previous: prev });
+      const l = cl.lines.find((l) => l.id === "CL-06")!;
+      expect(l.checked, `passage ${n + 2}`).toBe(false);
+      expect(l.note).toContain("disparu");
+      prev = parseChecklist(renderChecklist(cl));
+    }
+  });
+  test("ancien sitemap disparu après la mise en ligne : la ligne 8 le dit au lieu de « sans objet »", () => {
+    const saved = computeChecklist({ ...apres, ancienSitemap: { path: "seo/checklist/ancien-sitemap.xml", count: 2 }, redirections: [] });
+    const cl = computeChecklist({ ...apres, previous: parseChecklist(renderChecklist(saved)) });
+    const l8 = cl.lines.find((l) => l.id === "CL-08")!;
+    expect(l8.checked).toBe(false);
+    expect(l8.note).toContain("disparu");
   });
   test("dû aujourd'hui : les jalons échus non cochés", () => {
     const cl = computeChecklist({ ...apres, today: "2026-09-02" });
