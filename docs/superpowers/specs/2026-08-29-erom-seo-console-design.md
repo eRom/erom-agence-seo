@@ -85,7 +85,7 @@ Réutilisé tel quel : `sameSite` de `skills/audit/scripts/lib/sitemap.ts` (comp
 | `GSC_SA_KEY_FILE` | chemin du JSON de compte de service, hors dépôt. Sa présence bascule le fournisseur | fournisseur gcloud |
 | `BING_WMT_API_KEY` | clé Bing Webmaster Tools, une par utilisateur | Bing « non interrogé (clé absente) », Google répond quand même |
 
-Aucun secret n'entre dans le dépôt, ne s'affiche, ni n'apparaît dans un message d'erreur. Les URL de requête Bing portent la clé en paramètre : elles sont expurgées avant tout affichage, comme dans `keywords.ts`.
+Aucun secret n'entre dans le dépôt, ne s'affiche, ni n'apparaît dans un message d'erreur. Les URL de requête Bing portent la clé en paramètre : elles sont expurgées avant tout affichage, comme dans `keywords.ts`. Toute sortie passe par `redact`, qui retire la clé Bing, **puis** par `assertNoSecret` sur la clé Bing et sur le jeton Google : `redact` est la mesure, `assertNoSecret` est le garde-fou de dernier recours, qui lève plutôt que de laisser fuir.
 
 ## 5. `console.ts`
 
@@ -99,7 +99,9 @@ console crawl [--site <url>]      [--json]
 
 Le site de `crawl` vient de `--site`, sinon de `seo/strategy.md` du répertoire courant, sinon erreur. `sites` n'a besoin d'aucun site : il liste tout ce que les deux comptes voient. `inspect` se contente de l'URL : la propriété s'en déduit (D33).
 
-Sortie texte par défaut, une ligne par fait, la source entre parenthèses. `--json` rend l'objet, pour un usage machine. Exit 0 dès qu'un des deux moteurs a répondu ; exit 1 si aucun n'a pu être interrogé.
+Sortie texte par défaut, une ligne par fait, la source entre parenthèses. `--json` rend l'objet, pour un usage machine.
+
+Codes de sortie, un par commande : `sites` rend 0 dès qu'un moteur a répondu, 1 si aucun. `inspect` rend 0 seulement si la propriété a résolu **et** qu'un moteur a répondu : une URL qu'aucune propriété ne couvre sort en 1 même quand Bing répond, parce que la commande n'a pas fait ce qu'on lui demandait. `crawl` rend 0 si Bing a été lu, 1 sinon : Google n'expose rien ici, donc sans lecture Bing aucune donnée de crawl n'a été obtenue.
 
 ### 5.2 Résolution d'une propriété Search Console (D33)
 
@@ -116,6 +118,8 @@ Le `permissionLevel` de la propriété retenue est reporté dans la sortie : c'e
 **Google.** `GET https://www.googleapis.com/webmasters/v3/sites` rend `{"siteEntry":[{"siteUrl","permissionLevel"}]}`. Puis, pour chaque propriété, `GET https://www.googleapis.com/webmasters/v3/sites/<siteUrl encodé>/sitemaps` rend `{"sitemap":[{path,lastSubmitted,lastDownloaded,isPending,isSitemapsIndex,type,warnings,errors,contents:[{type,submitted,indexed}]}]}`. Le `siteUrl` est encodé dans le chemin (`sc-domain%3Aromain-ecarnot.com`). Affiché par propriété : le rôle, chaque sitemap avec sa date de soumission, sa date de dernière lecture, ses avertissements et erreurs, et le couple soumis / indexé de `contents`.
 
 **Bing.** `GET https://ssl.bing.com/webmaster/api.svc/json/GetUserSites?apikey=<clé>` rend `{"d":[{"Url","IsVerified","AuthenticationCode","DnsVerificationCode"}]}`. Puis `GetFeeds(siteUrl)` par site. `{"d":[]}` est un état normal et se dit « aucun site dans ce compte Bing », pas une erreur.
+
+Deux états distincts, deux phrases : « aucun site dans ce compte Bing » quand la liste est vide, « ce site n'est pas dans le compte Bing » quand elle existe mais ne contient pas l'hôte demandé. Dire le premier dans le second cas est faux et trompeur. Par ailleurs `ErrorCode` vaut `None` (0) sur un succès dans l'enum officielle : seuls les codes non nuls sont des refus.
 
 ### 5.4 `console inspect <url>`
 
@@ -165,7 +169,7 @@ Chaque cas a une phrase et une consigne, jamais une trace.
 - `GSC_QUOTA_PROJECT` absente avec le fournisseur gcloud : exit 1, la variable à poser et la commande `gcloud services enable searchconsole.googleapis.com --project=<projet>`.
 - 403 scope insuffisant : la même consigne que le cas précédent, avec le scope manquant nommé.
 - Aucune propriété ne couvre l'URL demandée : exit 1, la liste des propriétés vues, et le renvoi à `acces.md`.
-- Propriété visible mais rôle insuffisant (403 sur l'inspection) : le rôle observé est nommé, consigne au propriétaire de la propriété.
+- Propriété visible mais rôle insuffisant (403 sur l'inspection) : le rôle observé est nommé, consigne au propriétaire de la propriété. La ligne « propriété : … (rôle) » s'écrit avant tout branchement d'erreur, sinon elle disparaît exactement quand elle sert.
 - `BING_WMT_API_KEY` absente : Bing « non interrogé (clé absente) », Google répond, exit 0.
 - Bing `{"ErrorCode":3}` : « clé refusée par Bing, `~/.zshenv` porte peut-être l'ancienne » (incident du 28/08).
 - Bing `{"d":[]}` : « aucun site dans ce compte Bing », exit 0.
@@ -199,15 +203,15 @@ Dette (D34) : `BING_API_BASE` et le décodage `{"ErrorCode","Message"}` existent
 - **AC-4** Quand j'inspecte une URL qu'aucune propriété ne couvre, alors la commande sort en 1, nomme les propriétés vues, et aucune requête d'inspection n'est partie.
   Vérifié par : `console inspect https://example.com/` sous un `fetch` de trace.
 - **AC-5** Quand aucun jeton Google n'est disponible, alors la sortie donne la commande exacte à lancer avec son scope, et aucun jeton n'apparaît.
-  Vérifié par : `env -u GSC_SA_KEY_FILE PATH=/usr/bin bun scripts/console.ts sites`.
+  Vérifié par : `env -u GSC_SA_KEY_FILE PATH="$(dirname "$(command -v bun)")" bun scripts/console.ts sites`. Ne pas écrire `PATH=/usr/bin` : `env` résout la commande avec le `PATH` qu'il vient de poser et `bun` n'y est pas, donc la commande échoue avant d'avoir rien prouvé (relevé le 29/08).
 - **AC-6** Quand `GSC_QUOTA_PROJECT` est absente et que le fournisseur est gcloud, alors la sortie nomme la variable et donne la commande d'activation de l'API, sans appeler l'API.
   Vérifié par : `env -u GSC_QUOTA_PROJECT bun scripts/console.ts sites`.
 - **AC-7** Quand `BING_WMT_API_KEY` est absente, alors Google répond quand même, Bing est marqué « non interrogé (clé absente) », et le code de sortie est 0.
   Vérifié par : `env -u BING_WMT_API_KEY bun scripts/console.ts sites`.
-- **AC-8** Quand je lance `console crawl --site https://romain-ecarnot.com`, alors la sortie dit que Google n'expose pas ses statistiques de crawl et, côté Bing, « aucun site dans ce compte Bing ».
-  Vérifié par : la commande.
-- **AC-9** Quand une commande tourne avec `--json`, alors la sortie s'analyse et ne contient ni clé Bing ni jeton.
-  Vérifié par : `console sites --json | python3 -m json.tool`, plus une recherche de la clé dans la sortie qui ne rend rien.
+- **AC-8** Quand je lance `console crawl --site https://romain-ecarnot.com`, alors la sortie dit que Google n'expose pas ses statistiques de crawl, côté Bing « aucun site dans ce compte Bing », et le code de sortie est 1 puisque rien n'a pu être lu.
+  Vérifié par : la commande, suivie de `echo "code=$?"`.
+- **AC-9** Quand une commande tourne avec `--json`, alors la sortie s'analyse et ne contient ni clé Bing ni jeton Google.
+  Vérifié par : `console sites --json | python3 -m json.tool`, plus une recherche de la clé et du préfixe `ya29.` dans la sortie enregistrée. La recherche lit la clé depuis l'environnement, jamais depuis `argv` (`ps` la rendrait lisible), et refuse de conclure si la variable est vide.
 - **AC-10** Quand la suite de tests tourne, alors elle est verte et `check-sources.ts` retrouve les citations de `acces.md` en plus des 107 existantes.
   Vérifié par : `bun test` et `bun skills/audit/scripts/check-sources.ts`.
 
@@ -269,7 +273,7 @@ Lève l'incertitude 4 de la note d'idéation : `contents[].indexed` est bien ren
 
 1. **`GetUrlInfo` sur une URL inconnue de Bing** : réponse vide, `null` ou erreur ? Non capturable tant que le compte est vide. Traitement unique en attendant (5.4).
 2. **Forme de `GetCrawlStats` et `GetCrawlIssues`** : jamais capturée. Décodage écrit d'après la doc, sonde au calendrier de la recette dès qu'un site entre dans le compte.
-3. **Permission minimale pour l'inspection d'URL** : la sonde du 29/08 a été faite en rôle propriétaire. Ce qu'un rôle restreint obtient reste ouvert (incertitude 1 de la note d'idéation, non levée).
+3. **Permission minimale pour l'inspection d'URL** : la sonde du 29/08 a été faite en rôle propriétaire. Ce qu'un rôle restreint obtient reste ouvert (incertitude 1 de la note d'idéation, non levée). C'est pourquoi la sortie nomme toujours le rôle observé : le jour où un 403 tombe, la cause est à l'écran.
 4. **Survie de l'endpoint JSON Bing après le retrait SOAP et POX du 31/08/2026** : sonde déjà au calendrier du 1er septembre, à étendre à `GetUrlInfo`, `GetCrawlStats` et `GetFeeds`.
 5. **Scope `webmasters.readonly` sur le client gcloud** : accordé le 29/08 sur le compte de Romain. Qu'il le soit toujours après une reconnexion, ou sur un autre compte, n'est pas garanti par une phrase officielle.
 

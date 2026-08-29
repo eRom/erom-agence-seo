@@ -10,14 +10,18 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-29-erom-seo-console-design.md`
 
-**Code exécuté avant l'écriture de ce plan.** Toute la logique pure des tâches 1 à 6 a été lancée par la session mère le 29/08 dans un bac à sable, contre les échantillons réels ci-dessous : 7 assertions sur `resolve`, 17 sur `auth-google` et le décodage `gsc`, 19 sur `bing` et `render`, 10 sur l'orchestration `runConsole`. Toutes vertes. Les blocs de code de ce plan sont ceux qui ont tourné, à la mise en forme près. Deux exceptions marquées non normatives : `serviceAccountToken` (tâche 2, aucun compte de service n'existe encore) et le décodage détaillé des méthodes Bing jamais capturées (tâche 4).
+**Code exécuté avant l'écriture de ce plan.** Toute la logique pure des tâches 1 à 6 a été lancée par la session mère le 29/08 dans un bac à sable, contre les échantillons réels ci-dessous. Nombre de `test()` écrits par fichier, comptés sur les blocs de ce plan : `resolve` 9, `auth-google` 8, `gsc` 12, `bing` 9, `render` 14, `console-cli` 15, `acces` 4. Les blocs de code de ce plan sont ceux qui ont tourné, à la mise en forme près.
+
+**Une seule zone reste non normative** : le décodage détaillé de `GetFeeds`, `GetUrlInfo`, `GetCrawlStats` et `GetCrawlIssues` (tâche 4), dont aucune réponse réelle n'a pu être capturée puisque le compte Bing est vide. Le décodage s'y arrête à l'enveloppe `{"d": …}` et ne devine aucun champ. Tout le reste, `serviceAccountToken` compris, est écrit et testé.
+
+**Revu de façon adversariale avant exécution.** Une seconde session a extrait les treize blocs `ts` de la première version de ce plan, les a fait tourner dans une copie du dépôt, et a lancé `check-sources.ts` contre le réseau réel. Elle a rendu 2 défauts critiques, 9 importants et 10 mineurs. **Tous ont été acceptés et corrigés dans la version que tu lis**, et les correctifs ont été réexécutés (12 assertions sur la logique pure, 15 sur l'orchestration, plus la vérification des huit citations contre les pages réelles avec le normaliseur du dépôt). Ce que la revue a le plus fait gagner : trois défauts qu'aucun test du plan ne pouvait voir, parce que les faux `fetch` reproduisaient tous un compte Bing vide et masquaient les branches qui se réveilleront le jour où un site y entrera.
 
 ## Global Constraints
 
 - Bun 1.4, TypeScript, `bun:test`. **Aucune dépendance ajoutée à `plugin/package.json`.**
 - La logique pure vit dans `scripts/lib/`, sans réseau ni disque. Les CLI vivent dans `scripts/` avec `import.meta.main`.
 - Tout appel réseau passe par un `Fetcher` injecté. Type repris tel quel de `skills/checklist/scripts/lib/actions.ts` : `type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string }` et `type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>`.
-- **Aucun secret affiché**, jamais : ni `BING_WMT_API_KEY`, ni un jeton porteur, ni une URL qui contient la clé. Toute sortie passe par `redact`.
+- **Aucun secret affiché**, jamais : ni `BING_WMT_API_KEY`, ni un jeton porteur, ni une URL qui contient la clé. Toute sortie passe par `redact` (qui retire la clé Bing), **puis** par `assertNoSecret` de `skills/strategy/scripts/lib/keywords.ts` sur la clé Bing ET sur le jeton Google. `redact` est la mesure, `assertNoSecret` est le garde-fou de dernier recours : il lève plutôt que de laisser fuir. Exigé deux fois par la spec, sections 3 et 9.
 - **Aucune écriture** : aucun appel à `SubmitFeed`, `SubmitUrlBatch`, `sitemaps.submit` ni `api.indexnow.org`. Un test le prouve avec un faux `fetch`.
 - **Pas de tiret cadratin** dans les chaînes affichées à l'écran ni dans les fichiers Markdown de la skill. Hyphens ou reformulation.
 - Les tests portent sur des comportements. Interdits : figer un compte de lignes, un nombre d'entrées, ou lire le texte du source depuis un test.
@@ -139,6 +143,23 @@ describe("resolveProperty", () => {
     ];
     expect(resolveProperty("https://a.example.com/blog/x", p)?.siteUrl).toBe("https://a.example.com/blog/");
   });
+  test("un préfixe s'arrête à une frontière de segment : /blog ne capture pas /blogging", () => {
+    const p: Property[] = [
+      { siteUrl: "https://a.example.com/blog", permissionLevel: "siteOwner" },
+      { siteUrl: "sc-domain:example.com", permissionLevel: "siteOwner" },
+    ];
+    expect(resolveProperty("https://a.example.com/blogging/x", p)?.siteUrl).toBe("sc-domain:example.com");
+    expect(resolveProperty("https://a.example.com/blog/x", p)?.siteUrl).toBe("https://a.example.com/blog");
+    expect(resolveProperty("https://a.example.com/blog", p)?.siteUrl).toBe("https://a.example.com/blog");
+  });
+  test("l'origine est insensible à la casse, le chemin ne l'est pas", () => {
+    const p: Property[] = [
+      { siteUrl: "https://a.example.com/blog", permissionLevel: "siteOwner" },
+      { siteUrl: "sc-domain:example.com", permissionLevel: "siteOwner" },
+    ];
+    expect(resolveProperty("https://A.EXAMPLE.COM/blog/x", p)?.siteUrl).toBe("https://a.example.com/blog");
+    expect(resolveProperty("https://a.example.com/BLOG/x", p)?.siteUrl).toBe("sc-domain:example.com");
+  });
   test("un domaine qui se termine pareil sans être un sous-domaine ne compte pas", () => {
     expect(resolveProperty("https://notromain-ecarnot.com/", PROPS)).toBeNull();
   });
@@ -167,7 +188,7 @@ Expected: FAIL, module `../lib/resolve` introuvable.
 
 - [ ] **Step 3: Write the implementation**
 
-Ce bloc a été exécuté par la session mère le 29/08 contre les trois propriétés réelles : sept cas, tous verts. Le transcrire tel quel.
+Ce bloc a été exécuté par la session mère le 29/08 contre les trois propriétés réelles, puis réexécuté après le correctif de frontière de préfixe issu de la revue : douze cas, tous verts. Le transcrire tel quel.
 
 ```ts
 // plugin/skills/console/scripts/lib/resolve.ts
@@ -180,18 +201,27 @@ export type BingSite = { Url: string; IsVerified: boolean };
 
 const DOMAIN_PREFIX = "sc-domain:";
 
+/** Origine en minuscules, chemin tel quel : un serveur ignore la casse de l'hôte, pas celle du chemin. */
+function normalizePrefix(u: string): string | null {
+  try { const x = new URL(u); return `${x.origin.toLowerCase()}${x.pathname}`; } catch { return null; }
+}
+
 /**
  * La propriété qui couvre cette URL, ou null.
  * 1. Les propriétés en préfixe d'URL qui préfixent l'URL ; la plus longue gagne.
  * 2. Sinon les propriétés Domaine dont le domaine est l'hôte ou son suffixe ; la plus spécifique gagne.
+ * Le préfixe s'arrête à une frontière de segment : `.../blog` couvre `.../blog` et `.../blog/x`, jamais `.../blogging`.
  */
 export function resolveProperty(url: string, properties: Property[]): Property | null {
-  let host: string;
-  try { host = new URL(url).hostname.toLowerCase(); } catch { return null; }
+  const target = normalizePrefix(url);
+  if (target === null) return null;
+  const host = new URL(url).hostname.toLowerCase();
   const prefixes = properties
-    .filter((p) => !p.siteUrl.startsWith(DOMAIN_PREFIX) && url.toLowerCase().startsWith(p.siteUrl.toLowerCase()))
-    .sort((a, b) => b.siteUrl.length - a.siteUrl.length);
-  if (prefixes.length > 0) return prefixes[0];
+    .filter((p) => !p.siteUrl.startsWith(DOMAIN_PREFIX))
+    .map((p) => ({ p, n: normalizePrefix(p.siteUrl) }))
+    .filter(({ n }) => n !== null && (target === n || target.startsWith(n.endsWith("/") ? n : `${n}/`)))
+    .sort((a, b) => b.n!.length - a.n!.length);
+  if (prefixes.length > 0) return prefixes[0].p;
   const domains = properties
     .filter((p) => p.siteUrl.startsWith(DOMAIN_PREFIX))
     .map((p) => ({ p, d: p.siteUrl.slice(DOMAIN_PREFIX.length).toLowerCase() }))
@@ -209,7 +239,7 @@ export function resolveBingSite(host: string, sites: BingSite[]): BingSite | nul
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/resolve.test.ts`
-Expected: PASS, 7 tests.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Run the whole suite**
 
@@ -234,23 +264,25 @@ git commit -m "feat(console): résolution d'une propriété Search Console et d'
 **Interfaces:**
 - Consumes: rien des tâches précédentes.
 - Produces:
+  - `type FetchInit` et `type Fetcher` (auth-google déclare les siens : la tâche 3 n'existe pas encore quand celle-ci s'écrit, et `gsc.ts` déclarera les mêmes ; formes identiques, TypeScript les accepte structurellement)
   - `type GoogleAuth = { token: string; quotaProject: string | null; provider: "gcloud" | "service-account" }`
   - `type Env = { GSC_SA_KEY_FILE?: string; GSC_QUOTA_PROJECT?: string }`
   - `type GcloudRunner = () => Promise<string | null>` (rend le jeton, ou null si `gcloud` est absent ou échoue)
+  - `SCOPE`, `TOKEN_ENDPOINT`, `LOGIN_HINT`, `QUOTA_HINT`, `SA_HINT` (chaînes exportées ; `gsc.ts` réutilise les deux consignes pour ses propres refus)
   - `class AuthError extends Error` avec `readonly hint: string`
-  - `SCOPE`, `LOGIN_HINT`, `QUOTA_HINT` (chaînes exportées ; `gsc.ts` les réutilise pour ses propres refus)
   - `chooseProvider(env: Env): "gcloud" | "service-account"`
-  - `getAccessToken(env: Env, deps: { gcloud: GcloudRunner; serviceAccount: (path: string) => Promise<string> }): Promise<GoogleAuth>`
-  - `defaultGcloud: GcloudRunner` (appelle le binaire ; jamais journalisé)
-  - `type FetchInit` et `type Fetcher` (auth-google déclare les siens : la tâche 3 n'existe pas encore quand celle-ci s'écrit, et `gsc.ts` déclarera les mêmes ; formes identiques, TypeScript les accepte structurellement)
-  - `serviceAccountToken(keyFilePath: string, fetcher: Fetcher): Promise<string>` **non normatif**, voir Step 5.
+  - `getAccessToken(env, deps: { gcloud: GcloudRunner; serviceAccount: (path: string) => Promise<string> }): Promise<GoogleAuth>`
+  - `defaultGcloud: GcloudRunner` (appelle le binaire ; sa sortie n'est jamais journalisée)
+  - `serviceAccountToken(keyFilePath: string, fetcher: Fetcher, now?: () => number): Promise<string>`
+
+**Tout est normatif dans cette tâche.** `serviceAccountToken` est exporté et testé ici, parce que `console.ts` (tâche 6) l'importe : une tâche 2 déclarée verte sans cet export ferait échouer le chargement du module en tâche 6, avec un message sans rapport avec la cause.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // plugin/skills/console/scripts/tests/auth-google.test.ts
 import { describe, test, expect } from "bun:test";
-import { chooseProvider, getAccessToken, AuthError } from "../lib/auth-google";
+import { chooseProvider, getAccessToken, serviceAccountToken, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
 
 const gcloudOk = async () => "ya29.FAUX-JETON";
 const gcloudKo = async () => null;
@@ -285,9 +317,72 @@ describe("getAccessToken", () => {
     await expect(p).rejects.toBeInstanceOf(AuthError);
     await p.catch((e: AuthError) => {
       expect(e.hint).toContain("gcloud auth application-default login");
-      expect(e.hint).toContain("https://www.googleapis.com/auth/webmasters.readonly");
+      expect(e.hint).toContain(SCOPE);
       expect(`${e.message}${e.hint}`).not.toContain("ya29.");
     });
+  });
+});
+
+describe("serviceAccountToken", () => {
+  // Une vraie paire RSA fabriquée dans le test : la signature est vérifiée avec la clé publique,
+  // ce qui prouve que le JWT est signé pour de bon et pas seulement bien formé.
+  const paire = async () => {
+    const p = await crypto.subtle.generateKey(
+      { name: "RSASSA-PKCS1-v1_5", modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: "SHA-256" }, true, ["sign", "verify"]);
+    const pkcs8 = await crypto.subtle.exportKey("pkcs8", p.privateKey);
+    const b64 = btoa(String.fromCharCode(...new Uint8Array(pkcs8))).match(/.{1,64}/g)!.join("\n");
+    return { pub: p.publicKey, pem: `-----BEGIN PRIVATE KEY-----\n${b64}\n-----END PRIVATE KEY-----\n` };
+  };
+  const decode = (s: string) => JSON.parse(new TextDecoder().decode(
+    Uint8Array.from(atob(s.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))));
+
+  test("signe un JWT RS256 vérifiable et l'échange contre un jeton", async () => {
+    const { pub, pem } = await paire();
+    const dir = `${import.meta.dir}/tmp-sa`;
+    await Bun.write(`${dir}/ok.json`, JSON.stringify({ client_email: "agence@projet.iam.gserviceaccount.com", private_key: pem }));
+    let vu: { url: string; body?: string; headers?: Record<string, string> } | null = null;
+    const f: Fetcher = async (url, init = {}) => { vu = { url, body: init.body, headers: init.headers }; return { status: 200, text: '{"access_token":"sa.JETON"}' }; };
+
+    expect(await serviceAccountToken(`${dir}/ok.json`, f)).toBe("sa.JETON");
+    expect(vu!.url).toBe(TOKEN_ENDPOINT);
+    expect(vu!.headers!["content-type"]).toBe("application/x-www-form-urlencoded");
+    const params = new URLSearchParams(vu!.body!);
+    expect(params.get("grant_type")).toBe("urn:ietf:params:oauth:grant-type:jwt-bearer");
+
+    const [h, c, sig] = params.get("assertion")!.split(".");
+    expect(decode(h)).toEqual({ alg: "RS256", typ: "JWT" });
+    const claims = decode(c);
+    expect(claims.iss).toBe("agence@projet.iam.gserviceaccount.com");
+    expect(claims.scope).toBe(SCOPE);
+    expect(claims.aud).toBe(TOKEN_ENDPOINT);
+    expect(claims.exp - claims.iat).toBe(3600);
+    // base64url : ni remplissage, ni + ni /
+    for (const part of [h, c, sig]) expect(part).not.toMatch(/[=+/]/);
+    const octets = Uint8Array.from(atob(sig.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0));
+    expect(await crypto.subtle.verify("RSASSA-PKCS1-v1_5", pub, octets, new TextEncoder().encode(`${h}.${c}`))).toBe(true);
+  });
+
+  test("un refus de Google ne laisse fuir ni la clé privée ni le JWT", async () => {
+    const { pem } = await paire();
+    const dir = `${import.meta.dir}/tmp-sa`;
+    await Bun.write(`${dir}/ok.json`, JSON.stringify({ client_email: "x@y.iam.gserviceaccount.com", private_key: pem }));
+    const f: Fetcher = async () => ({ status: 400, text: '{"error":"invalid_grant"}' });
+    const p = serviceAccountToken(`${dir}/ok.json`, f);
+    await expect(p).rejects.toBeInstanceOf(AuthError);
+    await p.catch((e: AuthError) => {
+      const tout = `${e.message}${e.hint}`;
+      expect(tout).not.toContain("PRIVATE KEY");
+      expect(tout).not.toContain("assertion");
+      expect(e.hint).toContain("ACC-04");
+    });
+  });
+
+  test("clé incomplète ou fichier absent : erreur lisible, pas une trace", async () => {
+    const dir = `${import.meta.dir}/tmp-sa`;
+    await Bun.write(`${dir}/casse.json`, JSON.stringify({ client_email: "x@y.z" }));
+    const f: Fetcher = async () => ({ status: 200, text: '{"access_token":"x"}' });
+    await expect(serviceAccountToken(`${dir}/casse.json`, f)).rejects.toBeInstanceOf(AuthError);
+    await expect(serviceAccountToken(`${dir}/absent.json`, f)).rejects.toBeInstanceOf(AuthError);
   });
 });
 ```
@@ -295,9 +390,11 @@ describe("getAccessToken", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/auth-google.test.ts`
-Expected: FAIL, module introuvable.
+Expected: FAIL, module `../lib/auth-google` introuvable.
 
-- [ ] **Step 3: Write the implementation, partie normative**
+- [ ] **Step 3: Write the implementation**
+
+Bloc exécuté par la session mère : 5 assertions sur le choix de fournisseur et `getAccessToken`, 10 sur `serviceAccountToken` (dont la vérification cryptographique de la signature avec la clé publique). Toutes vertes. Le transcrire tel quel.
 
 ```ts
 // plugin/skills/console/scripts/lib/auth-google.ts
@@ -312,6 +409,7 @@ export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, stri
 export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
 
 export const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
+export const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
 export const LOGIN_HINT =
   `aucun jeton Google. Lance :\n` +
@@ -324,6 +422,10 @@ export const QUOTA_HINT =
   `et active l'API dessus une fois :\n` +
   `  gcloud services enable searchconsole.googleapis.com --project=<projet>\n` +
   `Un compte de service (GSC_SA_KEY_FILE) n'en a pas besoin.`;
+
+export const SA_HINT =
+  `clé de compte de service refusée. Vérifie GSC_SA_KEY_FILE et que le compte est bien ajouté comme ` +
+  `utilisateur de la propriété. Voir references/acces.md, ACC-04.`;
 
 export class AuthError extends Error {
   constructor(message: string, readonly hint: string) { super(message); this.name = "AuthError"; }
@@ -358,27 +460,66 @@ export const defaultGcloud: GcloudRunner = async () => {
     return null;
   }
 };
+
+/** base64url sans remplissage, la forme que RFC 7515 impose à un JWT. */
+function b64url(bytes: ArrayBuffer | Uint8Array): string {
+  const b = bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes);
+  return btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+const b64urlText = (s: string) => b64url(new TextEncoder().encode(s));
+
+/** Le corps d'une clé PEM PKCS8, décodé en octets. */
+function pkcs8Bytes(pem: string): Uint8Array {
+  const body = pem.replace(/-----[A-Z ]+-----/g, "").replace(/\s+/g, "");
+  return Uint8Array.from(atob(body), (c) => c.charCodeAt(0));
+}
+
+/**
+ * Flux serveur à serveur documenté par Google : JWT signé RS256, échangé contre un jeton d'accès.
+ * Rien de ce qui sort d'ici, message d'erreur compris, ne contient la clé privée, le JWT ou le jeton.
+ */
+export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher, now: () => number = Date.now): Promise<string> {
+  let email: string, privateKey: string;
+  try {
+    const j = JSON.parse(await Bun.file(keyFilePath).text()) as { client_email?: string; private_key?: string };
+    if (!j.client_email || !j.private_key) throw new Error("champs manquants");
+    email = j.client_email; privateKey = j.private_key;
+  } catch {
+    throw new AuthError(`clé de compte de service illisible (${keyFilePath})`, SA_HINT);
+  }
+  const iat = Math.floor(now() / 1000);
+  const header = b64urlText(JSON.stringify({ alg: "RS256", typ: "JWT" }));
+  const claims = b64urlText(JSON.stringify({ iss: email, scope: SCOPE, aud: TOKEN_ENDPOINT, exp: iat + 3600, iat }));
+  let jwt: string;
+  try {
+    const key = await crypto.subtle.importKey("pkcs8", pkcs8Bytes(privateKey), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+    const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key, new TextEncoder().encode(`${header}.${claims}`));
+    jwt = `${header}.${claims}.${b64url(sig)}`;
+  } catch {
+    throw new AuthError("clé privée du compte de service inutilisable", SA_HINT);
+  }
+  const body = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }).toString();
+  const r = await fetcher(TOKEN_ENDPOINT, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body });
+  if (r.status !== 200) throw new AuthError(`Google a refusé la clé de compte de service (HTTP ${r.status})`, SA_HINT);
+  const token = (JSON.parse(r.text) as { access_token?: string }).access_token;
+  if (!token) throw new AuthError("réponse de jeton sans access_token", SA_HINT);
+  return token;
+}
 ```
+
+Références officielles de ce flux : `https://developers.google.com/identity/protocols/oauth2/service-account`, citations retrouvées mot pour mot le 29/08 avec le normaliseur du dépôt : « RSA using SHA-256 hashing algorithm. This is expressed as RS256 in the alg field in the JWT header. » et « a maximum of 1 hour after the issued time ».
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/auth-google.test.ts`
-Expected: PASS, 5 tests.
+Expected: PASS, 8 tests.
 
-- [ ] **Step 5: Ajouter `serviceAccountToken` (étape NON NORMATIVE)**
+- [ ] **Step 5: Vérifier qu'aucun résidu de test ne traîne**
 
-Ce code ne peut pas être exécuté ici : il n'existe aucun compte de service à ce jour, et un JWT signé pour de faux ne prouve rien. **Contrat à respecter**, l'implémenteur écrit le corps :
+Le test écrit des clés RSA jetables dans `skills/console/scripts/tests/tmp-sa/`. Ajouter ce chemin à `plugin/.gitignore` s'il existe, sinon à `.gitignore` du dépôt, et vérifier :
 
-- Signature : `export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher): Promise<string>`.
-- Lire le JSON du chemin (hors dépôt). Champs utilisés : `client_email`, `private_key`.
-- Construire l'en-tête `{"alg":"RS256","typ":"JWT"}` et les claims `{ iss: client_email, scope: SCOPE, aud: "https://oauth2.googleapis.com/token", exp: now + 3600, iat: now }`.
-- Encoder en base64url (sans `=` de remplissage, `+` en `-`, `/` en `_`).
-- Importer la clé : `crypto.subtle.importKey("pkcs8", <corps PEM décodé>, { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"])`, puis signer `header.payload`.
-- Échanger : `POST https://oauth2.googleapis.com/token`, `content-type: application/x-www-form-urlencoded`, corps `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer&assertion=<jwt>`. Rendre `access_token` de la réponse.
-- En cas d'échec, lever `new AuthError("compte de service refusé", ...)` avec un renvoi à `references/acces.md`. **Ne jamais** mettre le contenu de la clé, le JWT ou le jeton dans le message.
-- Test à écrire : un faux `fetcher` qui rend `{"access_token":"sa.FAUX"}` ; vérifier que le corps envoyé porte `grant_type=urn:ietf:params:oauth:grant-type:jwt-bearer`, que la fonction rend `sa.FAUX`, et qu'une réponse en 400 lève une `AuthError` dont le message ne contient ni la clé privée ni le JWT. Une clé RSA de test se génère avec `crypto.subtle.generateKey` puis `exportKey("pkcs8")`, dans le test lui-même.
-
-Références officielles pour ce contrat : `https://developers.google.com/identity/protocols/oauth2/service-account` (signature « RSA using SHA-256 hashing algorithm, expressed as `RS256` », claims `iss`, `scope`, `aud`, `exp`, `iat`, `exp` « a maximum of 1 hour after the issued time »).
+Run: `cd /Users/recarnot/dev/erom-agence-seo-chantier-5 && git status --short`
+Expected: aucun fichier `tmp-sa` non suivi.
 
 - [ ] **Step 6: Run the whole suite**
 
@@ -388,7 +529,7 @@ Expected: PASS.
 - [ ] **Step 7: Commit**
 
 ```bash
-git add plugin/skills/console/scripts/lib/auth-google.ts plugin/skills/console/scripts/tests/auth-google.test.ts
+git add plugin/skills/console/scripts/lib/auth-google.ts plugin/skills/console/scripts/tests/auth-google.test.ts .gitignore
 git commit -m "feat(console): jeton Google à deux fournisseurs, gcloud et compte de service (D32)"
 ```
 
@@ -514,6 +655,13 @@ describe("inspectUrl", () => {
     expect(r.status?.googleCanonical).toBeNull();
     expect(canonicalMismatch(r.status)).toBe(false);
   });
+  test("une réponse sans indexStatusResult rend status null et ne plante pas (spec section 9)", async () => {
+    const { f } = fake(() => ({ status: 200, text: '{"inspectionResult":{"inspectionResultLink":"https://search.google.com/z"}}' }));
+    const r = await inspectUrl(f, AUTH, "sc-domain:x.com", "https://x.com/");
+    expect(r.status).toBeNull();
+    expect(r.link).toBe("https://search.google.com/z");
+    expect(canonicalMismatch(r.status)).toBe(false);
+  });
   test("canonicalMismatch ne dit oui que si les deux sont là et diffèrent", () => {
     const base = { verdict: "PASS", coverageState: "x", robotsTxtState: null, indexingState: null, lastCrawlTime: null, pageFetchState: null, crawledAs: null };
     expect(canonicalMismatch({ ...base, googleCanonical: "https://a/", userCanonical: "https://b/" })).toBe(true);
@@ -523,13 +671,16 @@ describe("inspectUrl", () => {
 });
 
 describe("aucune écriture", () => {
-  test("aucun appel ne vise sitemaps.submit ni une méthode PUT", async () => {
+  test("aucune URL appelée ne vise une soumission, quelle que soit la méthode", async () => {
     const body = await fx("sites");
     const { f, calls } = fake(() => ({ status: 200, text: body }));
     await listProperties(f, AUTH);
     await listSitemaps(f, AUTH, "sc-domain:romain-ecarnot.com").catch(() => {});
-    expect(calls.every((c) => c.method === "GET" || c.method === "POST")).toBe(true);
-    expect(calls.some((c) => c.method === "PUT")).toBe(false);
+    await inspectUrl(f, AUTH, "sc-domain:romain-ecarnot.com", "https://romain-ecarnot.com/").catch(() => {});
+    expect(calls.length).toBeGreaterThan(0);
+    // Le contrôle porte sur les URL, pas sur le verbe : un sitemaps.submit envoyé en POST passerait
+    // une assertion qui ne regarde que la méthode.
+    for (const c of calls) expect(/\/sitemaps\/|SubmitFeed|SubmitUrlBatch|indexnow/.test(c.url)).toBe(false);
   });
 });
 ```
@@ -650,7 +801,7 @@ export function canonicalMismatch(s: IndexStatus | null): boolean {
 - [ ] **Step 5: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/gsc.test.ts`
-Expected: PASS.
+Expected: PASS, 12 tests.
 
 - [ ] **Step 6: Run the whole suite, then commit**
 
@@ -716,6 +867,10 @@ describe("bingUserSites", () => {
       expect(`${e.message}${e.hint}`).toContain("InvalidApiKey");
       expect(`${e.message}${e.hint}`).not.toContain(KEY);
     });
+  });
+  test("ErrorCode 0 vaut None dans l'enum officielle : c'est un succès, pas un refus", async () => {
+    const { f } = fake(() => ({ status: 200, text: '{"ErrorCode":0,"d":[{"Url":"https://x.com","IsVerified":true}]}' }));
+    expect(await bingUserSites(f, KEY)).toEqual([{ Url: "https://x.com", IsVerified: true }]);
   });
   test("throttle : consigne de réessayer plus tard", async () => {
     const { f } = fake(() => ({ status: 400, text: '{"ErrorCode":4,"Message":"ERROR!!! ThrottleUser"}' }));
@@ -804,7 +959,8 @@ async function call(f: Fetcher, key: string, method: string, params: Record<stri
   let parsed: unknown;
   try { parsed = JSON.parse(r.text); } catch { throw new BingError(`réponse illisible de Bing (${method}, HTTP ${r.status})`, null, hintFor(null)); }
   const e = parsed as { ErrorCode?: number; Message?: string };
-  if (typeof e.ErrorCode === "number") {
+  // ErrorCode 0 vaut None dans l'enum officielle : c'est un succès. Ne lever que sur les codes non nuls.
+  if (typeof e.ErrorCode === "number" && e.ErrorCode !== 0) {
     const name = BING_ERROR_CODES[e.ErrorCode] ?? String(e.ErrorCode);
     throw new BingError(redact(`Bing a refusé ${method} : ${name}`, key), e.ErrorCode, hintFor(e.ErrorCode));
   }
@@ -839,7 +995,7 @@ export async function bingCrawlIssues(f: Fetcher, key: string, siteUrl: string):
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/bing.test.ts`
-Expected: PASS.
+Expected: PASS, 9 tests.
 
 - [ ] **Step 5: Run the whole suite, then commit**
 
@@ -867,9 +1023,10 @@ git commit -m "feat(console): lectures Bing Webmaster Tools, sites, feeds, url i
 
 **Règles de rendu, valables pour les trois :**
 - Une ligne par fait, `clé : valeur`. Pas de tableau (lecture sur mobile), pas de tiret cadratin.
-- Un moteur qui n'a pas pu répondre écrit une ligne `Bing : <raison>` ou `Google : <raison>`, jamais un blanc.
-- Un compte Bing vide écrit exactement `Bing : aucun site dans ce compte Bing`.
-- `crawl` écrit toujours `Google : pas de statistiques de crawl en API`.
+- Chaque moteur a son titre de section. Un moteur qui n'a pas pu répondre écrit sa raison indentée sous son titre, jamais un blanc. Aucune section ne se termine sans au moins une ligne.
+- Un compte Bing vide écrit exactement `aucun site dans ce compte Bing` sous le titre Bing.
+- `crawl` écrit toujours `Google : pas de statistiques de crawl en API` (le préfixe explicite est voulu : cette section n'a pas d'autre contenu possible).
+- Sur un refus Google, la propriété retenue et son rôle s'écrivent quand même : c'est le rôle qui explique le refus (spec section 8).
 - Quand `canonicalMismatch` est vrai, une ligne en clair : `attention : Google a retenu un autre canonical que celui déclaré`.
 
 - [ ] **Step 1: Write the failing test**
@@ -942,13 +1099,41 @@ describe("renderInspect", () => {
     const out = renderInspect({ url: "https://example.com/", property: null, google: null, googleError: "aucune propriété ne couvre cette URL", bing: null, bingError: null });
     expect(out).toContain("aucune propriété");
   });
+  test("sur un refus de droits, le rôle observé est nommé quand même (spec section 8)", () => {
+    const out = renderInspect({
+      url: "https://a/", property: { siteUrl: "sc-domain:a.com", permissionLevel: "siteFullUser" },
+      google: null, googleError: "droits insuffisants sur cette propriété", bing: null, bingError: null,
+    });
+    expect(out).toContain("siteFullUser");
+    expect(out).toContain("droits insuffisants");
+  });
+  test("une inspection sans état rend la phrase dédiée, pas un blanc (spec section 9)", () => {
+    const out = renderInspect({ url: "https://a/", property: prop, google: { link: null, status: null }, googleError: null, bing: null, bingError: null });
+    expect(out).toContain("aucun état renvoyé par Google");
+  });
+  test("une charge Bing réduite à son __type ne laisse pas la section vide", () => {
+    const out = renderInspect({
+      url: "https://a/", property: prop, google: null, googleError: "x",
+      bing: { __type: "UrlInfo:#Microsoft.Bing.Webmaster.Api" }, bingError: null,
+    });
+    expect(out).toContain("pas dans l'index Bing");
+  });
 });
 
 describe("renderCrawl", () => {
-  test("dit toujours que Google n'expose pas ses statistiques de crawl", () => {
+  test("dit toujours que Google n'expose pas ses statistiques de crawl, et relaie la raison Bing", () => {
     const out = renderCrawl({ site: "https://romain-ecarnot.com", bing: null, bingError: "aucun site dans ce compte Bing" });
-    expect(out).toContain("pas de statistiques de crawl en API");
+    expect(out).toContain("Google : pas de statistiques de crawl en API");
     expect(out).toContain("aucun site dans ce compte Bing");
+  });
+  test("sans erreur et sans données, la section Bing n'est jamais vide", () => {
+    const out = renderCrawl({ site: "https://a", bing: null, bingError: null });
+    expect(out).toContain("aucune statistique lue");
+  });
+  test("avec des données, compte les statistiques et dit l'absence d'erreur de crawl", () => {
+    const out = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [] }, bingError: null });
+    expect(out).toContain("1 entrée(s) de statistiques");
+    expect(out).toContain("aucune erreur de crawl remontée par Bing");
   });
 });
 
@@ -971,7 +1156,7 @@ Expected: FAIL, module introuvable.
 
 - [ ] **Step 3: Write the implementation**
 
-Code exécuté par la session mère contre les attentes du test ci-dessus, 19 assertions vertes. Le transcrire tel quel.
+Code exécuté par la session mère contre les attentes du test ci-dessus, puis réexécuté après les correctifs de la revue (rôle nommé sur un refus, section Bing jamais vide). Tout vert. Le transcrire tel quel.
 
 ```ts
 // plugin/skills/console/scripts/lib/render.ts
@@ -1018,13 +1203,18 @@ export function renderSites(v: SitesView): string {
   return out.join("\n");
 }
 
+/** Ce que Bing dit quand il n'a rien sur cette URL, ou que le site n'est pas dans le compte (spec section 5.4). */
+const HORS_INDEX = "pas dans l'index Bing, ou site hors du compte";
+
 export function renderInspect(v: InspectView): string {
   const out: string[] = [`URL : ${v.url}`, "", "Google Search Console"];
+  // La propriété et son rôle s'écrivent avant tout branchement : sur un 403, c'est le rôle qui explique
+  // le refus, et le laisser dans la branche du succès le rendrait invisible exactement quand il sert.
+  if (v.property) out.push(`  propriété : ${v.property.siteUrl} (${v.property.permissionLevel})`);
   if (v.googleError) out.push(`  ${v.googleError}`);
   else if (!v.google?.status) out.push("  aucun état renvoyé par Google");
   else {
     const s = v.google.status;
-    if (v.property) out.push(`  propriété : ${v.property.siteUrl} (${v.property.permissionLevel})`);
     out.push(`  verdict : ${s.verdict}`, `  couverture : ${s.coverageState}`);
     out.push(
       ...line("robots.txt", s.robotsTxtState), ...line("indexation", s.indexingState),
@@ -1037,10 +1227,15 @@ export function renderInspect(v: InspectView): string {
   }
   out.push("", "Bing Webmaster Tools");
   if (v.bingError) out.push(`  ${v.bingError}`);
-  else if (!v.bing) out.push("  pas dans l'index Bing, ou site hors du compte");
-  // Les champs d'UrlInfo n'ont jamais été capturés (incertitude 1) : on affiche ce que Bing envoie,
-  // sans en inventer. Le `__type` de l'enveloppe .NET ne sert à rien à l'écran.
-  else for (const [k, val] of Object.entries(v.bing)) if (!k.startsWith("__")) out.push(`  ${k} : ${String(val)}`);
+  else if (!v.bing) out.push(`  ${HORS_INDEX}`);
+  else {
+    // Les champs d'UrlInfo n'ont jamais été capturés (incertitude 1) : on affiche ce que Bing envoie,
+    // sans en inventer. Le `__type` de l'enveloppe .NET ne sert à rien à l'écran.
+    const avant = out.length;
+    for (const [k, val] of Object.entries(v.bing)) if (!k.startsWith("__")) out.push(`  ${k} : ${String(val)}`);
+    // Une enveloppe .NET réduite à son `__type` laisserait la section vide, ce que la règle interdit.
+    if (out.length === avant) out.push(`  ${HORS_INDEX}`);
+  }
   return out.join("\n");
 }
 
@@ -1051,7 +1246,7 @@ export function renderCrawl(v: CrawlView): string {
     "Bing Webmaster Tools",
   ];
   if (v.bingError) out.push(`  ${v.bingError}`);
-  else if (!v.bing) out.push("  aucun site dans ce compte Bing");
+  else if (!v.bing) out.push("  aucune statistique lue");
   else {
     out.push(`  ${v.bing.stats.length} entrée(s) de statistiques`);
     out.push(v.bing.issues.length === 0 ? "  aucune erreur de crawl remontée par Bing" : `  ${v.bing.issues.length} erreur(s) de crawl`);
@@ -1063,7 +1258,7 @@ export function renderCrawl(v: CrawlView): string {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/render.test.ts`
-Expected: PASS.
+Expected: PASS, 14 tests.
 
 - [ ] **Step 5: Run the whole suite, then commit**
 
@@ -1098,9 +1293,13 @@ console crawl [--site <url>]      [--json]
 - `inspect <url>` : `listProperties`, `resolveProperty` ; si null, sortie 1 avec la liste des propriétés vues. Sinon `inspectUrl`. Côté Bing : `bingUserSites`, `resolveBingSite` sur l'hôte de l'URL, puis `bingUrlInfo`.
 - `crawl` : site depuis `--site`, sinon `seo/strategy.md` du répertoire courant (`parseStrategy(...).site`), sinon sortie 1 avec la consigne. Puis `bingUserSites`, `resolveBingSite`, `bingCrawlStats`, `bingCrawlIssues`.
 - Sans `BING_WMT_API_KEY` : aucun appel Bing ne part, `bingError` vaut `non interrogé (clé absente)`, Google répond quand même, code 0.
-- Une `AuthError` ou une `GscError` remplit `googleError` avec `message` puis `hint` ; elle n'interrompt pas Bing.
-- Code 0 dès qu'un moteur a répondu ; code 1 si aucun n'a pu l'être, ou si l'URL ne résout aucune propriété, ou si `crawl` n'a pas de site.
-- `--json` : `JSON.stringify(view, null, 2)` de la vue correspondante, passée par `redact`.
+- Une `AuthError` ou une `GscError` remplit `googleError` avec `message` puis `hint` ; elle n'interrompt pas Bing, et l'inverse.
+- **Compte Bing vide et hôte absent d'un compte non vide sont deux états distincts**, avec deux phrases : `aucun site dans ce compte Bing` quand `GetUserSites` rend une liste vide, `ce site n'est pas dans le compte Bing` quand la liste existe mais ne contient pas cet hôte. Dire le premier dans le second cas est faux et trompeur.
+- **Codes de sortie**, un par commande, sans exception :
+  - `sites` : 0 dès qu'un moteur a répondu, 1 si aucun.
+  - `inspect` : 0 seulement si la propriété a résolu **et** qu'au moins un moteur a répondu. Une URL qu'aucune propriété ne couvre sort en 1 même si Bing a répondu : la commande n'a pas fait ce qu'on lui demandait (AC-4).
+  - `crawl` : 0 si Bing a été lu, 1 sinon. Google n'expose rien ici, donc sans lecture Bing aucune donnée de crawl n'a été obtenue, et la phrase sur Google seule n'est pas une réponse.
+- `--json` : `JSON.stringify(view, null, 2)` de la vue correspondante, passée par `redact` puis par `assertNoSecret` sur la clé Bing **et** sur le jeton Google.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -1114,16 +1313,15 @@ const SITES = '{"siteEntry":[{"siteUrl":"sc-domain:romain-ecarnot.com","permissi
 const INSPECT = '{"inspectionResult":{"inspectionResultLink":"https://search.google.com/x","indexStatusResult":{"verdict":"NEUTRAL","coverageState":"Page with redirect","googleCanonical":"https://www.romain-ecarnot.com/","userCanonical":"https://romain-ecarnot.com/"}}}';
 
 type Call = { url: string; method: string };
-function deps(opts: { key?: string | null; reply?: (c: Call) => { status: number; text: string } }) {
+function deps(opts: { key?: string | null; bingSites?: string; inspectStatus?: number }) {
   const calls: Call[] = [];
   const fetcher = async (url: string, init: { method?: string } = {}) => {
     const c = { url, method: init.method ?? "GET" };
     calls.push(c);
-    if (opts.reply) return opts.reply(c);
     if (url.includes("/webmasters/v3/sites/")) return { status: 200, text: '{"sitemap":[]}' };
     if (url.includes("/webmasters/v3/sites")) return { status: 200, text: SITES };
-    if (url.includes("index:inspect")) return { status: 200, text: INSPECT };
-    if (url.includes("GetUserSites")) return { status: 200, text: '{"d":[]}' };
+    if (url.includes("index:inspect")) return { status: opts.inspectStatus ?? 200, text: opts.inspectStatus ? "{}" : INSPECT };
+    if (url.includes("GetUserSites")) return { status: 200, text: opts.bingSites ?? '{"d":[]}' };
     return { status: 200, text: '{"d":null}' };
   };
   return {
@@ -1131,7 +1329,8 @@ function deps(opts: { key?: string | null; reply?: (c: Call) => { status: number
     deps: {
       fetcher,
       env: { GSC_QUOTA_PROJECT: "p-123", BING_WMT_API_KEY: opts.key === undefined ? KEY : (opts.key ?? undefined) },
-      gcloud: async () => "ya29.FAUX",
+      // Un jeton reconnaissable : les tests de fuite cherchent ce préfixe dans les sorties.
+      gcloud: async () => "ya29.JETON-SECRET",
       serviceAccount: async () => "sa.FAUX",
       readStrategy: async () => null,
     },
@@ -1175,6 +1374,52 @@ describe("console inspect", () => {
     expect(r.out).toContain("aucune propriété");
     expect(calls.some((c) => c.url.includes("index:inspect"))).toBe(false);
   });
+  // Le compte Bing de Romain est vide aujourd'hui : sans ce cas, la branche reste intestée
+  // et le défaut se réveillerait le jour où un site entre dans le compte.
+  test("hors de toute propriété mais site présent chez Bing : toujours 1 (AC-4)", async () => {
+    const { deps: d, calls } = deps({ bingSites: '{"d":[{"Url":"https://example.com","IsVerified":true}]}' });
+    const r = await runConsole(["inspect", "https://example.com/"], d);
+    expect(r.code).toBe(1);
+    expect(calls.some((c) => c.url.includes("index:inspect"))).toBe(false);
+  });
+  test("sur un 403 de Google, le rôle observé apparaît dans la sortie", async () => {
+    const { deps: d } = deps({ inspectStatus: 403 });
+    const r = await runConsole(["inspect", "https://romain-ecarnot.com/"], d);
+    expect(r.out).toContain("siteOwner");
+  });
+});
+
+describe("console crawl", () => {
+  test("rien lu chez Bing : code 1, et Google est dit sans API", async () => {
+    const { deps: d } = deps({});
+    const r = await runConsole(["crawl", "--site", "https://romain-ecarnot.com"], d);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("pas de statistiques de crawl en API");
+    expect(r.out).toContain("aucun site dans ce compte Bing");
+  });
+  test("Bing lu : code 0", async () => {
+    const { deps: d } = deps({ bingSites: '{"d":[{"Url":"https://romain-ecarnot.com","IsVerified":true}]}' });
+    expect((await runConsole(["crawl", "--site", "https://romain-ecarnot.com"], d)).code).toBe(0);
+  });
+  test("compte non vide mais hôte absent : la phrase le dit, sans prétendre que le compte est vide", async () => {
+    const { deps: d } = deps({ bingSites: '{"d":[{"Url":"https://autre.com","IsVerified":true}]}' });
+    const r = await runConsole(["crawl", "--site", "https://romain-ecarnot.com"], d);
+    expect(r.out).toContain("ce site n'est pas dans le compte Bing");
+    expect(r.out).not.toContain("aucun site dans ce compte Bing");
+  });
+});
+
+describe("aucun secret ne sort", () => {
+  test("ni la clé Bing ni le jeton Google, sur les trois commandes, en texte comme en JSON", async () => {
+    for (const args of [["sites"], ["inspect", "https://romain-ecarnot.com/"], ["crawl", "--site", "https://romain-ecarnot.com"]]) {
+      for (const variante of [args, [...args, "--json"]]) {
+        const { deps: d } = deps({});
+        const r = await runConsole(variante, d);
+        expect(r.out).not.toContain(KEY);
+        expect(r.out).not.toContain("ya29.");
+      }
+    }
+  });
 });
 
 describe("aucune écriture", () => {
@@ -1217,7 +1462,7 @@ Expected: FAIL, module introuvable.
 
 - [ ] **Step 3: Write the implementation**
 
-Code exécuté par la session mère contre les attentes du test ci-dessus, 10 assertions vertes. Le transcrire tel quel.
+Code exécuté par la session mère contre les attentes du test ci-dessus, puis réexécuté après les correctifs de la revue : 15 assertions vertes, dont les trois branches qu'un compte Bing vide masquait. Le transcrire tel quel.
 Point de conception à ne pas perdre : chaque moteur est isolé. Un échec Google remplit `googleError` et laisse Bing répondre,
 et l'inverse. Le code de sortie ne vaut 1 que si aucun des deux n'a pu répondre.
 
@@ -1231,6 +1476,7 @@ import { listProperties, listSitemaps, inspectUrl, type Fetcher } from "./lib/gs
 import { bingUserSites, bingFeeds, bingUrlInfo, bingCrawlStats, bingCrawlIssues, redact } from "./lib/bing";
 import { renderSites, renderInspect, renderCrawl, type SitesView, type InspectView, type CrawlView } from "./lib/render";
 import { parseStrategy } from "../../../lib/strategy";
+import { assertNoSecret } from "../../strategy/scripts/lib/keywords";
 
 export type Deps = {
   fetcher: Fetcher;
@@ -1242,6 +1488,9 @@ export type Deps = {
 };
 
 const NOKEY = "non interrogé (clé absente)";
+/** Deux états distincts, deux phrases : le compte n'a aucun site, ou il en a mais pas celui-là. */
+const COMPTE_VIDE = "aucun site dans ce compte Bing";
+const HOTE_ABSENT = "ce site n'est pas dans le compte Bing";
 const USAGE = "usage : console sites | console inspect <url> | console crawl [--site <url>]   [--json]";
 
 /** Un refus devient une raison lisible : le message, puis la consigne indentée. Jamais une trace. */
@@ -1256,11 +1505,23 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
   const rest = args.filter((a) => a !== "--json");
   const cmd = rest[0] ?? "";
   const key = d.env.BING_WMT_API_KEY ?? null;
-  const done = (view: unknown, text: string, code: 0 | 1) => ({ out: redact(json ? JSON.stringify(view, null, 2) : text, key), code });
+  let token: string | null = null;
+
+  // redact retire la clé Bing ; assertNoSecret est le garde-fou de dernier recours, sur la clé ET sur le
+  // jeton porteur (spec sections 3 et 9). Il lève plutôt que de laisser fuir : c'est le bon échec.
+  const done = (view: unknown, text: string, code: 0 | 1) => {
+    const out = redact(json ? JSON.stringify(view, null, 2) : text, key);
+    assertNoSecret(out, key);
+    assertNoSecret(out, token);
+    return { out, code };
+  };
 
   const auth = async (): Promise<[GoogleAuth | null, string | null]> => {
-    try { return [await getAccessToken(d.env, { gcloud: d.gcloud, serviceAccount: d.serviceAccount }), null]; }
-    catch (e) { return [null, reason(e)]; }
+    try {
+      const a = await getAccessToken(d.env, { gcloud: d.gcloud, serviceAccount: d.serviceAccount });
+      token = a.token;
+      return [a, null];
+    } catch (e) { return [null, reason(e)]; }
   };
 
   if (cmd === "sites") {
@@ -1312,13 +1573,15 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     if (key) {
       try {
         const host = new URL(url).hostname;
-        const site = resolveBingSite(host, await bingUserSites(d.fetcher, key));
-        if (!site) bingError = "aucun site dans ce compte Bing";
+        const sites = await bingUserSites(d.fetcher, key);
+        const site = resolveBingSite(host, sites);
+        if (!site) bingError = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
         else bing = await bingUrlInfo(d.fetcher, key, site.Url, url);
       } catch (e) { bingError = reason(e); }
     }
     const view: InspectView = { url, property, google, googleError, bing, bingError };
-    return done(view, renderInspect(view), google || bing ? 0 : 1);
+    // Sans propriété résolue, la commande n'a pas fait ce qu'on lui demandait, quoi que Bing ait répondu (AC-4).
+    return done(view, renderInspect(view), property !== null && (google || bing) ? 0 : 1);
   }
 
   if (cmd === "crawl") {
@@ -1334,14 +1597,15 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     if (key) {
       try {
         const host = new URL(site.startsWith("http") ? site : `https://${site}`).hostname;
-        const s = resolveBingSite(host, await bingUserSites(d.fetcher, key));
-        if (!s) bingError = "aucun site dans ce compte Bing";
+        const sites = await bingUserSites(d.fetcher, key);
+        const s = resolveBingSite(host, sites);
+        if (!s) bingError = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
         else bing = { stats: await bingCrawlStats(d.fetcher, key, s.Url), issues: await bingCrawlIssues(d.fetcher, key, s.Url) };
       } catch (e) { bingError = reason(e); }
     }
     const view: CrawlView = { site, bing, bingError };
-    // Google n'expose pas ses statistiques de crawl : la commande aboutit quand même, le rendu le dit.
-    return done(view, renderCrawl(view), 0);
+    // Google n'expose rien ici : sans lecture Bing, aucune donnée de crawl n'a été obtenue, donc 1.
+    return done(view, renderCrawl(view), bing ? 0 : 1);
   }
 
   return { out: USAGE, code: 1 };
@@ -1357,6 +1621,7 @@ if (import.meta.main) {
       throw new Error(`service injoignable : ${e instanceof Error ? e.message : String(e)}`);
     }
   };
+  // assertNoSecret lève si un secret a survécu à redact : on préfère un échec net à une fuite.
   const { out, code } = await runConsole(process.argv.slice(2), {
     fetcher: defaultFetcher,
     env: process.env,
@@ -1375,7 +1640,7 @@ if (import.meta.main) {
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/console-cli.test.ts`
-Expected: PASS.
+Expected: PASS, 15 tests.
 
 - [ ] **Step 5: Ajouter le script dans `package.json`**
 
@@ -1400,52 +1665,83 @@ git commit -m "feat(console): CLI sites, inspect et crawl, sans aucune écriture
 - Create: `plugin/skills/console/references/acces.md`
 - Modify: `plugin/skills/audit/scripts/check-sources.ts`
 - Modify: `plugin/README.md`
+- Modify: `plugin/.claude-plugin/plugin.json`
 - Test: `plugin/skills/console/scripts/tests/acces.test.ts`
 
 **Interfaces:**
-- Consumes: `parseRecipes` de `plugin/skills/build/scripts/lib/recipes.ts`, signature `parseRecipes(md: string): Recipe[]`. Format attendu par ce parseur, à respecter à la lettre dans `acces.md` :
-  - un titre `### Titre (ACC-01)`, l'id en majuscules puis deux chiffres ;
-  - des lignes `Fichiers: …`, `Piège: …`, `Source: <url> « citation »`.
+- Consumes: `parseRecipes` de `plugin/skills/build/scripts/lib/recipes.ts`, signature `parseRecipes(md: string): Recipe[]`, et `OFFICIAL_DOMAINS` de `plugin/skills/audit/scripts/lib/checks.ts`.
+- Format que `parseRecipes` reconnaît, à respecter à la lettre : un titre `### Titre (ACC-01)`, l'id en majuscules puis deux chiffres, puis des lignes `Piège: …` et `Source: <url> « citation »`. **`Chemin:` n'est pas lu par `parseRecipes`** (sa regex de champ ne connaît que `Fichiers`, `Piège` et `Source`) mais il est **obligatoire** : `consoles.md` en porte un par entrée et son test l'exige. `acces.md` fait pareil, c'est ce qui rend la référence utile devant un client.
 
 - [ ] **Step 1: Écrire `references/acces.md`**
 
-Entrées obligatoires, une par geste, avec au moins une `Source:` officielle et sa citation mot pour mot :
+Six entrées. Chacune porte `Chemin:` (les clics, en français), `Piège:` quand il y en a un, et une ou deux lignes `Source:`.
 
-- `ACC-01` Google, ajouter un utilisateur à une propriété et choisir son rôle. Source : `https://support.google.com/webmasters/answer/7687615`, citations déjà relevées le 29/08 : « Open the Users and permissions page in property settings (Settings > Users and permissions). », « Owner: Has full control over properties in Search Console. »
-- `ACC-02` Google, les deux sortes de propriété et la vérification DNS TXT. Source : `https://support.google.com/webmasters/answer/9008080`, citation : « For TXT records, a Search Console verification record looks something like `google-site-verification=_<<some number>>_`. » Piège : l'API exige le nom exact rendu par `sites.list` (`sc-domain:…` ou le préfixe d'URL), on ne le fabrique jamais.
-- `ACC-03` Google, autorisation de l'API et scope de lecture. Source : `https://developers.google.com/webmaster-tools/v1/how-tos/authorizing`, citation : « Your application must use OAuth 2.0 to authorize requests. No other authorization protocols are supported. »
-- `ACC-04` Google, bascule vers un compte de service : créer le projet, activer l'API, créer le compte, ranger la clé JSON hors dépôt, poser `GSC_SA_KEY_FILE`, faire ajouter l'adresse du compte par le client. Source : `https://developers.google.com/identity/protocols/oauth2/service-account`, citation : « RSA using SHA-256 hashing algorithm, expressed as `RS256` ». Piège : `GSC_QUOTA_PROJECT` devient inutile avec un compte de service ; avec gcloud, sans elle, l'API répond 403 `SERVICE_DISABLED`.
-- `ACC-05` Bing, une clé par utilisateur et pas par site. Source : `https://learn.microsoft.com/en-us/bingwebmaster/getting-access`, citation : « the API key is generated for a user and not a site ». Piège : ne jamais demander la clé d'un client, elle ouvre tous ses sites en écriture.
-- `ACC-06` Bing, déléguer un site en lecture seule au compte de l'agence. Source : `https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.addsiteroles`, citation : « Delegate site access to user ».
+**Les lignes `Source:` sont à recopier caractère pour caractère, sans backticks autour de l'URL.** Les huit citations ci-dessous ont été retrouvées sur leur page le 29/08 avec le normaliseur du dépôt (`normalizePage` et `normalizeQuote` de `skills/audit/scripts/lib/normalize.ts`). Une variante, même plus jolie, fera échouer `check-sources.ts` et donc AC-10.
 
-Pages d'aide `bing.com/webmasters/help/*` : applications JavaScript, nommées sans `Source:` (gotcha du 27/08). `support.google.com` répond 404 à un HEAD et 200 à un GET : `check-sources.ts` est déjà en GET.
+```
+Source: https://support.google.com/webmasters/answer/7687615 « Open the Users and permissions page in property settings »
+Source: https://support.google.com/webmasters/answer/7687615 « Owner: Has full control over properties in Search Console. »
+Source: https://support.google.com/webmasters/answer/9008080 « For TXT records, a Search Console verification record looks something like »
+Source: https://developers.google.com/webmaster-tools/v1/how-tos/authorizing « Your application must use OAuth 2.0 to authorize requests. No other authorization protocols are supported. »
+Source: https://developers.google.com/identity/protocols/oauth2/service-account « RSA using SHA-256 hashing algorithm. This is expressed as RS256 in the alg field in the JWT header. »
+Source: https://developers.google.com/identity/protocols/oauth2/service-account « a maximum of 1 hour after the issued time »
+Source: https://learn.microsoft.com/en-us/bingwebmaster/getting-access « the API key is generated for a user and not a site »
+Source: https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.addsiteroles « Delegate site access to user »
+```
+
+Répartition et contenu des six entrées :
+
+- **ACC-01, Google : ajouter un utilisateur à une propriété.** `Chemin` : ouvrir la propriété dans Search Console, Paramètres, Utilisateurs et autorisations, Ajouter un utilisateur, saisir l'adresse, choisir le rôle, Enregistrer. `Piège` : le rôle Restreint ne permet pas de soumettre un sitemap. Sources : les deux lignes `support.google.com/webmasters/answer/7687615`.
+- **ACC-02, Google : les deux sortes de propriété.** `Chemin` : créer une propriété Domaine (vérification par enregistrement TXT chez le registrar, hôte vide ou `@`) ou une propriété Préfixe d'URL. `Piège` : l'API exige le nom exact rendu par `sites.list`, `sc-domain:exemple.fr` ou `https://exemple.fr/` ; `console` le résout depuis la liste et ne le fabrique jamais (D33). Source : `answer/9008080`.
+- **ACC-03, Google : autorisation de l'API et scope de lecture.** `Chemin` : rien à cliquer, c'est le jeton qui porte le scope ; `console` demande toujours `webmasters.readonly`, donc une soumission de sitemap lui est refusée par construction. Source : `how-tos/authorizing`.
+- **ACC-04, Google : basculer vers un compte de service.** `Chemin` : créer un projet dans Google Cloud, activer l'API Search Console dessus, créer un compte de service, télécharger sa clé JSON, la ranger hors du dépôt, poser `GSC_SA_KEY_FILE` dans `~/.zshenv`, puis faire ajouter l'adresse du compte de service par le client comme utilisateur de sa propriété (ACC-01). `Piège` : `GSC_QUOTA_PROJECT` devient inutile avec un compte de service ; avec gcloud, sans elle, l'API répond 403 `SERVICE_DISABLED`. Sources : les deux lignes `oauth2/service-account`.
+- **ACC-05, Bing : une clé par utilisateur, pas par site.** `Chemin` : Bing Webmaster Tools, Settings, API Access, générer la clé, la poser dans `~/.zshenv`. `Piège` : une seule clé existe par compte, en générer une nouvelle tue l'ancienne (incident du 28/08) ; ne jamais demander la clé d'un client, elle ouvre tous ses sites en écriture. Source : `bingwebmaster/getting-access`.
+- **ACC-06, Bing : déléguer un site en lecture seule au compte de l'agence.** `Chemin` : côté client, Bing Webmaster Tools, écran Users, ajouter l'adresse de l'agence en lecture seule. `Piège` : les pages d'aide `bing.com/webmasters/help/*` sont des applications JavaScript, non citables par script ; les nommer sans `Source:`. Source : `AddSiteRoles`.
+
+Rappel de deux pièges connus du dépôt : `support.google.com` répond 404 à un HEAD et 200 à un GET, `check-sources.ts` est déjà en GET ; les pages d'aide Bing ne sont pas lisibles par script.
 
 - [ ] **Step 2: Écrire le test de format**
+
+Aligné sur `skills/checklist/scripts/tests/consoles.test.ts`, qui est le modèle. Les deux contrôles que ce test frère porte et qu'il ne faut pas perdre : **une citation vide passe `check-sources.ts`** (toute page contient la chaîne vide), et une URL hors des domaines officiels n'a rien à faire là.
 
 ```ts
 // plugin/skills/console/scripts/tests/acces.test.ts
 import { describe, test, expect } from "bun:test";
 import { parseRecipes } from "../../../build/scripts/lib/recipes";
+import { OFFICIAL_DOMAINS } from "../../../audit/scripts/lib/checks";
 
-const md = await Bun.file(new URL("../../references/acces.md", import.meta.url).pathname).text();
+const ACCES = await Bun.file(`${import.meta.dir}/../../references/acces.md`).text();
+const SKILL = await Bun.file(`${import.meta.dir}/../../SKILL.md`).text();
+const DOMAINS = [...OFFICIAL_DOMAINS, "learn.microsoft.com", "search.google.com"];
+const allowed = (url: string) => { try { const h = new URL(url).hostname; return DOMAINS.some((d) => h === d || h.endsWith(`.${d}`)); } catch { return false; } };
 
 describe("references/acces.md", () => {
-  test("chaque entrée s'analyse, porte un id ACC-nn et au moins une source citée", () => {
-    const entries = parseRecipes(md);
+  const entries = parseRecipes(ACCES);
+  test("chaque entrée porte un id ACC-nn et au moins une source officielle réellement citée", () => {
     expect(entries.length).toBeGreaterThan(0);
     for (const e of entries) {
-      expect(e.ids[0]).toMatch(/^ACC-\d{2}$/);
-      expect(e.sources.length).toBeGreaterThan(0);
-      for (const s of e.sources) expect(s.url).toMatch(/^https:\/\//);
+      for (const id of e.ids) expect(id, `${e.title}`).toMatch(/^ACC-\d{2}$/);
+      expect(e.sources.length, `${e.title} : aucune source`).toBeGreaterThan(0);
+      for (const s of e.sources) expect(allowed(s.url), `${e.title} : ${s.url}`).toBe(true);
+      const real = e.sources.filter((s) => !s.manual);
+      expect(real.length, `${e.title} : au moins une source vérifiable par check-sources.ts`).toBeGreaterThan(0);
+      // Une citation vide est incluse par n'importe quelle page : check-sources.ts la déclarerait OK.
+      for (const s of real) expect(s.quote, `${e.title} : citation vide`).not.toBe("");
     }
   });
+  test("un chemin de clics par entrée, comme consoles.md", () => {
+    const blocks = ACCES.split(/^### /m).slice(1);
+    expect(blocks.length).toBe(entries.length);
+    for (const b of blocks) expect(b, `${b.split("\n")[0]} : ligne « Chemin : » manquante`).toMatch(/^Chemin\s*:/m);
+  });
   test("les deux gestes qui commandent tout sont couverts : bascule compte de service, délégation Bing", () => {
-    const ids = parseRecipes(md).flatMap((e) => e.ids);
+    const ids = entries.flatMap((e) => e.ids);
     expect(ids).toContain("ACC-04");
     expect(ids).toContain("ACC-06");
   });
-  test("aucun tiret cadratin", () => {
-    expect(md).not.toContain("—");
+  test("aucun tiret cadratin, ni dans la référence ni dans la skill", () => {
+    expect(ACCES).not.toContain("—");
+    expect(SKILL).not.toContain("—");
   });
 });
 ```
@@ -1484,11 +1780,15 @@ Corps en quatre temps (spec section 7) : Situer, Vérifier l'accès, Lire, Resti
 - Ce n'est pas un audit : pas de `raw/`, pas de rapport. Pour une preuve datée sur disque, c'est `/erom-seo:audit`.
 - `console sites` en premier quand une commande échoue : c'est elle qui explique les autres.
 - Les trois variables d'environnement et ce que chacune débloque, avec renvoi à `references/acces.md`.
+- Les codes de sortie, pour qui enchaîne les commandes : `inspect` sort en 1 si aucune propriété ne couvre l'URL, `crawl` sort en 1 si Bing n'a rien pu être lu.
 - Quand `googleCanonical` diffère de `userCanonical`, dire ce que ça veut dire pour le site et renvoyer à IDX-04 de l'audit.
 
-- [ ] **Step 5: Mettre `plugin/README.md` à jour**
+Pas de tiret cadratin (le test de l'étape 2 le contrôle).
 
-Ajouter `console` à la liste des verbes, avec sa phrase et ses trois commandes. Ne pas toucher au reste.
+- [ ] **Step 5: Mettre à jour `README.md` et le manifeste**
+
+- `plugin/README.md` : ajouter `console` à la liste des verbes, avec sa phrase et ses trois commandes. Ne pas toucher au reste.
+- `plugin/.claude-plugin/plugin.json` : la description dit aujourd'hui « Audit, stratégie, build et checklist de déploiement SEO/GEO… ». Elle nomme les verbes un par un et est visible dans le marketplace : y ajouter `console`. Ne rien changer d'autre dans le manifeste (ni `version`, ni `skills`).
 
 - [ ] **Step 6: Lancer les vérifications**
 
@@ -1497,12 +1797,12 @@ cd plugin && bun test
 cd plugin && bun skills/audit/scripts/check-sources.ts
 ```
 
-Expected: tests verts ; `check-sources.ts` retrouve les 107 citations existantes plus celles de `acces.md`, et sort en 0.
+Expected: tests verts ; `check-sources.ts` retrouve les 107 citations existantes plus les 8 de `acces.md`, **0 en échec**, et sort en 0. Une citation en échec ici veut dire qu'elle a été recopiée avec une variante : reprendre le bloc `Source:` de l'étape 1 caractère pour caractère.
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add plugin/skills/console/SKILL.md plugin/skills/console/references/acces.md plugin/skills/console/scripts/tests/acces.test.ts plugin/skills/audit/scripts/check-sources.ts plugin/README.md
+git add plugin/skills/console/SKILL.md plugin/skills/console/references/acces.md plugin/skills/console/scripts/tests/acces.test.ts plugin/skills/audit/scripts/check-sources.ts plugin/README.md plugin/.claude-plugin/plugin.json
 git commit -m "feat(console): la skill, la référence acces.md et le contrôle des sources"
 ```
 
@@ -1552,7 +1852,10 @@ Attendu : `aucune propriété`, la liste des propriétés vues, `code=1`.
 - [ ] **Step 5: AC-5 et AC-6, les deux erreurs de mise en route**
 
 ```bash
-cd plugin && env -u GSC_SA_KEY_FILE PATH=/usr/bin bun skills/console/scripts/console.ts sites ; echo "code=$?"
+# Retirer gcloud du PATH sans y retirer bun : les deux vivent dans des dossiers différents
+# (bun dans ~/.bun/bin, gcloud dans /opt/homebrew/bin), vérifié le 29/08.
+# `PATH=/usr/bin` ne marche PAS : env résout la commande avec le PATH qu'il vient de poser, et bun n'y est pas.
+cd plugin && env -u GSC_SA_KEY_FILE PATH="$(dirname "$(command -v bun)")" bun skills/console/scripts/console.ts sites ; echo "code=$?"
 cd plugin && env -u GSC_QUOTA_PROJECT bun skills/console/scripts/console.ts sites ; echo "code=$?"
 ```
 Attendu : la première donne la commande `gcloud auth application-default login` avec le scope `webmasters.readonly` ; la seconde nomme `GSC_QUOTA_PROJECT` et la commande `gcloud services enable searchconsole.googleapis.com`. Aucune ne montre de jeton.
@@ -1567,17 +1870,22 @@ Attendu : Google répond, Bing dit `non interrogé (clé absente)`, `code=0`.
 - [ ] **Step 7: AC-8, `console crawl`**
 
 ```bash
-cd plugin && bun skills/console/scripts/console.ts crawl --site https://romain-ecarnot.com
+cd plugin && bun skills/console/scripts/console.ts crawl --site https://romain-ecarnot.com ; echo "code=$?"
 ```
-Attendu : `Google : pas de statistiques de crawl en API` et `aucun site dans ce compte Bing`.
+Attendu : `Google : pas de statistiques de crawl en API`, `aucun site dans ce compte Bing`, et **`code=1`** : Google n'expose rien ici et Bing n'a rien pu être lu, donc aucune donnée de crawl n'a été obtenue. Le jour où un site entre dans le compte Bing, la même commande sortira en 0.
 
 - [ ] **Step 8: AC-9, `--json` sans secret**
 
 ```bash
 cd plugin && bun skills/console/scripts/console.ts sites --json | python3 -m json.tool > /dev/null && echo "json valide"
-cd plugin && bun skills/console/scripts/console.ts sites --json | grep -c "$BING_WMT_API_KEY" || echo "clé absente de la sortie"
+# La clé ne passe jamais en argv (lisible par `ps`) et une variable vide ne doit pas rendre un faux vert.
+cd plugin && [ -n "$BING_WMT_API_KEY" ] || echo "ATTENTION : BING_WMT_API_KEY absente, ce contrôle ne prouve rien"
+cd plugin && bun skills/console/scripts/console.ts sites --json > /tmp/console-out.json && \
+  bun -e 'const k=process.env.BING_WMT_API_KEY; const s=await Bun.file("/tmp/console-out.json").text(); \
+    if(!k){console.log("clé absente de l\x27environnement, contrôle non concluant");process.exit(1)} \
+    console.log(s.includes(k)||s.includes("ya29.")?"FUITE":"aucun secret dans la sortie")' && rm -f /tmp/console-out.json
 ```
-Attendu : `json valide`, puis `clé absente de la sortie` (le `grep -c` rend 0 correspondance donc un code non nul).
+Attendu : `json valide`, puis `aucun secret dans la sortie`. Le contrôle porte sur la clé Bing **et** sur le préfixe de jeton Google `ya29.`.
 
 - [ ] **Step 9: AC-10, tests et sources**
 
