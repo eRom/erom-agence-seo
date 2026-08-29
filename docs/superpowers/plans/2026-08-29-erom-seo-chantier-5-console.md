@@ -25,6 +25,7 @@
 - **Aucune écriture** : aucun appel à `SubmitFeed`, `SubmitUrlBatch`, `sitemaps.submit` ni `api.indexnow.org`. Un test le prouve avec un faux `fetch`.
 - **Pas de tiret cadratin** dans les chaînes affichées à l'écran ni dans les fichiers Markdown de la skill. Hyphens ou reformulation.
 - Les tests portent sur des comportements. Interdits : figer un compte de lignes, un nombre d'entrées, ou lire le texte du source depuis un test.
+- **Piège de cette machine, vu trois fois les 29 août** : l'outil de lecture masque automatiquement toute chaîne de 32 caractères hexadécimaux, parce que c'est la forme d'une clé d'API. Un implémenteur qui lit un brief la voit remplacée par un placeholder et la recopie telle quelle dans le source. Aucune valeur de test de ce plan n'est donc une chaîne hexadécimale de 32 caractères : les clés factices portent des tirets et le disent. Si tu dois en introduire une, choisis une autre forme.
 - `siteEntry` de `sites.list` **n'a pas d'ordre garanti** (deux appels successifs le 29/08 ont rendu un ordre différent). Aucun test, aucun rendu ne suppose un ordre.
 - Variables d'environnement : `GSC_QUOTA_PROJECT` (obligatoire avec gcloud), `GSC_SA_KEY_FILE` (bascule vers compte de service), `BING_WMT_API_KEY` (Bing).
 
@@ -894,7 +895,10 @@ git commit -m "feat(console): lectures Search Console, sites, sitemaps et inspec
 import { describe, test, expect } from "bun:test";
 import { bingUserSites, bingUrlInfo, bingCrawlStats, redact, BingError, BING_API_BASE, type Fetcher } from "../lib/bing";
 
-const KEY = "aaaabbbbccccddddeeeeffff00001111";
+// Clé de test volontairement non hexadécimale : sur cette machine, l'outil de lecture masque toute
+// chaîne de 32 caractères hexadécimaux (la forme d'une vraie clé Bing), et le masque finissait
+// recopié dans le source. `redact` n'exige qu'une longueur d'au moins 8 caractères.
+const KEY = "cle-de-test-bing-jamais-reelle";
 type Call = { url: string; method: string };
 function fake(reply: (c: Call) => { status: number; text: string }): { f: Fetcher; calls: Call[] } {
   const calls: Call[] = [];
@@ -1362,7 +1366,10 @@ console crawl [--site <url>]      [--json]
 import { describe, test, expect } from "bun:test";
 import { runConsole } from "../console";
 
-const KEY = "aaaabbbbccccddddeeeeffff00001111";
+// Clé de test volontairement non hexadécimale : sur cette machine, l'outil de lecture masque toute
+// chaîne de 32 caractères hexadécimaux (la forme d'une vraie clé Bing), et le masque finissait
+// recopié dans le source. `redact` n'exige qu'une longueur d'au moins 8 caractères.
+const KEY = "cle-de-test-bing-jamais-reelle";
 const SITES = '{"siteEntry":[{"siteUrl":"sc-domain:romain-ecarnot.com","permissionLevel":"siteOwner"}]}';
 const INSPECT = '{"inspectionResult":{"inspectionResultLink":"https://search.google.com/x","indexStatusResult":{"verdict":"NEUTRAL","coverageState":"Page with redirect","googleCanonical":"https://www.romain-ecarnot.com/","userCanonical":"https://romain-ecarnot.com/"}}}';
 
