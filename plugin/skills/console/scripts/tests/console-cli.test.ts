@@ -247,4 +247,15 @@ describe("erreurs de mise en route", () => {
     expect(r.out).not.toContain("Invalid URL");
     expect(calls.length).toBe(0);
   });
+  // "pas-une-url" seul ne suffit pas à reproduire : préfixé en https://pas-une-url, c'est un
+  // hôte à un seul label, valide pour l'analyseur d'URL. Un espace, lui, casse le préfixage (vérifié
+  // sur le vrai binaire avant correctif : « Invalid URL » sortait tel quel sous Bing Webmaster Tools).
+  test("console crawl --site sur une URL malformée rend une phrase française, pas Invalid URL", async () => {
+    const { deps: d, calls } = deps({});
+    const r = await runConsole(["crawl", "--site", "pas une url"], d);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("n'est pas une URL valide");
+    expect(r.out).not.toContain("Invalid URL");
+    expect(calls.length).toBe(0);
+  });
 });

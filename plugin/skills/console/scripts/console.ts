@@ -139,11 +139,16 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
       }
     }
     if (!site) return { out: raisonStrategie ?? "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
+    let host: string;
+    try {
+      host = new URL(site.startsWith("http") ? site : `https://${site}`).hostname;
+    } catch {
+      return { out: `« ${site} » n'est pas une URL valide. Exemple : console crawl --site https://exemple.fr`, code: 1 };
+    }
     let bing: CrawlView["bing"] = null;
     let bingError: string | null = key ? null : NOKEY;
     if (key) {
       try {
-        const host = new URL(site.startsWith("http") ? site : `https://${site}`).hostname;
         const sites = await bingUserSites(d.fetcher, key);
         const s = resolveBingSite(host, sites);
         if (!s) bingError = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
