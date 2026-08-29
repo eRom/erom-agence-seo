@@ -9,15 +9,19 @@ const SITES = '{"siteEntry":[{"siteUrl":"sc-domain:romain-ecarnot.com","permissi
 const INSPECT = '{"inspectionResult":{"inspectionResultLink":"https://search.google.com/x","indexStatusResult":{"verdict":"NEUTRAL","coverageState":"Page with redirect","googleCanonical":"https://www.romain-ecarnot.com/","userCanonical":"https://romain-ecarnot.com/"}}}';
 
 type Call = { url: string; method: string };
-function deps(opts: { key?: string | null; bingSites?: string; inspectStatus?: number; urlInfo?: string; sitesStatus?: number }) {
+function deps(opts: {
+  key?: string | null; bingSites?: string; inspectStatus?: number; urlInfo?: string; sitesStatus?: number;
+  sitemapsStatus?: number; feedsError?: string;
+}) {
   const calls: Call[] = [];
   const fetcher = async (url: string, init: { method?: string } = {}) => {
     const c = { url, method: init.method ?? "GET" };
     calls.push(c);
-    if (url.includes("/webmasters/v3/sites/")) return { status: 200, text: '{"sitemap":[]}' };
+    if (url.includes("/webmasters/v3/sites/")) return { status: opts.sitemapsStatus ?? 200, text: opts.sitemapsStatus ? "{}" : '{"sitemap":[]}' };
     if (url.includes("/webmasters/v3/sites")) return { status: opts.sitesStatus ?? 200, text: opts.sitesStatus ? "{}" : SITES };
     if (url.includes("index:inspect")) return { status: opts.inspectStatus ?? 200, text: opts.inspectStatus ? "{}" : INSPECT };
     if (url.includes("GetUrlInfo")) return { status: 200, text: opts.urlInfo ?? '{"d":null}' };
+    if (url.includes("GetFeeds")) return { status: 200, text: opts.feedsError ?? '{"d":[]}' };
     if (url.includes("GetUserSites")) return { status: 200, text: opts.bingSites ?? '{"d":[]}' };
     return { status: 200, text: '{"d":null}' };
   };
@@ -71,6 +75,23 @@ describe("console sites", () => {
     const { deps: d } = deps({ key: null });
     const r = await runConsole(["sites"], { ...d, gcloud: async () => null });
     expect(r.code).toBe(1);
+  });
+  test("sitemaps illisibles sur une propriété : la sortie le dit, sans prétendre à zéro sitemap, code 0", async () => {
+    const { deps: d } = deps({ sitemapsStatus: 403 });
+    const r = await runConsole(["sites"], d);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("sitemaps non lisibles");
+    expect(r.out).not.toContain("aucun sitemap déclaré");
+  });
+  test("flux Bing illisibles sur un site : la sortie le dit, sans prétendre à zéro flux, le site reste nommé", async () => {
+    const { deps: d } = deps({
+      bingSites: '{"d":[{"Url":"https://x.com","IsVerified":true}]}',
+      feedsError: '{"ErrorCode":2,"Message":"UnknownError"}',
+    });
+    const r = await runConsole(["sites"], d);
+    expect(r.out).toContain("https://x.com");
+    expect(r.out).toContain("flux non lisibles");
+    expect(r.out).not.toContain("0 flux déclaré(s)");
   });
 });
 
