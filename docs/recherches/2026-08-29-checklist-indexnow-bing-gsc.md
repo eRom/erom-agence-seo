@@ -145,7 +145,11 @@ Champs de `Site` (MS-SITE) : `AuthenticationCode`, `DnsVerificationCode`, `IsVer
 
 **Erreurs** (MS-ERRORS, enum `ApiErrorCode`) : None 0, InternalError 1, UnknownError 2, InvalidApiKey 3, ThrottleUser 4, ThrottleHost 5, UserBlocked 6, InvalidUrl 7, InvalidParameter 8, TooManySites 9, UserNotFound 10, NotFound 11, AlreadyExists 12, NotAllowed 13, NotAuthorized 14, UnexpectedState 15, Deprecated 16. Forme observée le 27/08 et le 29/08 : HTTP 400, corps `{"ErrorCode":3,"Message":"ERROR!!! InvalidApiKey"}`. Le script lit `ErrorCode` et `Message` ; 4 et 5 = réessayer plus tard, 13 et 14 = droits insuffisants (consigne au client), 11 = site inconnu (ligne 5 à refaire). Lequel de 13, 14 ou 11 sort réellement pour un site absent du compte : incertitude 2.
 
-**Rôles de délégation** (MS-USERROLE, `SiteRoles.UserRole`) : Administrator 0, ReadOnly 1, ReadWrite 2. La note niveau 1 cite `AddSiteRoles(…, isReadOnly)` ; la posture agence (client délègue en `ReadOnly`) a donc un nom dans l'API.
+**Rôles de délégation** (MS-USERROLE, `SiteRoles.UserRole`) : Administrator 0, ReadOnly 1, ReadWrite 2. La note niveau 1 cite `AddSiteRoles(…, isReadOnly)` ; la posture agence (client délègue en `ReadOnly`) a donc un nom dans l'API. `GetSiteRoles(siteUrl, includeAllSubdomains)` rend, exemple officiel, `{"d":[{"__type":"SiteRoles:#Microsoft.Bing.Webmaster.Api","Role":2,"Site":"http://host1.example.com","VerificationSite":"http://example.com",…}]}` : un site et son site de vérification sont deux champs, et `includeAllSubdomains` existe, ce qui suggère (sans phrase officielle) que www et apex sont deux sites chez Bing.
+
+**Format de `siteUrl`** (brief Bing, reçu à 14 h 20) : tous les exemples officiels (`SubmitFeed`, `AddSite`, `GetUserSites`, `GetSiteRoles`, `oauth2`) écrivent `http(s)://domaine` sans slash final. Le script reprend le `Url` rendu par `GetUserSites` tel quel, ce qui règle la question. Quotas : aucune page ne documente un seuil pour `SubmitFeed` ni `GetUserSites` ; seuls les codes `ThrottleUser` 4 et `ThrottleHost` 5 existent.
+
+**Pages d'aide Bing, applications JavaScript** (titre seul lisible, contenu non citable) : ajout et vérification d'un site `https://www.bing.com/webmasters/help/add-and-verify-site-12184f8b` ; ajout d'utilisateurs (délégation) `https://www.bing.com/webmasters/help/how-to-add-users-to-your-site-account-d5d00364` ; retrait SOAP/POX `https://www.bing.com/webmasters/help/soap-pox-api-retirement-s0appox01`. Le bouton « Importer depuis Google Search Console » n'a été vu que dans des sources secondaires : consigne gardée, marquée à relire à la main (incertitude 5).
 
 ### 3.3 Search Console, gestes à la main (pour `consoles.md`)
 
@@ -195,7 +199,9 @@ Non capturé, par choix : aucune réponse réelle de `SubmitFeed` (écriture) ni
 1. **Réponse réelle du POST IndexNow** : 200 ou 202 attendu ; corps vide présumé. Convention non confirmée jusqu'à AC-4. Le script accepte 200 et 202 et ignore le corps.
 2. **Code Bing pour un site absent du compte** (NotFound 11, NotAllowed 13 ou NotAuthorized 14) et pour une délégation ReadOnly : non documenté. Le script traite 11, 13, 14 pareil (case vide, consigne au client, code et message consignés) ; la recette notera le code réel si Romain l'obtient.
 3. **Vérification DNS TXT avant déploiement** : non tranchée par la page. La consigne de la ligne 4 dit « marche en général avant le déploiement, le DNS suffit », sans citation.
-4. **Format de `siteUrl` chez Bing** : l'exemple officiel est `http://example.com` sans slash final ; www et apex sont-ils deux sites ? Le script envoie l'URL telle que `GetUserSites` la rend pour ce site (c'est Bing qui la nomme), ce qui contourne la question.
+4. **Format de `siteUrl` chez Bing** : les exemples officiels sont tous sans slash final ; www et apex sont probablement deux sites (`includeAllSubdomains`, `Site` contre `VerificationSite`), sans phrase officielle. Le script envoie l'URL telle que `GetUserSites` la rend pour ce site (c'est Bing qui la nomme), ce qui contourne la question.
+5. **« Importer depuis Google Search Console » dans Bing Webmaster Tools** : vu en sources secondaires seulement, les pages d'aide Bing ne sont pas lisibles par script. La consigne de la ligne 5 le garde, avec la voie manuelle (ajouter, puis vérifier par fichier, balise ou CNAME) en repli ; à confirmer à l'écran pendant la recette, quand Romain ajoute chico.
+6. **Effet réel d'un rôle `ReadOnly` sur `SubmitFeed`** : aucune phrase officielle ; seule l'existence de l'enum prouve que le serveur connaît le rôle. Rejoint l'incertitude 2 : même traitement dans le script (case vide, consigne au propriétaire), code réel noté quand un site client le produira.
 
 ## 6. Ce que ça change pour la spec
 

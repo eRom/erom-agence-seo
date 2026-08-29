@@ -1192,9 +1192,11 @@ Source   : https://support.google.com/webmasters/answer/7687615 « Restricted us
 Chemin   : bing.com/webmasters, se connecter avec le compte de l'agence, Ajouter un site, « Importer depuis Google Search Console » (un clic, la vérification est reprise de Google), ou Ajouter manuellement puis vérifier (fichier XML, balise meta ou CNAME). Site client : le client, depuis son propre compte, va dans Settings, Users, Add user, l'adresse du compte de l'agence, rôle Read only ; l'agence ne demande jamais sa clé API.
 Piège    : la clé API Bing est faite par utilisateur, pas par site : une clé ouvre tous les sites du compte, en écriture. C'est pour ça que la délégation en lecture seule est la seule bonne réponse pour un client.
 Piège    : quand `BING_WMT_API_KEY` est là, la skill lit `GetUserSites` et coche seule si le site y est et est vérifié (IsVerified) ; un site présent mais non vérifié laisse la case vide.
+Piège    : le bouton « Importer depuis Google Search Console » n'est attesté que par des sources secondaires (les pages d'aide Bing ne se lisent pas par script) ; s'il manque, ajouter le site à la main et le vérifier par fichier XML, balise meta ou CNAME.
 Source   : https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getusersites « This example shows how to list all sites which are not verified. »
 Source   : https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.addsiteroles « Delegate site access to user »
 Source   : https://www.bing.com/webmasters/help/add-and-verify-site-12184f8b « Add and verify site » [manuel]
+Source   : https://www.bing.com/webmasters/help/how-to-add-users-to-your-site-account-d5d00364 « How to add users to your site account » [manuel]
 
 ### Prod verte (CL-07)
 Chemin   : rien à cliquer, c'est l'audit niveau 0 sur la prod qui juge (0 Critique, 0 Important). Si la case se vide après un déploiement, lire la ligne « En bref » du rapport cité, puis les trouvailles. Un noindex ou un X-Robots-Tag de staging resté en prod est une trouvaille SNIP ou ROBOTS de l'audit avant d'être un problème Google.
@@ -1276,7 +1278,7 @@ Run : `bun test skills/checklist/scripts/tests/consoles.test.ts`
 Attendu : 3 pass.
 
 Run : `bun skills/audit/scripts/check-sources.ts 2>&1 | grep -E "checklist:|citations retrouvées"`
-Attendu : chaque ligne `checklist:CL-nn` en `OK` ou `MANUEL`, aucune `ABSENTE` ni `HTTP`, et la dernière ligne `<n> citations retrouvées, 0 en échec, 1 à vérifier à la main` (n = 80 + les citations de `consoles.md`). Une citation `ABSENTE` se corrige depuis la page officielle (copier la phrase exacte), jamais en l'assouplissant ; si la page ne contient plus la phrase, remplacer par une autre phrase de la même page qui dit la même chose.
+Attendu : chaque ligne `checklist:CL-nn` en `OK` ou `MANUEL`, aucune `ABSENTE` ni `HTTP`, et la dernière ligne `<n> citations retrouvées, 0 en échec, 2 à vérifier à la main` (n = 80 + les 24 citations de `consoles.md` ; les deux manuelles sont les pages d'aide Bing). Une citation `ABSENTE` se corrige depuis la page officielle (copier la phrase exacte), jamais en l'assouplissant ; si la page ne contient plus la phrase, remplacer par une autre phrase de la même page qui dit la même chose.
 
 - [ ] **Étape 6 : commit**
 
