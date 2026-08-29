@@ -257,7 +257,7 @@ Romain répond OK ou amende (par page, par champ). Boucler jusqu'à OK. **Aucune
 Dans l'ordre de `findings`. Pour chaque trouvaille `code` ou `texte` :
 
 1. Lire le bloc de la référence qui porte son id, puis les fichiers visés. Déjà conforme (la modification a été faite avant, par exemple le title de `/methode` chez chico) : noter « déjà conforme », pas de commit.
-2. Modifier. Règle texte : le h1 et la première phrase seulement, avec les valeurs validées ; jamais un autre paragraphe, jamais un lien, une image ou une classe CSS ; ne rien supprimer. Le bloc Organization est celui du plan, collé tel quel.
+2. Modifier. Règle texte : le h1 et la première phrase sont remplacés par les valeurs validées ; l'ancien h1 et l'ancienne phrase disparaissent. Rien d'autre n'est touché ni supprimé : pas un autre paragraphe, un lien, une image, une classe CSS. Le bloc Organization est celui du plan, collé tel quel.
 3. `bun x tsc --noEmit` si `tsconfig.json` existe (2 s sur chico). Échec : corriger avant de commiter.
 4. Commit : `seo(IDX-02): canonical absolu et auto-référent sur chaque page`. Une modification qui règle plusieurs ids porte tous les ids : `seo(SD-02, STRAT-02, STRAT-03): bloc Organization sur la home`. Le commit des textes le dit : `seo(TAG-01, TAG-02, TAG-03, STRAT-01): title, description, h1 et ouverture, textes validés par Romain le 2026-08-28`.
 

@@ -93,3 +93,15 @@ describe("plan.ts, hors build de l'audit niveau 0 fusionnés dans le plan (R-6)"
     expect(r.stdout.toString()).toContain("plan : 12 trouvailles ouvertes");
   });
 });
+
+describe("plan.ts, rapport niveau 0 illisible", () => {
+  test("le plan sort quand même, sans hors build rapatrié, et le dit sur stderr", async () => {
+    const cwd = await fakeSiteWithN2();
+    await Bun.write(join(cwd, "seo/audits/2026-08-28-n0/report.md"), "pas un rapport");
+    const r = Bun.spawnSync(["bun", CLI], { cwd });
+    expect(r.exitCode, r.stderr.toString()).toBe(0);
+    expect(r.stderr.toString()).toContain("attention : rapport niveau 0 seo/audits/2026-08-28-n0/report.md illisible");
+    const plan = JSON.parse(await Bun.file(join(cwd, "seo/audits/2026-08-29-n2/derived/build-plan.json")).text());
+    expect(plan.findings).toEqual([]);
+  });
+});

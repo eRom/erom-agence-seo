@@ -29,11 +29,11 @@ if (import.meta.main) {
     // Hors build de l'audit niveau 0 (prod) : IDX-04, IDX-03… disparaissent d'un plan parti d'un audit local plus
     // récent. On les rapatrie s'il existe un audit n0 différent avec un rapport lisible.
     let n0Report: { dir: string; report: Report } | null = null;
-    if (report.niveau === 2) {
+    if (report.niveau !== 0) {
       const n0ReportDir = await latestAuditDir(seoDir, { level: 0 });
       if (n0ReportDir && n0ReportDir !== auditDir) {
         try { n0Report = { dir: n0ReportDir, report: parseReport(await Bun.file(join(n0ReportDir, "report.md")).text()) }; }
-        catch { /* rapport n0 inanalysable : ses hors build restent absents du plan, pas d'erreur bloquante */ }
+        catch { console.error(`attention : rapport niveau 0 ${n0ReportDir}/report.md illisible, ses hors build ne sont pas dans le plan`); }
       }
     }
     const pkg = Bun.file("package.json");
