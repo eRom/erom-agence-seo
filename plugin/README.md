@@ -1,6 +1,6 @@
 # erom-seo
 
-Plugin Claude Code de l'agence : audit, stratégie, build et lancement SEO/GEO sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, avec sa citation mot pour mot.
+Plugin Claude Code de l'agence : audit, stratégie, build et checklist de déploiement SEO/GEO sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, avec sa citation mot pour mot.
 
 ## Charger le plugin en local
 
@@ -43,6 +43,16 @@ Depuis le repo du site, avec `seo/strategy.md` et un audit :
 ```
 
 Build propose les textes (title, description, h1, ouverture) de chaque page en défaut, attend le OK, corrige le code une trouvaille par commit (`seo(ID): …`), lance le site en local, refait un audit de niveau 2, et recommence une fois si besoin. Terminé quand l'audit n'a plus ni Critique ni Important. Ce qui n'est pas dans le code (redirection chez l'hébergeur, performance) est listé à la fin avec l'endroit où agir. Next.js App Router d'abord ; autre stack : Claude lit le repo et vise le même HTML.
+
+## Vérifier avant et après le déploiement
+
+Depuis le repo du site, avec `seo/strategy.md` et un build fusionné :
+
+```
+/erom-seo:checklist
+```
+
+Sortie : `seo/checklist.md`, quinze cases en deux moitiés. Avant le déploiement : audit niveau 2 vert, branche fusionnée, hors build, Search Console et Bing Webmaster Tools créés, ancien sitemap sauvegardé si le site en remplace un. Après (la skill demande « c'est déployé ? » et la date) : un audit niveau 0 refait sur la prod, les redirections de l'ancien site, le ping IndexNow et le sitemap chez Bing (envoyés seulement après un OK explicite), puis les jalons J+1, J+3, J+7, J+30, J+90 avec, pour chacun, le chemin de clics. Les cases `auto` suivent les audits et git ; les cases `main` sont cochées à la main et ne sont jamais décochées. Relancer la skill quand on veut : elle dit ce qui est dû. Elle ne déploie rien.
 
 ## Vérifier que les références n'ont pas dérivé
 
