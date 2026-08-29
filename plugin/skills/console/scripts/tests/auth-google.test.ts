@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { chooseProvider, getAccessToken, serviceAccountToken, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
+import { chooseProvider, getAccessToken, serviceAccountToken, defaultGcloud, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
 
 const gcloudOk = async () => "ya29.FAUX-JETON";
 const gcloudKo = async () => null;
@@ -35,8 +35,38 @@ describe("getAccessToken", () => {
     await p.catch((e: AuthError) => {
       expect(e.hint).toContain("gcloud auth application-default login");
       expect(e.hint).toContain(SCOPE);
-      expect(`${e.message}${e.hint}`).not.toContain("ya29.");
     });
+  });
+});
+
+describe("defaultGcloud (I-1, le seul export qui touche le binaire producteur du secret)", () => {
+  // Faux binaires exécutables jetables, écrits dans tmp-sa/ (déjà ignoré par git).
+  const ecrireFaux = async (nom: string, script: string) => {
+    const chemin = `${import.meta.dir}/tmp-sa/${nom}`;
+    await Bun.write(chemin, script);
+    const chmod = Bun.spawn(["chmod", "+x", chemin]);
+    await chmod.exited;
+    return chemin;
+  };
+
+  test("sortie 0 avec jeton sur stdout : le jeton est rendu, débarrassé de ses espaces", async () => {
+    const chemin = await ecrireFaux("gcloud-ok", "#!/bin/sh\nprintf '  ya29.SCRIPT-JETON\\n'\nexit 0\n");
+    expect(await defaultGcloud(chemin)).toBe("ya29.SCRIPT-JETON");
+  });
+
+  test("sortie 1 malgré un jeton sur stdout : null, le jeton n'est pas rendu", async () => {
+    const chemin = await ecrireFaux("gcloud-echec", "#!/bin/sh\nprintf 'ya29.NE-DOIT-PAS-SORTIR\\n'\nexit 1\n");
+    expect(await defaultGcloud(chemin)).toBeNull();
+  });
+
+  test("sortie 0 sans rien sur stdout : null", async () => {
+    const chemin = await ecrireFaux("gcloud-vide", "#!/bin/sh\nexit 0\n");
+    expect(await defaultGcloud(chemin)).toBeNull();
+  });
+
+  test("binaire inexistant : null, sans lever", async () => {
+    const chemin = `${import.meta.dir}/tmp-sa/gcloud-absent-${Date.now()}`;
+    expect(await defaultGcloud(chemin)).toBeNull();
   });
 });
 
@@ -72,7 +102,7 @@ describe("serviceAccountToken", () => {
     expect(claims.iss).toBe("agence@projet.iam.gserviceaccount.com");
     expect(claims.scope).toBe(SCOPE);
     expect(claims.aud).toBe(TOKEN_ENDPOINT);
-    expect(claims.exp - claims.iat).toBe(3600);
+    expect(claims.exp - claims.iat).toBe(3540);
     // base64url : ni remplissage, ni + ni /
     for (const part of [h, c, sig]) expect(part).not.toMatch(/[=+/]/);
     const octets = Uint8Array.from(atob(sig.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0));
@@ -83,13 +113,18 @@ describe("serviceAccountToken", () => {
     const { pem } = await paire();
     const dir = `${import.meta.dir}/tmp-sa`;
     await Bun.write(`${dir}/ok.json`, JSON.stringify({ client_email: "x@y.iam.gserviceaccount.com", private_key: pem }));
-    const f: Fetcher = async () => ({ status: 400, text: '{"error":"invalid_grant"}' });
+    let jwtEnvoye = "";
+    const f: Fetcher = async (_url, init = {}) => {
+      jwtEnvoye = new URLSearchParams(init.body ?? "").get("assertion") ?? "";
+      return { status: 400, text: '{"error":"invalid_grant"}' };
+    };
     const p = serviceAccountToken(`${dir}/ok.json`, f);
     await expect(p).rejects.toBeInstanceOf(AuthError);
     await p.catch((e: AuthError) => {
       const tout = `${e.message}${e.hint}`;
+      expect(jwtEnvoye.length).toBeGreaterThan(100); // le JWT a bien été formé, sinon le test ne prouve rien
+      expect(tout).not.toContain(jwtEnvoye);
       expect(tout).not.toContain("PRIVATE KEY");
-      expect(tout).not.toContain("assertion");
       expect(e.hint).toContain("ACC-04");
     });
   });
@@ -100,5 +135,13 @@ describe("serviceAccountToken", () => {
     const f: Fetcher = async () => ({ status: 200, text: '{"access_token":"x"}' });
     await expect(serviceAccountToken(`${dir}/casse.json`, f)).rejects.toBeInstanceOf(AuthError);
     await expect(serviceAccountToken(`${dir}/absent.json`, f)).rejects.toBeInstanceOf(AuthError);
+  });
+
+  test("I-3 : réponse HTTP 200 au corps non-JSON (portail captif) : AuthError, pas une trace SyntaxError brute", async () => {
+    const { pem } = await paire();
+    const dir = `${import.meta.dir}/tmp-sa`;
+    await Bun.write(`${dir}/ok.json`, JSON.stringify({ client_email: "x@y.iam.gserviceaccount.com", private_key: pem }));
+    const f: Fetcher = async () => ({ status: 200, text: "<html>portail captif</html>" });
+    await expect(serviceAccountToken(`${dir}/ok.json`, f)).rejects.toBeInstanceOf(AuthError);
   });
 });

@@ -50,10 +50,13 @@ export async function getAccessToken(
   return { token, quotaProject, provider: "gcloud" };
 }
 
-/** Appelle le binaire gcloud. Sa sortie n'est jamais journalisée : c'est un jeton porteur. */
-export const defaultGcloud: GcloudRunner = async () => {
+/**
+ * Appelle le binaire gcloud. Sa sortie n'est jamais journalisée : c'est un jeton porteur.
+ * Le nom du binaire est paramétrable pour les tests ; assignable à GcloudRunner (appel sans argument).
+ */
+export const defaultGcloud = async (binaire = "gcloud"): Promise<string | null> => {
   try {
-    const p = Bun.spawn(["gcloud", "auth", "application-default", "print-access-token"], { stdout: "pipe", stderr: "ignore" });
+    const p = Bun.spawn([binaire, "auth", "application-default", "print-access-token"], { stdout: "pipe", stderr: "ignore" });
     const out = (await new Response(p.stdout).text()).trim();
     return (await p.exited) === 0 && out.length > 0 ? out : null;
   } catch {
@@ -89,7 +92,8 @@ export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher,
   }
   const iat = Math.floor(now() / 1000);
   const header = b64urlText(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claims = b64urlText(JSON.stringify({ iss: email, scope: SCOPE, aud: TOKEN_ENDPOINT, exp: iat + 3600, iat }));
+  // 3540 s (59 min), une minute sous le maximum documenté par Google : marge contre une horloge locale légèrement en retard.
+  const claims = b64urlText(JSON.stringify({ iss: email, scope: SCOPE, aud: TOKEN_ENDPOINT, exp: iat + 3540, iat }));
   let jwt: string;
   try {
     const key = await crypto.subtle.importKey("pkcs8", pkcs8Bytes(privateKey), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
@@ -101,7 +105,12 @@ export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher,
   const body = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }).toString();
   const r = await fetcher(TOKEN_ENDPOINT, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body });
   if (r.status !== 200) throw new AuthError(`Google a refusé la clé de compte de service (HTTP ${r.status})`, SA_HINT);
-  const token = (JSON.parse(r.text) as { access_token?: string }).access_token;
+  let token: string | undefined;
+  try {
+    token = (JSON.parse(r.text) as { access_token?: string }).access_token;
+  } catch {
+    throw new AuthError("réponse de jeton illisible", SA_HINT);
+  }
   if (!token) throw new AuthError("réponse de jeton sans access_token", SA_HINT);
   return token;
 }
