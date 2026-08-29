@@ -14,7 +14,7 @@ const base: ChecklistInput = {
   site: "commentchercherbonheur.org", origin: "https://www.commentchercherbonheur.org", today: "2026-08-29", miseEnLigne: null, previous: null,
   n2: { dir: "seo/audits/2026-08-29-n2-3", report: n2 }, n0: { dir: "seo/audits/2026-08-28-n0", report: n0 }, n0Prod: null,
   git: { branch: "main", seoCommit: "1a2b3c4 seo(IDX-02): canonical absolu" }, horsBuildOu,
-  ancienSitemap: null, redirections: null, bing: null, bingSiteMatches: matches, pages: ["/", "/methode"], actions: {},
+  ancienSitemap: null, redirections: null, bing: null, bingSiteMatches: matches, pages: ["/", "/methode"], actions: {}, pending: {},
 };
 
 describe("addDays et libellés des jalons", () => {
@@ -54,7 +54,7 @@ describe("avant le déploiement", () => {
     expect(l.checked).toBe(false);
     expect(l.note).toContain("seo-build-2026-08-29");
   });
-  test("un audit n2 avec une trouvaille Critique laisse la ligne 1 vide", () => {
+  test("un audit n2 avec des trouvailles Important laisse la ligne 1 vide", () => {
     const l = computeChecklist({ ...base, n2: { dir: "seo/audits/x-n2", report: n0 } }).lines.find((l) => l.id === "CL-01")!;
     expect(l.checked).toBe(false);
   });
@@ -94,7 +94,7 @@ describe("après le déploiement", () => {
   test("la prod qui régresse vide la case avec la raison", () => {
     const l = computeChecklist({ ...apres, n0Prod: { dir: "seo/audits/2026-09-01-n0", report: n0 } }).lines.find((l) => l.id === "CL-07")!;
     expect(l.checked).toBe(false);
-    expect(l.note).toContain("Critique");
+    expect(l.note).toContain("6 Important");
   });
   test("aucun n0 depuis la mise en ligne : prod verte vide, actions en attente", () => {
     const cl = computeChecklist({ ...apres, n0Prod: null });
@@ -121,6 +121,21 @@ describe("après le déploiement", () => {
   test("une action refusée reste vide avec le code", () => {
     const l = computeChecklist({ ...apres, actions: { indexnow: { ok: false, status: 403, message: "clé non servie" } } }).lines.find((l) => l.id === "CL-09")!;
     expect(l).toMatchObject({ checked: false, note: "403 : clé non servie" });
+  });
+  test("une action refusée par Bing ou par Romain garde sa note au passage suivant", () => {
+    const ko = computeChecklist({ ...apres, bing: [{ Url: "https://www.commentchercherbonheur.org/", IsVerified: true }], actions: { bing: { ok: false, status: 400, message: "NotAuthorized (x) : à faire par le propriétaire du site : bing.com/webmasters, Sitemaps, Soumettre https://www.commentchercherbonheur.org/sitemap.xml" } } });
+    const next = computeChecklist({ ...apres, bing: [{ Url: "https://www.commentchercherbonheur.org/", IsVerified: true }], today: "2026-09-02", previous: parseChecklist(renderChecklist(ko)) });
+    expect(next.lines.find((l) => l.id === "CL-10")!.note).toContain("bing.com/webmasters, Sitemaps");
+    const md = renderChecklist(next).replace(/- \[ \] Ping IndexNow · action · .*$/m, "- [ ] Ping IndexNow · action · refusé par Romain le 2026-09-02");
+    const after = computeChecklist({ ...apres, today: "2026-09-03", previous: parseChecklist(md) });
+    expect(after.lines.find((l) => l.id === "CL-09")!.note).toBe("refusé par Romain le 2026-09-02");
+  });
+  test("les actions disent pourquoi elles attendent quand le CLI sait que --agir ne pourra rien faire", () => {
+    const cl = computeChecklist({ ...apres, bing: [{ Url: "https://www.commentchercherbonheur.org/", IsVerified: true }], pending: { indexnow: "pas de clé IndexNow dans seo/strategy.md", bing: "aucun sitemap en 200 dans l'audit prod" } });
+    expect(cl.lines.find((l) => l.id === "CL-09")!.note).toBe("en attente : pas de clé IndexNow dans seo/strategy.md");
+    expect(cl.lines.find((l) => l.id === "CL-10")!.note).toBe("en attente : aucun sitemap en 200 dans l'audit prod");
+    const done = computeChecklist({ ...apres, pending: { indexnow: "x" }, actions: { indexnow: { ok: true, status: 200, urls: 3, message: "OK" } } });
+    expect(done.lines.find((l) => l.id === "CL-09")!.checked).toBe(true);
   });
   test("ancien sitemap : une URL en 404 laisse la case vide et la liste", () => {
     const cl = computeChecklist({ ...apres, ancienSitemap: { path: "seo/checklist/ancien-sitemap.xml", count: 2 }, redirections: [{ url: "https://old.fr/a", ok: true, detail: "301 → 200" }, { url: "https://old.fr/b", ok: false, detail: "404" }] });

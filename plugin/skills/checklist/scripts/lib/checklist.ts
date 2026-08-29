@@ -133,6 +133,8 @@ export type ChecklistInput = {
   bingSiteMatches: (siteUrl: string) => boolean;
   pages: string[];
   actions: { indexnow?: ActionResult; bing?: ActionResult };
+  /** Raisons données par le CLI pour lesquelles --agir ne pourra rien faire, vides si tout est réuni. */
+  pending: { indexnow?: string; bing?: string };
 };
 
 const vert = (r: Report) => r.counts.Critique === 0 && r.counts.Important === 0;
@@ -183,7 +185,7 @@ export function computeChecklist(i: ChecklistInput): Checklist {
         if (!i.miseEnLigne) { lines.push(line(def, "auto", false, "pas encore déployé")); break; }
         if (!i.n0Prod) { lines.push(line(def, "auto", false, "aucun audit prod depuis la mise en ligne")); break; }
         const r = i.n0Prod.report;
-        lines.push(line(def, "auto", vert(r), `${i.n0Prod.dir}/report.md · ${comptes(r)}${vert(r) ? "" : ` · ${enBref(r)}`}`));
+        lines.push(line(def, "auto", vert(r), `${i.n0Prod.dir}/report.md · ${enBref(r)}`));
         break;
       }
       case "CL-08": {
@@ -219,12 +221,16 @@ export function computeChecklist(i: ChecklistInput): Checklist {
       const cl05 = lines.find((l) => l.id === "CL-05");
       if (!cl05?.checked) return line(def, "action", false, "en attente : Bing Webmaster Tools pas encore configuré (ligne « Bing Webmaster Tools : site ajouté »)");
     }
+    const reason = i.pending[which];
+    if (reason) return line(def, "action", false, `en attente : ${reason}`);
     if (!i.n0Prod) return line(def, "action", false, "en attente : aucun audit prod depuis la mise en ligne");
-    return line(def, "action", false, p?.note && /^refusé/.test(p.note) ? p.note : "à faire : relance avec --agir");
+    // une réponse négative ou un refus déjà consigné reste dans le fichier ; --agir relance quand même (done() ne lit que la case)
+    if (p && !p.checked && /^(\d+ : |refusé)/.test(p.note)) return line(def, "action", false, p.note);
+    return line(def, "action", false, "à faire : relance avec --agir");
   }
 }
 
-/** La ligne « En bref » d'un rapport, ou ses comptes si elle manque. */
+/** Les quatre comptes du rapport, comme la ligne En bref. */
 export function enBref(r: Report): string { return `${r.counts.Critique} Critique · ${r.counts.Important} Important · ${r.counts.Mineur} Mineur · ${r.counts.Info} Info`; }
 
 /** Jalons dus : date passée ou du jour, case vide. */
