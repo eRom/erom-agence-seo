@@ -3,6 +3,7 @@
 // Un moteur qui n'a pas répondu écrit sa raison ; il ne laisse jamais un blanc.
 import type { Property, BingSite } from "./resolve";
 import { canonicalMismatch, type Inspection, type SitemapInfo } from "./gsc";
+import { parseDotNetDate, DATE_JAMAIS } from "./bing";
 
 export type SitesView = {
   google: { property: Property; sitemaps: SitemapInfo[] | null }[] | null; googleError: string | null;
@@ -17,6 +18,12 @@ export type CrawlView = { site: string; bing: { stats: unknown[]; issues: unknow
 
 /** Une ligne seulement si la valeur est là : un champ absent ne s'affiche pas comme vide. */
 const line = (k: string, v: string | null): string[] => (v ? [`  ${k} : ${v}`] : []);
+
+/** Décode une date .NET Bing en ISO. Rend `secours` sur la sentinelle DATE_JAMAIS ou une valeur absente. */
+function bingDate(v: unknown, secours: string | null = null): string | null {
+  const ms = parseDotNetDate(v);
+  return ms === null || ms <= DATE_JAMAIS ? secours : new Date(ms).toISOString();
+}
 
 export function renderSites(v: SitesView): string {
   const out: string[] = ["Google Search Console"];
@@ -38,7 +45,16 @@ export function renderSites(v: SitesView): string {
   else if (!v.bing || v.bing.length === 0) out.push("  aucun site dans ce compte Bing");
   else for (const b of v.bing) {
     out.push(`  ${b.site.Url} (${b.site.IsVerified ? "vérifié" : "non vérifié"})`);
-    out.push(b.feeds === null ? "    flux non lisibles" : `    ${b.feeds.length} flux déclaré(s)`);
+    if (b.feeds === null) out.push("    flux non lisibles");
+    else if (b.feeds.length === 0) out.push("    aucun flux déclaré");
+    else for (const flux of b.feeds) {
+      const f = (flux ?? {}) as Record<string, unknown>;
+      out.push(`    ${typeof f.Url === "string" ? f.Url : "flux sans URL"}`);
+      out.push(...line("  statut", typeof f.Status === "string" ? f.Status : null));
+      out.push(...line("  soumis le", bingDate(f.Submitted)));
+      out.push(...line("  dernier crawl", bingDate(f.LastCrawled)));
+      out.push(...line("  URLs", typeof f.UrlCount === "number" ? String(f.UrlCount) : null));
+    }
   }
   return out.join("\n");
 }
@@ -69,12 +85,23 @@ export function renderInspect(v: InspectView): string {
   if (v.bingError) out.push(`  ${v.bingError}`);
   else if (!v.bing) out.push(`  ${HORS_INDEX}`);
   else {
-    // Les champs d'UrlInfo n'ont jamais été capturés (incertitude 1) : on affiche ce que Bing envoie,
-    // sans en inventer. Le `__type` de l'enveloppe .NET ne sert à rien à l'écran.
-    const avant = out.length;
-    for (const [k, val] of Object.entries(v.bing)) if (!k.startsWith("__")) out.push(`  ${k} : ${String(val)}`);
-    // Une enveloppe .NET réduite à son `__type` laisserait la section vide, ce que la règle interdit.
-    if (out.length === avant) out.push(`  ${HORS_INDEX}`);
+    // Une URL inconnue de Bing ne rend pas null : un objet complet dont les dates valent DateTime.MinValue
+    // (capture du 29/08, GetUrlInfo sur /page-qui-nexiste-pas). C'est la sentinelle qui dit « jamais découverte ».
+    const decouverte = parseDotNetDate(v.bing.DiscoveryDate);
+    if (decouverte === null || decouverte <= DATE_JAMAIS) out.push(`  ${HORS_INDEX}`);
+    else {
+      out.push(`  découverte le : ${new Date(decouverte).toISOString()}`);
+      out.push(`  dernier crawl : ${bingDate(v.bing.LastCrawledDate, "jamais")}`);
+      const taille = v.bing.DocumentSize;
+      if (typeof taille === "number" && taille !== 0) out.push(`  taille : ${taille} octets`);
+      const liens = v.bing.AnchorCount;
+      if (typeof liens === "number" && liens !== 0) out.push(`  liens entrants : ${liens}`);
+      const sousUrl = v.bing.TotalChildUrlCount;
+      if (typeof sousUrl === "number" && sousUrl !== 0) out.push(`  sous-URL connues : ${sousUrl}`);
+      // HttpStatus vaut 0 même sur une URL connue et indexée (capture du 29/08, romain-ecarnot.com/) :
+      // ce n'est pas un discriminant, l'afficher induirait en erreur. Url n'est pas répétée, __type et
+      // IsPage ne disent rien à l'écran.
+    }
   }
   return out.join("\n");
 }

@@ -2,6 +2,9 @@
 import { describe, test, expect } from "bun:test";
 import { renderSites, renderInspect, renderCrawl } from "../lib/render";
 
+const fx = (n: string) => Bun.file(new URL(`./fixtures/bing/${n}.json`, import.meta.url).pathname).text();
+const bingD = async (n: string) => (JSON.parse(await fx(n)) as { d: unknown }).d;
+
 const prop = { siteUrl: "sc-domain:romain-ecarnot.com", permissionLevel: "siteOwner" };
 const sitemap = {
   path: "https://lebonpote.romain-ecarnot.com/sitemap.xml", lastSubmitted: "2026-04-30T16:13:26.601Z",
@@ -41,11 +44,11 @@ describe("renderSites", () => {
     expect(out).toContain("sans détail");
     expect(out).not.toMatch(/soumis \d/);
   });
-  test("un compte Bing non vide nomme chaque site, son statut de vérification et ses flux", () => {
+  test("un compte Bing non vide nomme chaque site, son statut de vérification, et un site sans flux le dit", () => {
     const out = renderSites({
       google: [], googleError: null,
       bing: [
-        { site: { Url: "https://x.com", IsVerified: true }, feeds: [1, 2] },
+        { site: { Url: "https://x.com", IsVerified: true }, feeds: [] },
         { site: { Url: "https://y.com", IsVerified: false }, feeds: [] },
       ],
       bingError: null,
@@ -54,9 +57,21 @@ describe("renderSites", () => {
     expect(out).toContain("https://y.com");
     expect(out).toContain("vérifié");
     expect(out).toContain("non vérifié");
-    expect(out).toContain("2 flux déclaré(s)");
-    expect(out).toContain("0 flux déclaré(s)");
+    expect(out).toContain("aucun flux déclaré");
     expect(out).not.toContain("aucun site dans ce compte Bing");
+  });
+  test("renderSites avec la charge réelle de GetFeeds (capture du 29/08) : URL, statut, dates décodées et compte d'URL", async () => {
+    const feeds = (await bingD("feeds")) as unknown[];
+    const out = renderSites({
+      google: [], googleError: null,
+      bing: [{ site: { Url: "https://lebonpote.romain-ecarnot.com/", IsVerified: true }, feeds }],
+      bingError: null,
+    });
+    expect(out).toContain("https://lebonpote.romain-ecarnot.com/sitemap.xml");
+    expect(out).toContain("statut : Success");
+    expect(out).toContain("URLs : 1");
+    expect(out).not.toContain("/Date(");
+    expect(out).not.toContain("flux déclaré");
   });
   test("un refus Google n'empêche pas Bing de répondre", () => {
     const out = renderSites({ google: null, googleError: "jeton refusé ou expiré", bing: [], bingError: null });
@@ -129,6 +144,24 @@ describe("renderInspect", () => {
     });
     expect(out).toContain("pas dans l'index Bing");
   });
+  test("charge Bing réelle, URL connue (capture du 29/08) : dates décodées en ISO, jamais HttpStatus", async () => {
+    const bing = (await bingD("url-info-connue")) as Record<string, unknown>;
+    const out = renderInspect({ url: "https://romain-ecarnot.com/", property: prop, google: null, googleError: "x", bing, bingError: null });
+    expect(out).toContain("découverte le : 2025-10-15T07:00:00.000Z");
+    expect(out).toContain("dernier crawl : 2026-08-01T18:52:58.000Z");
+    expect(out).toContain("taille : 41823 octets");
+    expect(out).toContain("liens entrants : 10");
+    expect(out).not.toContain("HttpStatus");
+    expect(out).not.toContain("/Date(");
+  });
+  test("charge Bing réelle, URL inconnue de Bing (capture du 29/08) : la sentinelle se dit hors index, jamais affichée comme date", async () => {
+    const bing = (await bingD("url-info-inconnue")) as Record<string, unknown>;
+    const out = renderInspect({ url: "https://romain-ecarnot.com/page-qui-nexiste-pas", property: prop, google: null, googleError: "x", bing, bingError: null });
+    expect(out).toContain("pas dans l'index Bing");
+    expect(out).not.toContain("/Date(");
+    expect(out).not.toContain("DiscoveryDate");
+    expect(out).not.toContain("HttpStatus");
+  });
 });
 
 describe("renderCrawl", () => {
@@ -156,7 +189,7 @@ describe("renderCrawl", () => {
 describe("pas de tiret cadratin", () => {
   // Le filet doit voir chaque chaîne littérale de render.ts au moins une fois : sinon un tiret injecté
   // dans une branche non exercée passerait la suite sans être vu (trouvaille de la revue du 29/08).
-  test("aucune sortie n'en contient, sur toutes les branches de rendu", () => {
+  test("aucune sortie n'en contient, sur toutes les branches de rendu", async () => {
     const sitesPleine = renderSites({ google: [{ property: prop, sitemaps: [sitemap] }], googleError: null, bing: [], bingError: null });
     const sitesSansSitemap = renderSites({ google: [{ property: prop, sitemaps: [] }], googleError: null, bing: [], bingError: null });
     const sitesSansDetail = renderSites({ google: [{ property: prop, sitemaps: [{ ...sitemap, contents: [] }] }], googleError: null, bing: [], bingError: null });
@@ -190,14 +223,29 @@ describe("pas de tiret cadratin", () => {
       bing: { __type: "UrlInfo:#Microsoft.Bing.Webmaster.Api" }, bingError: null,
     });
 
+    const sitesFeedsReels = renderSites({
+      google: [], googleError: null,
+      bing: [{ site: { Url: "https://lebonpote.romain-ecarnot.com/", IsVerified: true }, feeds: (await bingD("feeds")) as unknown[] }],
+      bingError: null,
+    });
+
+    const inspectBingConnue = renderInspect({
+      url: "https://romain-ecarnot.com/", property: prop, google: null, googleError: "x",
+      bing: (await bingD("url-info-connue")) as Record<string, unknown>, bingError: null,
+    });
+    const inspectBingInconnue = renderInspect({
+      url: "https://romain-ecarnot.com/page-qui-nexiste-pas", property: prop, google: null, googleError: "x",
+      bing: (await bingD("url-info-inconnue")) as Record<string, unknown>, bingError: null,
+    });
+
     const crawlSansDonnees = renderCrawl({ site: "https://a", bing: null, bingError: null });
     const crawlSansErreur = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [] }, bingError: null });
     const crawlAvecErreurs = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [{ y: 1 }, { y: 2 }] }, bingError: null });
 
     const sorties = [
       sitesPleine, sitesSansSitemap, sitesSansDetail, sitesBingPeuple, sitesGoogleEnErreur,
-      sitesSitemapsIllisibles, sitesFeedsIllisibles,
-      inspectAvecLien, inspectMismatch, inspectSansEtat, inspectBingType,
+      sitesSitemapsIllisibles, sitesFeedsIllisibles, sitesFeedsReels,
+      inspectAvecLien, inspectMismatch, inspectSansEtat, inspectBingType, inspectBingConnue, inspectBingInconnue,
       crawlSansDonnees, crawlSansErreur, crawlAvecErreurs,
     ];
     for (const o of sorties) expect(o).not.toContain("—");

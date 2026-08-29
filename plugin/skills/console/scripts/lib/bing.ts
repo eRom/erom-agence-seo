@@ -20,6 +20,16 @@ export class BingError extends Error {
   constructor(message: string, readonly code: number | null, readonly hint: string) { super(message); this.name = "BingError"; }
 }
 
+/** Bing sérialise ses dates au format .NET `/Date(<ms>[±hhmm])/`. Rend les millisecondes, ou null. */
+export function parseDotNetDate(v: unknown): number | null {
+  if (typeof v !== "string") return null;
+  const m = v.match(/^\/Date\((-?\d+)(?:[+-]\d{4})?\)\/$/);
+  return m ? Number(m[1]) : null;
+}
+
+/** DateTime.MinValue en millisecondes : ce que Bing rend pour « jamais » (capture du 29/08, GetUrlInfo sur une URL inconnue). */
+export const DATE_JAMAIS = -62135568000000;
+
 /** Retire la clé d'un texte destiné à l'écran. Reprise de actions.ts. */
 export function redact(text: string, key: string | null): string {
   return key && key.length >= 8 ? text.split(key).join("[clé]") : text;
