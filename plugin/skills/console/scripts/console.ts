@@ -37,8 +37,9 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
   const key = d.env.BING_WMT_API_KEY ?? null;
   let token: string | null = null;
 
-  // redact retire la clé Bing ; assertNoSecret est le garde-fou de dernier recours, sur la clé ET sur le
-  // jeton porteur (spec sections 3 et 9). Il lève plutôt que de laisser fuir : c'est le bon échec.
+  // redact retire la clé Bing de tout ce qui sort. assertNoSecret est le filet de tout dernier recours,
+  // sur la clé ET sur le jeton (spec sections 3 et 9) : il ne se déclenche que si redact a laissé passer
+  // quelque chose, donc sans chemin d'exercice normal en usage correct ; il lève plutôt que de laisser fuir.
   const done = (view: unknown, text: string, code: 0 | 1) => {
     const out = redact(json ? JSON.stringify(view, null, 2) : text, key);
     assertNoSecret(out, key);
@@ -62,8 +63,9 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
       try {
         const props = await listProperties(d.fetcher, a);
         google = [];
-        // Un sitemap illisible sur une propriété ne doit pas emporter les autres propriétés.
-        for (const p of props) google.push({ property: p, sitemaps: await listSitemaps(d.fetcher, a, p.siteUrl).catch(() => []) });
+        // Un sitemap illisible sur une propriété ne doit pas emporter les autres propriétés, mais ne doit
+        // pas non plus se déguiser en « zéro sitemap » : null distingue l'échec de lecture de l'absence.
+        for (const p of props) google.push({ property: p, sitemaps: await listSitemaps(d.fetcher, a, p.siteUrl).catch(() => null) });
       } catch (e) { googleError = reason(e); }
     }
     let bing: SitesView["bing"] = null;
@@ -72,7 +74,7 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
       try {
         const sites = await bingUserSites(d.fetcher, key);
         bing = [];
-        for (const s of sites) bing.push({ site: s, feeds: await bingFeeds(d.fetcher, key, s.Url).catch(() => []) });
+        for (const s of sites) bing.push({ site: s, feeds: await bingFeeds(d.fetcher, key, s.Url).catch(() => null) });
       } catch (e) { bingError = reason(e); }
     }
     const view: SitesView = { google, googleError, bing, bingError };
@@ -82,6 +84,12 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
   if (cmd === "inspect") {
     const url = rest[1];
     if (!url) return { out: USAGE, code: 1 };
+    let host: string;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      return { out: `« ${url} » n'est pas une URL valide. Exemple : console inspect https://exemple.fr/page`, code: 1 };
+    }
     const [a, authErr] = await auth();
     let property: Property | null = null;
     let google: InspectView["google"] = null;
@@ -102,7 +110,6 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     let bingError: string | null = key ? null : NOKEY;
     if (key) {
       try {
-        const host = new URL(url).hostname;
         const sites = await bingUserSites(d.fetcher, key);
         const site = resolveBingSite(host, sites);
         if (!site) bingError = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
@@ -116,12 +123,22 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
 
   if (cmd === "crawl") {
     const i = rest.indexOf("--site");
+    if (i >= 0 && !rest[i + 1]) return { out: "--site attend une URL en argument", code: 1 };
     let site = i >= 0 ? rest[i + 1] : undefined;
+    let raisonStrategie: string | null = null;
     if (!site) {
       const md = await d.readStrategy();
-      if (md) { try { site = parseStrategy(md).site; } catch { /* stratégie inanalysable : on demande --site */ } }
+      if (md) {
+        try {
+          site = parseStrategy(md).site;
+        } catch (e) {
+          // Une stratégie présente mais invalide n'est pas une stratégie absente : le dire évite à
+          // l'utilisateur de chercher un fichier qui existe déjà.
+          raisonStrategie = `seo/strategy.md est présent mais ne s'analyse pas :\n  ${reason(e)}`;
+        }
+      }
     }
-    if (!site) return { out: "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
+    if (!site) return { out: raisonStrategie ?? "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
     let bing: CrawlView["bing"] = null;
     let bingError: string | null = key ? null : NOKEY;
     if (key) {
@@ -151,17 +168,23 @@ if (import.meta.main) {
       throw new Error(`service injoignable : ${e instanceof Error ? e.message : String(e)}`);
     }
   };
-  // assertNoSecret lève si un secret a survécu à redact : on préfère un échec net à une fuite.
-  const { out, code } = await runConsole(process.argv.slice(2), {
-    fetcher: defaultFetcher,
-    env: process.env,
-    gcloud: defaultGcloud,
-    serviceAccount: (path) => serviceAccountToken(path, defaultFetcher),
-    readStrategy: async () => {
-      const f = Bun.file("seo/strategy.md");
-      return (await f.exists()) ? f.text() : null;
-    },
-  });
-  console.log(out);
-  process.exit(code);
+  try {
+    const { out, code } = await runConsole(process.argv.slice(2), {
+      fetcher: defaultFetcher,
+      env: process.env,
+      gcloud: defaultGcloud,
+      serviceAccount: (path) => serviceAccountToken(path, defaultFetcher),
+      readStrategy: async () => {
+        const f = Bun.file("seo/strategy.md");
+        return (await f.exists()) ? f.text() : null;
+      },
+    });
+    console.log(out);
+    process.exit(code);
+  } catch (e) {
+    // Un échec ici (par exemple assertNoSecret qui lève parce qu'un secret a survécu à redact) ne sort
+    // jamais en trace brute : même traitement que le reste du CLI, jamais une fuite.
+    console.log(reason(e));
+    process.exit(1);
+  }
 }

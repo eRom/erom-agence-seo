@@ -63,6 +63,20 @@ describe("renderSites", () => {
     expect(out).toContain("jeton refusé ou expiré");
     expect(out).toContain("aucun site dans ce compte Bing");
   });
+  test("un sitemap illisible se dit distinctement d'un sitemap absent", () => {
+    const out = renderSites({ google: [{ property: prop, sitemaps: null }], googleError: null, bing: [], bingError: null });
+    expect(out).toContain("sitemaps non lisibles pour cette propriété");
+    expect(out).not.toContain("aucun sitemap déclaré");
+  });
+  test("des flux Bing illisibles se disent distinctement de zéro flux", () => {
+    const out = renderSites({
+      google: [], googleError: null,
+      bing: [{ site: { Url: "https://x.com", IsVerified: true }, feeds: null }],
+      bingError: null,
+    });
+    expect(out).toContain("flux non lisibles");
+    expect(out).not.toContain("0 flux déclaré(s)");
+  });
 });
 
 describe("renderInspect", () => {
@@ -155,6 +169,12 @@ describe("pas de tiret cadratin", () => {
       bingError: null,
     });
     const sitesGoogleEnErreur = renderSites({ google: null, googleError: "jeton refusé ou expiré", bing: [], bingError: null });
+    const sitesSitemapsIllisibles = renderSites({ google: [{ property: prop, sitemaps: null }], googleError: null, bing: [], bingError: null });
+    const sitesFeedsIllisibles = renderSites({
+      google: [], googleError: null,
+      bing: [{ site: { Url: "https://x.com", IsVerified: true }, feeds: null }],
+      bingError: null,
+    });
 
     const inspectAvecLien = renderInspect({
       url: "https://romain-ecarnot.com/", property: prop,
@@ -176,6 +196,7 @@ describe("pas de tiret cadratin", () => {
 
     const sorties = [
       sitesPleine, sitesSansSitemap, sitesSansDetail, sitesBingPeuple, sitesGoogleEnErreur,
+      sitesSitemapsIllisibles, sitesFeedsIllisibles,
       inspectAvecLien, inspectMismatch, inspectSansEtat, inspectBingType,
       crawlSansDonnees, crawlSansErreur, crawlAvecErreurs,
     ];

@@ -5,8 +5,8 @@ import type { Property, BingSite } from "./resolve";
 import { canonicalMismatch, type Inspection, type SitemapInfo } from "./gsc";
 
 export type SitesView = {
-  google: { property: Property; sitemaps: SitemapInfo[] }[] | null; googleError: string | null;
-  bing: { site: BingSite; feeds: unknown[] }[] | null; bingError: string | null;
+  google: { property: Property; sitemaps: SitemapInfo[] | null }[] | null; googleError: string | null;
+  bing: { site: BingSite; feeds: unknown[] | null }[] | null; bingError: string | null;
 };
 export type InspectView = {
   url: string; property: Property | null;
@@ -24,8 +24,9 @@ export function renderSites(v: SitesView): string {
   else if (!v.google || v.google.length === 0) out.push("  aucune propriété visible par ce compte");
   else for (const g of v.google) {
     out.push(`  ${g.property.siteUrl} (${g.property.permissionLevel})`);
-    if (g.sitemaps.length === 0) out.push("    aucun sitemap déclaré");
-    for (const s of g.sitemaps) {
+    if (g.sitemaps === null) out.push("    sitemaps non lisibles pour cette propriété");
+    else if (g.sitemaps.length === 0) out.push("    aucun sitemap déclaré");
+    else for (const s of g.sitemaps) {
       const c = s.contents[0];
       const chiffres = c ? `soumis ${c.submitted ?? "?"}, indexé ${c.indexed ?? "?"}` : "sans détail";
       out.push(`    ${s.path} : ${chiffres}, ${s.errors ?? "?"} erreurs, ${s.warnings ?? "?"} avertissements`);
@@ -37,7 +38,7 @@ export function renderSites(v: SitesView): string {
   else if (!v.bing || v.bing.length === 0) out.push("  aucun site dans ce compte Bing");
   else for (const b of v.bing) {
     out.push(`  ${b.site.Url} (${b.site.IsVerified ? "vérifié" : "non vérifié"})`);
-    out.push(`    ${b.feeds.length} flux déclaré(s)`);
+    out.push(b.feeds === null ? "    flux non lisibles" : `    ${b.feeds.length} flux déclaré(s)`);
   }
   return out.join("\n");
 }
