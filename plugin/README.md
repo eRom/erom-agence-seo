@@ -64,7 +64,7 @@ Sans rien écrire, sans ouvrir un onglet :
 /erom-seo:console crawl
 ```
 
-`sites` liste les propriétés Search Console et les sites Bing visibles par le compte, avec accès et sitemaps. `inspect <url>` donne l'état d'indexation Google (verdict, couverture, canonical retenu) et ce que Bing sait de cette URL. `crawl` donne les statistiques et erreurs de crawl côté Bing. Clés : `GSC_QUOTA_PROJECT` ou `GSC_SA_KEY_FILE` pour Google, `BING_WMT_API_KEY` pour Bing (`skills/console/references/acces.md` détaille les accès). Sans clé, la moitié du moteur concerné répond « non interrogé ». Pour agir (soumettre un sitemap, pinger IndexNow), c'est `/erom-seo:checklist --agir` ; pour une preuve datée sur disque, c'est `/erom-seo:audit`.
+`sites` liste les propriétés Search Console et les sites Bing visibles par le compte, avec accès et sitemaps. `inspect <url>` donne l'état d'indexation Google (verdict, couverture, canonical retenu) et ce que Bing sait de cette URL. `crawl` donne les statistiques et erreurs de crawl côté Bing. Clés : `GSC_QUOTA_PROJECT` ou `GSC_SA_KEY_FILE` pour Google, `BING_WMT_API_KEY` pour Bing (`skills/console/references/acces.md` détaille les accès). Sans clé Bing, la moitié Bing répond « non interrogé » ; sans jeton Google, c'est la consigne de connexion qui sort à sa place. Pour agir (soumettre un sitemap, pinger IndexNow), c'est `/erom-seo:checklist --agir` ; pour une preuve datée sur disque, c'est `/erom-seo:audit`.
 
 ## Vérifier que les références n'ont pas dérivé
 

@@ -37,7 +37,7 @@ Chaque commande accepte l'échec d'un moteur sans faire échouer l'autre : Googl
 Les codes de sortie, pour qui enchaîne les commandes en script :
 
 - `console sites` sort en 1 si ni Google ni Bing n'ont répondu.
-- `console inspect` sort en 1 si aucune propriété Search Console ne couvre l'URL donnée (peu importe ce que Bing a répondu) : sans propriété résolue, l'inspection Google n'est jamais partie.
+- `console inspect` sort en 1 si aucune propriété Search Console ne couvre l'URL donnée, ou si une propriété a été résolue mais que ni Google ni Bing n'ont répondu (jeton refusé et clé Bing absente, par exemple).
 - `console crawl` sort en 1 si Bing n'a rien pu être lu (aucune donnée de crawl, Google n'en fournit pas par API).
 
 ## 4. Restituer
