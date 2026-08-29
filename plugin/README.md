@@ -1,6 +1,6 @@
 # erom-seo
 
-Plugin Claude Code de l'agence : audit, stratégie, build et checklist de déploiement SEO/GEO sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, avec sa citation mot pour mot.
+Plugin Claude Code de l'agence : audit, stratégie, build, checklist de déploiement et lecture des consoles SEO/GEO sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, avec sa citation mot pour mot.
 
 ## Charger le plugin en local
 
@@ -53,6 +53,18 @@ Depuis le repo du site, avec `seo/strategy.md` et un build fusionné :
 ```
 
 Sortie : `seo/checklist.md`, quinze cases en deux moitiés. Avant le déploiement : audit niveau 2 vert, branche fusionnée, hors build, Search Console et Bing Webmaster Tools créés, ancien sitemap sauvegardé si le site en remplace un. Après (la skill demande « c'est déployé ? » et la date) : un audit niveau 0 refait sur la prod, les redirections de l'ancien site, le ping IndexNow et le sitemap chez Bing (envoyés seulement après un OK explicite), puis les jalons J+1, J+3, J+7, J+30, J+90 avec, pour chacun, le chemin de clics. Les cases `auto` suivent les audits et git ; les cases `main` sont cochées à la main et ne sont jamais décochées. Relancer la skill quand on veut : elle dit ce qui est dû. Elle ne déploie rien.
+
+## Lire les consoles
+
+Sans rien écrire, sans ouvrir un onglet :
+
+```
+/erom-seo:console sites
+/erom-seo:console inspect https://acme.fr/page
+/erom-seo:console crawl
+```
+
+`sites` liste les propriétés Search Console et les sites Bing visibles par le compte, avec accès et sitemaps. `inspect <url>` donne l'état d'indexation Google (verdict, couverture, canonical retenu) et ce que Bing sait de cette URL. `crawl` donne les statistiques et erreurs de crawl côté Bing. Clés : `GSC_QUOTA_PROJECT` ou `GSC_SA_KEY_FILE` pour Google, `BING_WMT_API_KEY` pour Bing (`skills/console/references/acces.md` détaille les accès). Sans clé, la moitié du moteur concerné répond « non interrogé ». Pour agir (soumettre un sitemap, pinger IndexNow), c'est `/erom-seo:checklist --agir` ; pour une preuve datée sur disque, c'est `/erom-seo:audit`.
 
 ## Vérifier que les références n'ont pas dérivé
 
