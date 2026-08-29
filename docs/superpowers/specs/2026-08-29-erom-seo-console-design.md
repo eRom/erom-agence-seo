@@ -234,7 +234,9 @@ Session mère, jeton ADC de Romain, jamais affiché. Ces trois réponses sont le
 
 ### 12.2 Le 403 sans projet de quota
 
-Avec le scope `webmasters.readonly` accordé mais sans en-tête `x-goog-user-project`, `sites.list` répond HTTP 403, `reason: SERVICE_DISABLED`, `service: searchconsole.googleapis.com`, message « The searchconsole.googleapis.com API requires a quota project, which is not set by default. » L'API a été activée le 29/08 sur le projet `seo-harness-1787844978744` ; l'en-tête posé, la même requête rend 200.
+Avec le scope `webmasters.readonly` accordé mais sans en-tête `x-goog-user-project`, `sites.list` répond HTTP 403, `reason: SERVICE_DISABLED`, `service: searchconsole.googleapis.com`, message « The searchconsole.googleapis.com API requires a quota project, which is not set by default. » L'API a été activée le 29/08 sur le projet `gen-lang-client-0479935649` ; l'en-tête posé, la même requête rend 200.
+
+Deux appels successifs le 29/08 ont rendu les trois propriétés dans un ordre différent : `siteEntry` n'a pas d'ordre garanti, aucun test ni aucun rendu ne doit en supposer un.
 
 ### 12.3 `urlInspection.index.inspect`, HTTP 200
 
@@ -275,6 +277,6 @@ Lève l'incertitude 4 de la note d'idéation : `contents[].indexed` est bien ren
 
 Aucun ne bloque l'écriture du code ; les trois bloquent une partie de la recette.
 
-1. `export GSC_QUOTA_PROJECT="seo-harness-1787844978744"` dans `~/.zshenv`. Romain s'en charge (29/08, 18 h 40).
+1. `export GSC_QUOTA_PROJECT="gen-lang-client-0479935649"` posé par Romain dans `~/.zshenv` le 29/08 à 18 h 51 ; API Search Console activée sur ce projet dans la foulée, `sites.list` vérifié en 200. Fait.
 2. Chico n'a pas de propriété Search Console. AC-1 à AC-4 se jouent donc sur `romain-ecarnot.com`.
 3. Le compte Bing de Romain est vide. AC-1, AC-7 et AC-8 vérifient l'état « compte vide » ; la lecture réelle de Bing attend qu'un site y soit ajouté, et les incertitudes 1 et 2 avec.
