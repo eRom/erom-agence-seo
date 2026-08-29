@@ -1,6 +1,7 @@
 // Les deux écritures (D26) et la lecture Bing, avec un fetch injecté : les tests passent un faux, le CLI passe le vrai.
 // Conventions figées sur les exemples officiels : docs/recherches/2026-08-29-checklist-indexnow-bing-gsc.md, sections 3.1 et 3.2.
 import type { ActionResult, BingSite } from "./checklist";
+import { rewriteToOrigin } from "../../../audit/scripts/lib/sitemap";
 
 export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
 export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
@@ -35,6 +36,22 @@ export const defaultFetcher: Fetcher = async (url, init = {}) => {
 /** Retire la clé d'un texte destiné au fichier ou à l'écran. */
 export function redact(text: string, key: string | null): string {
   return key && key.length >= 8 ? text.split(key).join("[clé]") : text;
+}
+
+/**
+ * Ramène chaque URL sur l'origine réellement servie (www ou apex) : IndexNow exige que toutes les URL soient sur `host`,
+ * et un sitemap peut lister l'apex alors que le site sert www (chico, R-3). `moved` compte les URL réécrites.
+ */
+export function urlsOnOrigin(urls: string[], origin: string): { urls: string[]; moved: number } {
+  const out: string[] = [];
+  let moved = 0;
+  for (const u of urls) {
+    const r = rewriteToOrigin(u, origin);
+    if (r === null) continue;
+    if (r !== u) moved++;
+    if (!out.includes(r)) out.push(r);
+  }
+  return { urls: out, moved };
 }
 
 /** POST groupé IndexNow. 200 ou 202 = ok. La clé IndexNow est publique par construction (servie à la racine), pas un secret. */

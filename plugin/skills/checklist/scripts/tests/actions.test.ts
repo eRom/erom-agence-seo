@@ -32,6 +32,16 @@ describe("ping IndexNow", () => {
   });
 });
 
+describe("urlsOnOrigin (R-3, recette chico du 29/08)", () => {
+  test("un sitemap sur l'apex est ramené sur le www réellement servi, sans doublon, en comptant les réécritures", async () => {
+    const { urlsOnOrigin } = await import("../lib/actions");
+    const r = urlsOnOrigin(["https://commentchercherbonheur.org", "https://commentchercherbonheur.org/methode", "https://www.commentchercherbonheur.org/methode", "pas une url"], "https://www.commentchercherbonheur.org");
+    expect(r.urls).toEqual(["https://www.commentchercherbonheur.org/", "https://www.commentchercherbonheur.org/methode"]);
+    expect(r.moved).toBe(2);
+    expect(urlsOnOrigin(["https://www.chico.org/a"], "https://www.chico.org")).toEqual({ urls: ["https://www.chico.org/a"], moved: 0 });
+  });
+});
+
 describe("Bing Webmaster Tools", () => {
   test("GetUserSites : GET avec apikey, réponse {d:[…]} lue ; {d:[]} = aucun site", async () => {
     const sample = { d: [{ __type: "Site:#Microsoft.Bing.Webmaster.Api", AuthenticationCode: "X", DnsVerificationCode: "x.example.com", IsVerified: false, Url: "http://example.com" }] };

@@ -11,7 +11,7 @@ import { decodeSitemapBody, parseSitemap, sameSite } from "../../../skills/audit
 import { kindOf } from "../../../skills/build/scripts/lib/plan";
 import { assertNoSecret } from "../../../skills/strategy/scripts/lib/keywords";
 import { checklistSummary, ChecklistError, computeChecklist, dueToday, parseChecklist, renderChecklist, type BingSite, type ChecklistInput, type RedirectCheck } from "./lib/checklist";
-import { bingSubmitFeed, bingUserSites, defaultFetcher, pingIndexNow, redact } from "./lib/actions";
+import { bingSubmitFeed, bingUserSites, defaultFetcher, pingIndexNow, redact, urlsOnOrigin } from "./lib/actions";
 import { checkRedirections } from "./lib/ancien-sitemap";
 
 export const ANCIEN_SITEMAP = "checklist/ancien-sitemap.xml";
@@ -125,10 +125,11 @@ if (import.meta.main) {
     if (agir && miseEnLigne && n0Prod) {
       const done = (id: string) => prevForCompute?.lines.get(id)?.checked ?? false;
       if (strategy.indexnow && !done("CL-09")) {
-        const host = new URL(feedUrl ?? origin).host;
-        const onHost = urls.filter((u) => { try { return new URL(u).host === host; } catch { return false; } });
-        if (onHost.length < urls.length) warn(`ping IndexNow : ${urls.length - onHost.length} URL du sitemap ne sont pas sur ${host}, non soumises`);
-        actions.indexnow = await pingIndexNow(defaultFetcher, { host, key: strategy.indexnow, urls: onHost });
+        // IndexNow veut toutes les URL sur `host` : un sitemap qui liste l'apex alors que le site sert www (chico) est
+        // ramené sur l'origine réellement servie, comme l'audit niveau 2 le fait (R-3, recette du 29/08)
+        const { urls: pingUrls, moved } = urlsOnOrigin(urls, origin);
+        if (moved) warn(`ping IndexNow : ${moved} URL du sitemap réécrites sur ${origin}, l'hôte réellement servi`);
+        actions.indexnow = await pingIndexNow(defaultFetcher, { host: new URL(origin).host, key: strategy.indexnow, urls: pingUrls });
       }
       const bingSite = bing?.find((b) => bingSiteMatches(b.Url) && b.IsVerified) ?? null;
       if (key && bingSite && feedUrl && !done("CL-10")) actions.bing = await bingSubmitFeed(defaultFetcher, key, bingSite.Url, feedUrl);
