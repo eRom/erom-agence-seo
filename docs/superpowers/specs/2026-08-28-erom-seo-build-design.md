@@ -138,7 +138,7 @@ plan : 12 trouvailles ouvertes (0 Critique, 6 Important, 6 Mineur) : 8 code, 3 t
 
 ```ts
 export type Kind = "code" | "texte" | "hors-build";
-export type PlanFinding = { id: string; severity: Severity; title: string; kind: Kind; correctif: string; effort: string; ou?: string };
+export type PlanFinding = { id: string; severity: Severity; title: string; kind: Kind; correctif: string; effort: string; ou?: string; origine?: string };
 export type PlanPage = {
   page: string; intention: string; motCle: string; secondaires: string[]; cadence: string;
   current: { url: string | null; status: number | null; title: string | null; description: string | null; h1: string[]; opening: string; canonical: string | null; jsonldTypes: string[]; datePublished: string | null; dateModified: string | null; challenge: boolean } | null;
@@ -166,6 +166,7 @@ Règles :
 - `organization` : `name` = Entité.Nom, `url` = `canonicalBase.origin` + `/`, `description` = la phrase d'identité, `sameAs` = ceux de la stratégie ; `telephone` et `address` seulement si la stratégie porte un NAP.
 - `indexnow` : la clé de la stratégie si présente, `file: "public/<clé>.txt"`.
 - `ou` (hors-build) : l'endroit exact, depuis la table KINDS : IDX-03 « certificat et redirection HTTP chez l'hébergeur (Vercel : automatique) », IDX-04 « Vercel : Project Settings, Domains, Redirect to ; ou DNS de l'hébergeur », PERF-01 « PageSpeed Insights, puis un chantier de performance à part », STRAT-04 « calendrier éditorial : mettre à jour le contenu à la cadence promise ». Une page prévue absente de la collecte (STRAT-01, `found: false`) est aussi hors build : « page à créer, contenu à écrire ».
+- Quand le plan part d'un audit niveau 2, les vérifications non applicables en local (IDX-03, IDX-04, PERF-01) n'y sont jamais évaluées : elles disparaîtraient du plan si un audit niveau 2 plus récent existe. `plan.ts` va donc aussi lire le `report.md` du dernier audit niveau 0, s'il diffère de l'audit du plan, et rapatrie ses trouvailles encore ouvertes dont le genre est `hors-build`, dédoublonnées par id (une trouvaille déjà présente dans le plan ne se répète pas). Chacune porte alors `origine` : le dossier de l'audit niveau 0 d'où elle vient. Sans audit niveau 0 différent, rien à fusionner. Corrige R-6 de la recette du 2026-08-29 : le premier build avait perdu IDX-04 en restitution parce que le plan était reparti de l'audit niveau 2 tout vert, sans IDX-04 à évaluer.
 
 ### 5.3 La table KINDS
 
@@ -324,8 +325,8 @@ Cobaye : `chico-happiness`, répertoire courant `/Users/recarnot/dev/chico-happi
   Vérifié par : la ligne « En bref » du rapport (`0 Critique · 0 Important`) ; `grep -c "^STRAT-0[1-3]\|^SD-02\|^IDX-02\|^TAG-0[12]\|^AI-02" <rapport>` dans la section « Vérifications passées » égale 8.
 
 - **AC-6**
-  Comportement : quand `build` restitue, alors IDX-04 apparaît en hors build avec l'endroit exact (Vercel, Domains, Redirect to), même si l'audit niveau 2 l'a marqué non applicable en local.
-  Vérifié par : le message final dans la conversation.
+  Comportement : quand `build` restitue, alors IDX-04 apparaît en hors build avec l'endroit exact (Vercel, Domains, Redirect to), même si le plan est reparti du dernier audit niveau 2 (où IDX-04 n'est jamais évalué, non applicable en local) : `plan.ts` va le chercher dans le dernier audit niveau 0 et le rapatrie avec son origine.
+  Vérifié par : le message final dans la conversation ; `jq -c '[.findings[] | select(.kind == "hors-build") | {id, ou, origine}]' derived/build-plan.json` sur le plan reparti de l'audit niveau 2 montre IDX-04 avec `origine` pointant vers l'audit niveau 0.
 
 - **AC-7**
   Comportement : quand je lis le diff de la branche, alors les fichiers `src/app/**/page.tsx` ne changent que sur leur h1, leur première phrase et un éventuel export `metadata` ou composant JSON-LD ; le reste du diff tient dans `layout.tsx`, `sitemap.ts`, `robots.ts`, `not-found.tsx`, `public/<clé>.txt`, un composant JSON-LD.
