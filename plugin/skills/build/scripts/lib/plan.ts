@@ -13,7 +13,7 @@ export const KINDS: Record<string, KindEntry> = {
   "SNIP-01": { kind: "code" }, "SNIP-02": { kind: "code" }, "SNIP-03": { kind: "code" },
   "IDX-01": { kind: "code" }, "IDX-02": { kind: "code" }, "IDX-05": { kind: "code" },
   "IDX-03": { kind: "hors-build", ou: "certificat et redirection HTTP vers HTTPS chez l'hébergeur (Vercel : automatique)" },
-  "IDX-04": { kind: "hors-build", ou: "Vercel : Project Settings, Domains, « Redirect to » sur le domaine secondaire ; ailleurs : le DNS ou la configuration de l'hébergeur. next.config n'est pas le bon endroit" },
+  "IDX-04": { kind: "hors-build", ou: "Vercel : Project Settings, Domains, Edit sur le domaine secondaire, « Redirect to » avec le code 308 (permanent, pas 307) ; ailleurs : le DNS ou la configuration de l'hébergeur. next.config n'est pas le bon endroit" },
   "SD-01": { kind: "code" }, "SD-02": { kind: "code" }, "SD-03": { kind: "code" },
   "TAG-01": { kind: "code" }, "TAG-02": { kind: "code" }, "TAG-04": { kind: "code" },
   "TAG-03": { kind: "texte" },
