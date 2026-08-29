@@ -198,7 +198,7 @@ Non capturé, par choix : aucune réponse réelle de `SubmitFeed` (écriture) ni
 
 ## 5. Incertitudes, à porter dans le plan
 
-1. **Réponse réelle du POST IndexNow** : 200 ou 202 attendu ; corps vide présumé. Convention non confirmée jusqu'à AC-4. Le script accepte 200 et 202 et ignore le corps.
+1. **Réponse réelle du POST IndexNow** : levée le 29/08 à 17 h 45 (recette AC-4 sur chico) : HTTP 202, 10 URL sur www.commentchercherbonheur.org ; le script accepte 200 et 202 et ignore le corps. Au passage, R-3 : un sitemap qui liste l'apex pendant que le site sert www doit être ramené sur l'hôte servi avant le ping (`urlsOnOrigin`).
 2. **Code Bing pour un site absent du compte** (NotFound 11, NotAllowed 13 ou NotAuthorized 14) et pour une délégation ReadOnly : non documenté. Le script traite 11, 13, 14 pareil (case vide, consigne au client, code et message consignés) ; la recette notera le code réel si Romain l'obtient.
 3. **Vérification DNS TXT avant déploiement** : non tranchée par la page. La consigne de la ligne 4 dit « marche en général avant le déploiement, le DNS suffit », sans citation.
 4. **Format de `siteUrl` chez Bing** : les exemples officiels sont tous sans slash final ; www et apex sont probablement deux sites (`includeAllSubdomains`, `Site` contre `VerificationSite`), sans phrase officielle. Le script envoie l'URL telle que `GetUserSites` la rend pour ce site (c'est Bing qui la nomme), ce qui contourne la question.
