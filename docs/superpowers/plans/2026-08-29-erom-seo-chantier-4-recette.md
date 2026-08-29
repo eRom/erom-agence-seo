@@ -29,3 +29,11 @@ La skill propose « ping IndexNow : 10 URL de www.commentchercherbonheur.org, cl
 
 ## Bilan
 (à remplir en tâche 7 : OK/KO par AC, réponse réelle d'IndexNow, écarts, correctifs)
+
+## Résultats du 2026-08-29 (session mère, Fable, après fusion `6bca027`)
+
+- **AC-7 : OK.** Sur `main` après fusion : `bun test` = 258 pass, 0 fail (259 après R-1) ; `bun skills/audit/scripts/check-sources.ts` = « 107 citations retrouvées, 0 en échec, 2 à vérifier à la main » (les deux pages d'aide Bing, `[manuel]`). Toutes les lignes `checklist:CL-nn` en `OK` ou `MANUEL`.
+- **AC-1 : OK, avec R-1.** Premier passage du script sur chico (`main` propre, clé Bing présente, sans `--agir`) : `checklist : 3/15 cochées · mise en ligne : non · dû aujourd'hui : rien`. Lignes 1 (n2-3 du 29/08 vert) et 2 (commit `087ff67 seo(STRAT-01)…`) cochées ; ligne 3 vide avec la sous-ligne IDX-04 de l'audit n0 du 28/08 (antérieur au 308 de Vercel : attendu, le n0 du jour la fera disparaître) ; ligne 4 vide avec sa consigne ; ligne 5 `auto`, vide, « absent du compte Bing de l'agence le 2026-08-29 » (`GetUserSites` = `{"d":[]}`) ; ligne 6 « sans objet » ; toute la moitié « Après » vide. Aucune écriture sortante (seul `GetUserSites`, lecture).
+  **R-1** : `attention : seo/audits/2026-08-28-n0/raw/manifest.json illisible : origine prise dans la stratégie` et les URL J+3 sur l'apex. Cause : chico garde `seo/**/raw/` hors git et le dossier n'est plus sur le disque. Correctif `aee1bf1` sur `main` : repli sur `derived/pages.json` (URL servie de la home) avant la stratégie, avertissement seulement si ni l'un ni l'autre ; test CLI ajouté (259 tests). Rejoué : plus d'avertissement, les 10 URL J+3 sur `https://www.commentchercherbonheur.org/…`.
+- **AC-2 : OK.** « Search Console : propriété créée » cochée à la main dans le fichier, script relancé : la case reste cochée, `checklist : 4/15 cochées`.
+- **AC-3 : en cours.** Premier audit prod headless (`claude -p "/erom-seo:audit https://commentchercherbonheur.org"`, Sonnet) coupé par la limite de session à 17 h 30 après la collecte, avant le rapport : dossier `2026-08-29-n0` incomplet mis à la corbeille, audit relancé à 17 h 31.
