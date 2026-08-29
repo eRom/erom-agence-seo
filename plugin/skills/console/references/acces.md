@@ -19,7 +19,7 @@ Source   : https://developers.google.com/webmaster-tools/v1/how-tos/authorizing 
 
 ### Google : basculer vers un compte de service (ACC-04)
 Chemin   : créer un projet dans Google Cloud, activer l'API Search Console dessus, créer un compte de service, télécharger sa clé JSON, la ranger hors du dépôt, poser `GSC_SA_KEY_FILE` dans `~/.zshenv`, puis faire ajouter l'adresse du compte de service par le client comme utilisateur de sa propriété (ACC-01).
-Piège    : `GSC_QUOTA_PROJECT` devient inutile avec un compte de service ; avec gcloud, sans elle, l'API répond 403 `SERVICE_DISABLED`.
+Piège    : `GSC_QUOTA_PROJECT` devient inutile avec un compte de service. Avec gcloud elle est obligatoire : absente, le verbe s'arrête avant tout appel réseau avec la consigne à suivre ; posée sur un projet où l'API Search Console n'est pas activée, Google répond 403 `SERVICE_DISABLED` et nomme le projet fautif.
 Source   : https://developers.google.com/identity/protocols/oauth2/service-account « RSA using SHA-256 hashing algorithm. This is expressed as RS256 in the alg field in the JWT header. »
 Source   : https://developers.google.com/identity/protocols/oauth2/service-account « a maximum of 1 hour after the issued time »
 
@@ -29,6 +29,6 @@ Piège    : une seule clé existe par compte, en générer une nouvelle tue l'an
 Source   : https://learn.microsoft.com/en-us/bingwebmaster/getting-access « the API key is generated for a user and not a site »
 
 ### Bing : déléguer un site en lecture seule au compte de l'agence (ACC-06)
-Chemin   : côté client, Bing Webmaster Tools, écran Users, ajouter l'adresse de l'agence en lecture seule.
-Piège    : les pages d'aide `bing.com/webmasters/help/*` sont des applications JavaScript, non citables par script ; les nommer sans `Source:`.
+Chemin   : côté client, Bing Webmaster Tools, écran Users, ajouter l'adresse de l'agence en lecture seule (page d'aide : https://www.bing.com/webmasters/help/how-to-add-users-to-your-site-account-d5d00364). Ajouter et vérifier le site en amont, si ce n'est pas déjà fait : https://www.bing.com/webmasters/help/add-and-verify-site-12184f8b.
+Piège    : ces deux pages d'aide sont des applications JavaScript ; `check-sources.ts` ne peut vérifier aucune citation dessus, elles apparaissent donc ici en clair, sans ligne `Source:`.
 Source   : https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.addsiteroles « Delegate site access to user »
