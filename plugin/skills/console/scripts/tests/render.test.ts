@@ -32,6 +32,37 @@ describe("renderSites", () => {
     expect(out).toContain("sc-domain:romain-ecarnot.com");
     expect(out).toContain("clé absente");
   });
+  test("une propriété sans sitemap déclaré le dit en clair", () => {
+    const out = renderSites({ google: [{ property: prop, sitemaps: [] }], googleError: null, bing: [], bingError: null });
+    expect(out).toContain("aucun sitemap déclaré");
+  });
+  test("un sitemap sans détail de contenu ne fabrique pas de chiffre", () => {
+    const out = renderSites({ google: [{ property: prop, sitemaps: [{ ...sitemap, contents: [] }] }], googleError: null, bing: [], bingError: null });
+    expect(out).toContain("sans détail");
+    expect(out).not.toMatch(/soumis \d/);
+  });
+  test("un compte Bing non vide nomme chaque site, son statut de vérification et ses flux", () => {
+    const out = renderSites({
+      google: [], googleError: null,
+      bing: [
+        { site: { Url: "https://x.com", IsVerified: true }, feeds: [1, 2] },
+        { site: { Url: "https://y.com", IsVerified: false }, feeds: [] },
+      ],
+      bingError: null,
+    });
+    expect(out).toContain("https://x.com");
+    expect(out).toContain("https://y.com");
+    expect(out).toContain("vérifié");
+    expect(out).toContain("non vérifié");
+    expect(out).toContain("2 flux déclaré(s)");
+    expect(out).toContain("0 flux déclaré(s)");
+    expect(out).not.toContain("aucun site dans ce compte Bing");
+  });
+  test("un refus Google n'empêche pas Bing de répondre", () => {
+    const out = renderSites({ google: null, googleError: "jeton refusé ou expiré", bing: [], bingError: null });
+    expect(out).toContain("jeton refusé ou expiré");
+    expect(out).toContain("aucun site dans ce compte Bing");
+  });
 });
 
 describe("renderInspect", () => {
@@ -101,15 +132,53 @@ describe("renderCrawl", () => {
     expect(out).toContain("1 entrée(s) de statistiques");
     expect(out).toContain("aucune erreur de crawl remontée par Bing");
   });
+  test("des erreurs de crawl remontées par Bing sont comptées, pas noyées dans la phrase d'absence", () => {
+    const out = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [{ y: 1 }, { y: 2 }] }, bingError: null });
+    expect(out).toContain("2 erreur(s) de crawl");
+    expect(out).not.toContain("aucune erreur de crawl remontée par Bing");
+  });
 });
 
 describe("pas de tiret cadratin", () => {
-  test("aucune sortie n'en contient", () => {
-    const outs = [
-      renderSites({ google: [{ property: prop, sitemaps: [sitemap] }], googleError: null, bing: [], bingError: null }),
-      renderInspect({ url: "https://a/", property: prop, google: { link: null, status: known }, googleError: null, bing: null, bingError: null }),
-      renderCrawl({ site: "https://a", bing: null, bingError: null }),
+  // Le filet doit voir chaque chaîne littérale de render.ts au moins une fois : sinon un tiret injecté
+  // dans une branche non exercée passerait la suite sans être vu (trouvaille de la revue du 29/08).
+  test("aucune sortie n'en contient, sur toutes les branches de rendu", () => {
+    const sitesPleine = renderSites({ google: [{ property: prop, sitemaps: [sitemap] }], googleError: null, bing: [], bingError: null });
+    const sitesSansSitemap = renderSites({ google: [{ property: prop, sitemaps: [] }], googleError: null, bing: [], bingError: null });
+    const sitesSansDetail = renderSites({ google: [{ property: prop, sitemaps: [{ ...sitemap, contents: [] }] }], googleError: null, bing: [], bingError: null });
+    const sitesBingPeuple = renderSites({
+      google: [], googleError: null,
+      bing: [
+        { site: { Url: "https://x.com", IsVerified: true }, feeds: [1, 2] },
+        { site: { Url: "https://y.com", IsVerified: false }, feeds: [] },
+      ],
+      bingError: null,
+    });
+    const sitesGoogleEnErreur = renderSites({ google: null, googleError: "jeton refusé ou expiré", bing: [], bingError: null });
+
+    const inspectAvecLien = renderInspect({
+      url: "https://romain-ecarnot.com/", property: prop,
+      google: { link: "https://search.google.com/x", status: known }, googleError: null, bing: null, bingError: "clé absente",
+    });
+    const inspectMismatch = renderInspect({
+      url: "https://a/", property: prop,
+      google: { link: null, status: { ...known, userCanonical: "https://a/" } }, googleError: null, bing: null, bingError: null,
+    });
+    const inspectSansEtat = renderInspect({ url: "https://a/", property: prop, google: { link: null, status: null }, googleError: null, bing: null, bingError: null });
+    const inspectBingType = renderInspect({
+      url: "https://a/", property: prop, google: null, googleError: "x",
+      bing: { __type: "UrlInfo:#Microsoft.Bing.Webmaster.Api" }, bingError: null,
+    });
+
+    const crawlSansDonnees = renderCrawl({ site: "https://a", bing: null, bingError: null });
+    const crawlSansErreur = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [] }, bingError: null });
+    const crawlAvecErreurs = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [{ y: 1 }, { y: 2 }] }, bingError: null });
+
+    const sorties = [
+      sitesPleine, sitesSansSitemap, sitesSansDetail, sitesBingPeuple, sitesGoogleEnErreur,
+      inspectAvecLien, inspectMismatch, inspectSansEtat, inspectBingType,
+      crawlSansDonnees, crawlSansErreur, crawlAvecErreurs,
     ];
-    for (const o of outs) expect(o).not.toContain("—");
+    for (const o of sorties) expect(o).not.toContain("—");
   });
 });
