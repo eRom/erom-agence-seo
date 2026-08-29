@@ -1,6 +1,7 @@
 #!/usr/bin/env bun
 // Vérifie que chaque citation des références est retrouvée mot pour mot sur sa page : les vérifications de l'audit
-// (references/checks/) et les recettes de build (skills/build/references/).
+// (references/checks/), les recettes de build (skills/build/references/) et les consoles de la checklist
+// (skills/checklist/references/).
 import { readdir } from "node:fs/promises";
 import { fetchChain, text } from "./lib/fetch";
 import { parseChecks } from "./lib/checks";
@@ -9,12 +10,14 @@ import { parseRecipes } from "../../build/scripts/lib/recipes";
 
 const checksDir = new URL("../references/checks/", import.meta.url).pathname;
 const recipesDir = new URL("../../build/references/", import.meta.url).pathname;
+const consolesDir = new URL("../../checklist/references/", import.meta.url).pathname;
 const only = Bun.argv.includes("--only") ? Bun.argv[Bun.argv.indexOf("--only") + 1] : null;
 
 type Entry = { label: string; ids: string[]; sources: { url: string; quote: string; manual: boolean }[] };
 const entries: Entry[] = [];
 for (const f of (await readdir(checksDir)).filter((f) => f.endsWith(".md"))) for (const c of parseChecks(await Bun.file(checksDir + f).text())) entries.push({ label: c.id, ids: [c.id], sources: c.sources });
 for (const f of (await readdir(recipesDir)).filter((f) => f.endsWith(".md"))) for (const r of parseRecipes(await Bun.file(recipesDir + f).text())) entries.push({ label: `build:${r.ids[0]}`, ids: r.ids, sources: r.sources });
+for (const f of (await readdir(consolesDir)).filter((f) => f.endsWith(".md"))) for (const r of parseRecipes(await Bun.file(consolesDir + f).text())) entries.push({ label: `checklist:${r.ids[0]}`, ids: r.ids, sources: r.sources });
 
 const pages = new Map<string, { status: number; norm: string }>();
 async function page(url: string) {
