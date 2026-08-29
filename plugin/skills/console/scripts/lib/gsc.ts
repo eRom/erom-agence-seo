@@ -35,15 +35,36 @@ function headers(auth: GoogleAuth, json = false): Record<string, string> {
   return h;
 }
 
-/** Un refus se lit sur `reason` quand il est là, sur le message sinon. Le corps n'est jamais renvoyé tel quel. */
-function fail(status: number, text: string): never {
+/**
+ * Un refus se lit sur `reason` quand il est là, sur le message sinon. Le corps n'est jamais renvoyé tel quel.
+ * `quotaProject` vient de `auth.quotaProject` : c'est ce qui distingue un projet réel sans l'API activée
+ * (Google le nomme dans son propre message, capture du 29/08, `dockertest-1268`) d'une variable qui manque
+ * vraiment (auth-google.ts s'arrête avant tout appel réseau dans ce cas, cette fonction n'est jamais atteinte).
+ */
+function fail(status: number, text: string, quotaProject: string | null): never {
   let reason = "", message = "";
   try {
     const e = (JSON.parse(text) as { error?: { message?: string; details?: { reason?: string }[] } }).error ?? {};
     message = e.message ?? "";
     reason = e.details?.map((d) => d.reason ?? "").find(Boolean) ?? "";
   } catch { /* corps non JSON : on garde le code seul */ }
-  if (reason === "SERVICE_DISABLED" || /quota project/i.test(message)) throw new GscError("Search Console a refusé, projet de quota", status, QUOTA_HINT);
+  if (reason === "SERVICE_DISABLED" || /quota project/i.test(message)) {
+    if (quotaProject) {
+      throw new GscError(
+        `le projet de quota « ${quotaProject} » n'a pas l'API Search Console activée`,
+        status,
+        `active-la sur ce projet :\n  gcloud services enable searchconsole.googleapis.com --project=${quotaProject}`,
+      );
+    }
+    throw new GscError("Search Console a refusé, projet de quota", status, QUOTA_HINT);
+  }
+  if (reason === "USER_PROJECT_DENIED") {
+    throw new GscError(
+      `le projet de quota « ${quotaProject ?? "?"} » n'existe pas ou n'est pas accessible à ce compte`,
+      status,
+      "vérifie la valeur de GSC_QUOTA_PROJECT : c'est l'identifiant d'un projet Google Cloud (pas son nom d'affichage), et le compte utilisé doit y avoir accès.",
+    );
+  }
   if (reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" || /insufficient authentication scopes/i.test(message)) throw new GscError("Search Console a refusé, scope insuffisant", status, LOGIN_HINT);
   if (status === 401) throw new GscError("jeton refusé ou expiré", status, LOGIN_HINT);
   if (status === 403) throw new GscError("droits insuffisants sur cette propriété", status, "le rôle de ce compte ne permet pas cette lecture. Voir references/acces.md, rôles Search Console.");
@@ -53,7 +74,7 @@ function fail(status: number, text: string): never {
 
 async function call(f: Fetcher, url: string, auth: GoogleAuth, init?: FetchInit): Promise<unknown> {
   const r = await f(url, { ...init, headers: headers(auth, Boolean(init?.body)) });
-  if (r.status !== 200) fail(r.status, r.text);
+  if (r.status !== 200) fail(r.status, r.text, auth.quotaProject);
   try { return JSON.parse(r.text); } catch { throw new GscError("réponse illisible de Search Console", r.status, "réessayer."); }
 }
 

@@ -37,17 +37,92 @@ describe("listProperties", () => {
     const { f } = fake(() => ({ status: 200, text: "{}" }));
     expect(await listProperties(f, AUTH)).toEqual([]);
   });
-  test("un 403 SERVICE_DISABLED donne une consigne qui nomme GSC_QUOTA_PROJECT", async () => {
-    const { f } = fake(() => ({ status: 403, text: '{"error":{"code":403,"details":[{"reason":"SERVICE_DISABLED"}],"message":"requires a quota project"}}' }));
-    const p = listProperties(f, AUTH);
-    await expect(p).rejects.toBeInstanceOf(GscError);
-    await p.catch((e: GscError) => expect(e.hint).toContain("GSC_QUOTA_PROJECT"));
-  });
   test("un 403 de scope donne la commande de connexion", async () => {
     const { f } = fake(() => ({ status: 403, text: '{"error":{"code":403,"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}],"message":"Request had insufficient authentication scopes."}}' }));
     const p = listProperties(f, AUTH);
     await expect(p).rejects.toBeInstanceOf(GscError);
     await p.catch((e: GscError) => expect(e.hint).toContain("gcloud auth application-default login"));
+  });
+});
+
+// fail() a six branches. Deux touchent directement le 403 SERVICE_DISABLED (revue finale, I-2) : le
+// projet de quota nommé change le message que le CLI doit rendre, sans jamais dire que la variable
+// est absente. Les quatre autres (USER_PROJECT_DENIED, 401, 403 générique, 404, statut générique et
+// corps illisible) n'avaient aucune couverture avant ce tour.
+describe("fail() : les six branches", () => {
+  // Corps réel capturé le 29/08 : GSC_QUOTA_PROJECT=dockertest-1268 sur un projet où l'API Search
+  // Console n'est jamais activée. Google nomme le projet fautif dans son propre message.
+  const SERVICE_DISABLED_NOMME =
+    '{"error":{"code":403,"status":"PERMISSION_DENIED","message":"Google Search Console API has not been used in project dockertest-1268 before or it is disabled.",' +
+    '"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"SERVICE_DISABLED","domain":"googleapis.com","metadata":{"consumer":"projects/dockertest-1268","service":"searchconsole.googleapis.com"}}]}}';
+  // Corps réel capturé le 29/08 : GSC_QUOTA_PROJECT=projet-qui-nexiste-pas-123456.
+  const USER_PROJECT_DENIED =
+    '{"error":{"code":400,"status":"INVALID_ARGUMENT","message":"Project \'projects/projet-qui-nexiste-pas-123456\' not found or deleted.",' +
+    '"details":[{"@type":"type.googleapis.com/google.rpc.ErrorInfo","reason":"USER_PROJECT_DENIED","domain":"googleapis.com","metadata":{"consumer":"projects/projet-qui-nexiste-pas-123456"}}]}}';
+
+  test("SERVICE_DISABLED avec un projet de quota nommé : le message nomme ce projet, jamais « variable absente »", async () => {
+    const { f } = fake(() => ({ status: 403, text: SERVICE_DISABLED_NOMME }));
+    const p = listProperties(f, AUTH); // AUTH.quotaProject = "p-123"
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => {
+      expect(`${e.message}${e.hint}`).toContain("p-123");
+      expect(`${e.message}${e.hint}`).toContain("gcloud services enable searchconsole.googleapis.com --project=p-123");
+      expect(`${e.message}${e.hint}`).not.toContain("absente");
+    });
+  });
+  test("SERVICE_DISABLED sans projet de quota (compte de service) : garde la consigne générique", async () => {
+    const { f } = fake(() => ({ status: 403, text: SERVICE_DISABLED_NOMME }));
+    const p = listProperties(f, SA); // SA.quotaProject = null
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => expect(e.hint).toContain("GSC_QUOTA_PROJECT"));
+  });
+  test("USER_PROJECT_DENIED : le projet nommé par GSC_QUOTA_PROJECT n'existe pas ou n'est pas accessible", async () => {
+    const { f } = fake(() => ({ status: 400, text: USER_PROJECT_DENIED }));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => {
+      expect(e.message).toContain("p-123");
+      expect(e.message).toContain("n'existe pas ou n'est pas accessible");
+    });
+  });
+  test("401 : jeton refusé ou expiré", async () => {
+    const { f } = fake(() => ({ status: 401, text: '{"error":{"code":401,"message":"Request had invalid authentication credentials."}}' }));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => {
+      expect(e.message).toContain("jeton refusé");
+      expect(e.hint).toContain("gcloud auth application-default login");
+    });
+  });
+  test("403 générique (rôle insuffisant, sans reason reconnue) : renvoie vers les rôles Search Console", async () => {
+    const { f } = fake(() => ({ status: 403, text: '{"error":{"code":403,"message":"The caller does not have permission"}}' }));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => {
+      expect(e.message).toContain("droits insuffisants");
+      expect(e.hint).toContain("acces.md");
+    });
+  });
+  test("404 : propriété inconnue", async () => {
+    const { f } = fake(() => ({ status: 404, text: '{"error":{"code":404,"message":"Requested entity was not found."}}' }));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => {
+      expect(e.message).toContain("propriété inconnue");
+      expect(e.hint).toContain("console sites");
+    });
+  });
+  test("statut générique (500) : consigne de réessayer", async () => {
+    const { f } = fake(() => ({ status: 500, text: '{"error":{"code":500,"message":"Internal error"}}' }));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => expect(e.hint).toContain("réessayer"));
+  });
+  test("corps illisible : le code seul suffit à choisir la branche générique, sans planter", async () => {
+    const { f } = fake(() => ({ status: 500, text: "ceci n'est pas du JSON" }));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => expect(e.message).toContain("500"));
   });
 });
 
