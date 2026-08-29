@@ -1,8 +1,8 @@
-# Fichiers clés (mis à jour le 2026-08-28)
+# Fichiers clés (mis à jour le 2026-08-29)
 
 **Contrats partagés (`plugin/lib/`)**
 - `lib/strategy.ts` : `parseStrategy`, `lintStrategy`, `normalizeText`, `keywordMatches`, `cadenceDays`, `INDEXNOW_KEY` ; le format strict de `seo/strategy.md`.
-- `lib/report.ts` : `parseReport`, `latestAuditDir`, `sortAuditDirs`, `ReportError` ; le format de `report.md`, réutilisé par `build` puis `launch`.
+- `lib/report.ts` : `parseReport`, `latestAuditDir` (option `level`, `file`), `sortAuditDirs`, `ReportError` ; le format de `report.md`, réutilisé par `build` puis `launch`.
 - `lib/tests/fixtures/` : `strategy-valide.ts` (VALID), `report-chico-n0.md` (vrai rapport du 28/08).
 
 **Audit (`plugin/skills/audit/`)**
@@ -21,19 +21,21 @@
 - `scripts/lint-strategy.ts`, `references/strategy-template.md`.
 
 **Build (`plugin/skills/build/`)**
-- `SKILL.md` : six temps (préparer, planifier, valider les textes, appliquer, vérifier, boucler, restituer).
-- `scripts/plan.ts` + `lib/plan.ts` : `buildPlan`, `KINDS` (genre par id), `planSummary`, `derived/build-plan.json`.
+- `SKILL.md` : six temps (préparer, planifier, valider les textes, appliquer, vérifier, boucler, restituer). Étape 3 : règle texte « remplacer » (29/08).
+- `scripts/plan.ts` + `lib/plan.ts` : `buildPlan` (entrée `n0` optionnelle : hors build du dernier audit niveau 0 rapatriés avec `origine`), `KINDS` (genre et `ou` par id, IDX-04 nomme le code 308 Vercel), `planSummary`, `derived/build-plan.json`.
 - `lib/recipes.ts` : `parseRecipes`, `BUILD_DOMAINS`.
 - `references/nextjs.md` : 13 recettes Next.js 16 par famille d'ids, pièges transverses, 23 citations ; `references/autre-stack.md`.
-- `tests/fixtures/chico/` : strategy.md, report.md, manifest.json, pages.json, strategy-eval.json du 28/08.
+- `tests/fixtures/chico/` : strategy.md, report.md (n0 du 28/08), report-n2.md (n2 minimal, 0 trouvaille, pour R-6), manifest.json, pages.json, strategy-eval.json.
+- `tests/plan-cli.test.ts` : `fakeSite()` et `fakeSiteWithN2()`, site factice en `mkdtemp` pour tester le câblage disque de `plan.ts`.
 
 **Documentation**
-- Specs : `docs/superpowers/specs/2026-08-27-erom-seo-design.md` (mère), `2026-08-28-erom-seo-strategy-design.md`, `2026-08-28-erom-seo-build-design.md`.
-- Plans et recettes : `docs/superpowers/plans/2026-08-28-erom-seo-chantier-{2-strategy,2-recette,3-build,3-recette}.md`.
+- Specs : `docs/superpowers/specs/2026-08-27-erom-seo-design.md` (mère), `2026-08-28-erom-seo-strategy-design.md`, `2026-08-28-erom-seo-build-design.md` (5.2 fusion des hors build n0, AC-6 amendé, 7.3 règle texte, 29/08).
+- Plans et recettes : `docs/superpowers/plans/2026-08-28-erom-seo-chantier-{2-strategy,2-recette,3-build,3-recette}.md`. La recette 3 porte les résultats du 29/08 (R-3 à R-8) et les correctifs R-6, R-7a.
 - Recherches : `docs/recherches/2026-08-27-mots-cles-gratuits.md` (sondes Bing reproductibles), `2026-08-28-nextjs-16-seo-api.md`.
 - Reprise : `.claude/notes/2026-08-27-reprise-2120.md` (lire en premier).
 
 **Hors repo**
-- Cobaye : `/Users/recarnot/dev/chico-happiness` (commentchercherbonheur.org, Next.js 16.1.1, `seo/` non suivi, stratégie validée).
+- Cobaye : `/Users/recarnot/dev/chico-happiness` (commentchercherbonheur.org, Next.js 16.1.1, Vercel, remote GitHub `eRom/chico-happiness`). Depuis le 29/08 : `seo/` suivi sauf `seo/**/raw/` (`.gitignore`), SEO du build fusionné dans `main` (`059480b`) et poussé, apex en 308 vers www. Transcripts de ses sessions : `~/.claude/projects/-Users-recarnot-dev-chico-happiness/`.
 - Clés : `~/.zshenv` (`PSI_API_KEY`, `BING_WMT_API_KEY`), à sourcer avant de lancer Claude, jamais affichées.
 - Corpus d'inspiration : `inspiration/` (hors git, MIT Corey Haines), matière première des références.
+- Worktrees : plus aucun au 29/08 (chantier-3, menage, recette-fix supprimés après fusion) ; branche `chantier-1-audit-n0` conservée.

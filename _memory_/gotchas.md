@@ -1,9 +1,13 @@
-# Pièges (mis à jour le 2026-08-28)
+# Pièges (mis à jour le 2026-08-29)
 
 **Sessions et outillage**
 - Checkout partagé : jamais `git switch` ni `checkout` dans `/Users/recarnot/dev/erom-agence-seo` ; une session déléguée qui l'a fait a basculé la session mère sur sa branche (28/08). Délégation = worktree frère.
-- Le cwd du shell dérive : après un `cd plugin && bun test`, le `git add` suivant échoue en pathspec depuis `plugin/` (vu deux fois le 28/08). Chemins absolus et `git -C` partout.
+- Le cwd du shell dérive : après un `cd plugin && bun test`, le `git add` suivant échoue en pathspec depuis `plugin/` (28/08, deux fois) ; le 29/08 un `git merge` lancé après `cd ..` a tourné dans le worktree au lieu de `main` et a dit « à jour » sans rien fusionner. Chemins absolus et `git -C` partout, surtout pour merge.
+- `git worktree remove <chemin>` se lance depuis le repo propriétaire du worktree : depuis un autre repo, « is not a working tree » (29/08). [candidat 1x - ménage du 29/08]
 - Sous-agent reviewer muet : en subagent-driven, un reviewer peut passer idle sans verdict et bloquer 3 h ; borner l'attente dans le brief (10 min reviewer, 20 min implémenteur), vérifier `git log` de la branche déléguée plutôt que croire « busy ». [candidat 1x - chantier 3, 28/08]
+- Déléguer à une session paire par `SendMessage` : le message est retenu jusqu'à ce que Romain l'approuve dans la session cible (« held for the recipient user's approval »), puis `notify_when_idle` réveille la session mère. La session chico a rendu un brief R-6 + R-7a propre en 10 minutes (29/08). [candidat 1x - 29/08]
+- Recette d'un chemin d'échec sans Romain : `env -u CLAUDECODE claude -p "/erom-seo:build" --plugin-dir <plugin> --dangerously-skip-permissions --max-turns 80 --output-format text` sur une branche jetable du site ; la sortie n'arrive qu'à la fin (AC-8, 29/08, 4 min). [candidat 1x - 29/08]
+- Vérifier une recette après coup : le transcript de la session cobaye est dans `~/.claude/projects/-Users-recarnot-dev-chico-happiness/<session>.jsonl` ; `jq` sur `.type=="assistant"` / `.type=="user"` donne les textes, les `tool_use` et leurs horodatages (ordre OK de Romain puis premier commit, port, `kill`).
 - Les skills se chargent au démarrage : relancer `claude --plugin-dir …` après modification du plugin (« Unknown command » sinon).
 - Un test qui importe un `*.test.ts` fait rejouer ses tests par bun : les fixtures vivent dans `fixtures/*.ts`.
 - `bun install` n'est jamais fait dans un worktree neuf : premier `bun test` en échec `Cannot find package` (28/08, deux fois).
@@ -12,9 +16,9 @@
 **Audit**
 - Sitemap listé en apex sur un site en www vidait la collecte en silence : `sameSite` (apex et www confondus, port compris), URLs jamais réécrites au niveau 0 ; `--max-pages N` = N pages (plafond `maxUrls`, pas `N-1`).
 - Niveau 2 : un hôte tiers listé dans le sitemap est réécrit comme l'hôte de prod (tradeoff D14, parqué).
-- `latestAuditDir` ignore un dossier d'audit sans `report.md` (chico a deux n2 collectés sans rapport) ; tri par date du nom, puis mtime, puis nom numérique (`-9` avant `-10`).
+- `latestAuditDir` ignore un dossier d'audit sans `report.md` (chico a deux n2 collectés sans rapport) ; tri par date du nom, puis mtime, puis nom numérique (`-9` avant `-10`). Un n0 et un n2 du même jour : le n2, écrit après, gagne ; c'est ce qui a fait perdre IDX-04 au premier build (R-6, 29/08), corrigé par la fusion des hors build du n0 dans `plan.ts`.
 - `el.text` de node-html-parser colle les blocs (« AcmeAcme ») : `structuredText`. Un sigle à points (« C.H.I.C.O. ») se normalise en « chico » par la règle des sigles de `normalizeText`.
-- HTML minifié : la preuve « fichier + lignes » ne marche pas, citer le champ `derived/` (parqué, chantier 1). IDX-04 ne dit rien du cas 307 (parqué).
+- HTML minifié : la preuve « fichier + lignes » ne marche pas, citer le champ `derived/` (parqué, chantier 1). Le cas 307 apex vers www est rapporté en Mineur par le modèle (chico n0 du 28/08) ; la fiche IDX-04 ne le formalise pas (parqué).
 - Lint du rapport : en-tête sur les trois premières lignes (`Niveau n`, `Couche stratégique : oui|non`, `N vérifications` égal au nombre attendu).
 
 **Stratégie et clés**
@@ -22,12 +26,18 @@
 - Bing Webmaster : endpoint JSON `GetKeywordStats` ; SOAP/POX retirés le 31/08/2026, sonde à rejouer le 1er septembre (`docs/recherches/2026-08-27-mots-cles-gratuits.md`). `InvalidApiKey` après régénération = `~/.zshenv` pas à jour.
 - Wikimedia Pageviews mensuel : 12 mois pleins, fin = dernier jour du mois précédent.
 - Collecter un concurrent depuis le dossier du client : `--strategy-path none`, sinon la stratégie du client pollue la collecte.
+- `seo/strategy/<date>/raw/concurrents/` contient les pages brutes des concurrents (4,3 Mo sur chico) : à ignorer dans le git du site (`seo/**/raw/`), sinon 79 000 lignes de HTML tiers entrent dans un commit (chico, 29/08). La skill ne pose pas encore ce `.gitignore` (R-7d, parqué).
 
 **Build et Next.js 16**
-- `metadata` ne s'exporte que d'un composant serveur : page « use client » = `layout.tsx` de segment.
-- `metadataBase`, sitemap, robots doivent porter l'hôte réellement servi : chico a l'apex dans le code et répond en www (307 apex vers www, réglage Vercel, hors build).
+- Règle texte : « h1 et première phrase seulement, ne rien supprimer » a été lue au pied de la lettre par le modèle, qui a collé la phrase validée devant l'ancienne et gardé l'ancienne (R-7a, chico 29/08, `/ascension` et `/methode`). La règle dit maintenant « remplacer, l'ancienne disparaît » (`SKILL.md` étape 3, spec 7.3).
+- Un plan calculé sur un audit local (n2) ne voit jamais IDX-03, IDX-04, PERF-01 : `plan.ts` rapatrie les hors build ouverts du dernier audit n0 avec `origine` (R-6, `66f7378`). Rapport n0 illisible : `attention : rapport niveau 0 … illisible` sur stderr, plan produit quand même.
+- `plan.ts` réécrit `derived/build-plan.json`, que build commite : relancer `plan.ts` sur un arbre porteur d'un plan commité laisse ce fichier modifié (` M …/derived/build-plan.json`), à restaurer avec `git checkout --` (R-8, parqué).
+- Boucle réelle du build (chico 29/08) : le modèle a corrigé entre deux collectes sans écrire de rapport (3 collectes, 1 passage compté), tenté `rm -rf` (refusé par le garde) puis `trash` sur les deux dossiers d'audit avortés ; le rapport final a été commité sous `seo: …` sans id (R-3, R-4, parqués). Résultat correct, procédure des étapes 4 et 5 non suivie à la lettre.
+- Build annonce franchement les textes qu'il pose hors table validée (phrase d'identité sur la home pour STRAT-03, lignes « Mis à jour le » pour FRESH-01/02), mais la règle 7 « aucun texte inventé hors table » n'est pas tenue : les proposer à l'étape 2 (R-7b, parqué).
+- `metadata` ne s'exporte que d'un composant serveur : page « use client » = `layout.tsx` de segment. Le h1 de la home peut vivre dans un composant de section (`src/components/sections/Hero.tsx` sur chico), pas dans `page.tsx` (R-7c, à préciser dans AC-7).
+- `metadataBase`, sitemap, robots doivent porter l'hôte réellement servi : chico a l'apex dans le code et répond en www. Le 307 apex vers www de Vercel se règle dans Settings, Domains, Edit sur l'apex, Redirect to www, code 308 : fait par Romain le 29/08, `curl -sI https://commentchercherbonheur.org/` rend `HTTP/2 308` (aussi `/methode`, `/sitemap.xml`, http).
 - `alternates.canonical: "/"` dans le layout racine donne le canonical de la home à toutes les pages qui ne le redéfinissent pas.
 - Next.js sur Vercel n'émet pas `Last-Modified` (chico, 28/08) : fraîcheur = date visible + `dateModified` JSON-LD.
-- `bun run dev --port N` transmet le port à `next dev` (prêt en 1 s sur chico) ; `bun x tsc --noEmit` passe en 2 s.
+- `bun run dev --port N` transmet le port à `next dev` (prêt en 1 s sur chico) ; `bun x tsc --noEmit` passe en 2 s. Sans script `dev`, `bun run dev` écrit `error: Script not found "dev"` dans le journal et build s'arrête proprement (AC-8, 29/08).
 - Turbopack avertit « multiple lockfiles » à cause d'un `package-lock.json` dans `/Users/recarnot/` ; sans rapport avec le projet. [candidat 1x - chico, 28/08]
 - `check-sources.ts` : une citation qui contient un code inline collé à une ponctuation échoue après retrait des balises (« ( /) », « non- www ») ; choisir une autre phrase de la même page, jamais assouplir.

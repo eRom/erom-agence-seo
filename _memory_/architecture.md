@@ -1,4 +1,4 @@
-# Architecture (mis à jour le 2026-08-28)
+# Architecture (mis à jour le 2026-08-29)
 
 **Type.** Plugin Claude Code `erom-seo` (dossier `plugin/`) pour l'agence : audit, stratégie, build et lancement SEO/GEO sans abonnement tiers, sites propres et clients. Le repo héberge aussi les dossiers clients (`clients/<domaine>/seo/`, non suivis) et la documentation de conception.
 
@@ -23,7 +23,7 @@ docs/recherches/                  mots-clés gratuits (Bing, Wikimedia), API SEO
 
 **Partage script / modèle.** Les scripts font le déterministe (collecte réseau, évaluation stratégique, plan de build, lints) ; Claude fait le jugement (rapport, textes, modifications de code). La logique pure vit dans `scripts/lib/` sans réseau ni disque ; les CLI dans `scripts/` avec `import.meta.main`.
 
-**Flux principal.** `collect.ts <url>` → `raw/` + `derived/pages.json`, `robots-eval.json`, `psi.json` ; `strategy-eval.ts` → `derived/strategy-eval.json` ; Claude écrit `report.md` selon `references/checks/*.md` et `report-template.md` ; `lint-report.ts` le refuse s'il dérive. `plan.ts` joint stratégie + rapport + dérivés → `build-plan.json` (trouvailles classées code / texte / hors build, valeurs par page, bloc Organization, base canonique observée).
+**Flux principal.** `collect.ts <url>` → `raw/` + `derived/pages.json`, `robots-eval.json`, `psi.json` ; `strategy-eval.ts` → `derived/strategy-eval.json` ; Claude écrit `report.md` selon `references/checks/*.md` et `report-template.md` ; `lint-report.ts` le refuse s'il dérive. `plan.ts` joint stratégie + rapport + dérivés → `build-plan.json` (trouvailles classées code / texte / hors build, valeurs par page, bloc Organization, base canonique observée) ; quand le rapport de départ n'est pas un niveau 0, il rapatrie aussi les hors build ouverts du dernier audit niveau 0 (champ `origine`), sinon IDX-03, IDX-04 et PERF-01 disparaissent du plan (R-6, 29/08).
 
 **Niveaux et couche.** Niveau 0 = URL seule ; niveau 2 = site en local (`localhost`, sitemap de prod ramené en local, PageSpeed et sondes d'hôte non applicables) ; niveau 1 (Search Console, Bing) = chantier 5. Couche stratégique (STRAT-01 à 04, AI-02) active dès que `seo/strategy.md` existe, à tout niveau (D9).
 
