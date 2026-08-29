@@ -255,3 +255,35 @@ Observation R-8 (mineure) : `plan.ts` réécrit `derived/build-plan.json`, que b
 - À trancher par Romain : R-6 (où build va chercher les hors build de prod), R-7a (correctif de la règle texte de la skill, puis correction des deux phrases dans chico avant fusion), R-7b (textes hors table : les proposer à l'étape 2).
 - Mineurs, à prendre dans un ménage : R-3 (nom du commit du rapport), R-4 (boucle compressée, trois collectes), R-7c (composants de section dans AC-7), R-7d (`.gitignore` de `seo/**/raw/` posé par la skill), R-8 (plan régénéré sur un arbre porteur d'un plan commité).
 - Chico : branche `seo-build-2026-08-29` (8 commits `seo(...)`, le rapport, le `chore` gitignore), non fusionnée, rien poussé. Le site est visible en local avec `bun run dev`.
+
+## Correctifs du 2026-08-29 (décision de Romain : « 1 oui, 2a »)
+
+Exécutés par la session chico `chico-happiness-49` sur brief de Fable (worktree `erom-agence-seo-recette-fix`, branche `recette-3-fix`), relus et fusionnés dans `main` par Fable (`66f7378`).
+
+### R-7a : réglé
+
+- Chico, commit `087ff67` `seo(STRAT-01): ouverture sans doublon sur /ascension et /methode` : seule la phrase validée reste. `grep -c "sans remboursement sur le Nirvana" src/app/ascension/page.tsx` rend 1, `grep -c "Retour On Illumination" src/app/methode/page.tsx` rend 1, `bun x tsc --noEmit` muet.
+- Skill, `skills/build/SKILL.md` étape 3 point 2 (`8bb1229`) : « le h1 et la première phrase sont remplacés par les valeurs validées ; l'ancien h1 et l'ancienne phrase disparaissent. Rien d'autre n'est touché ni supprimé ». Spec section 7.3 alignée (`c606648`).
+
+### R-6 : réglé (option a)
+
+- `skills/build/scripts/plan.ts` et `lib/plan.ts` (`ce48b66`, `c606648`) : quand le plan ne part pas d'un audit niveau 0, `plan.ts` lit le `report.md` du dernier audit niveau 0 (s'il diffère) et rapatrie ses trouvailles ouvertes de genre `hors-build`, dédoublonnées par id, chacune avec `origine` (le dossier n0). Rapport n0 illisible : `attention : rapport niveau 0 <dossier>/report.md illisible, ses hors build ne sont pas dans le plan` sur stderr, plan produit quand même. Spec 5.2 et AC-6 amendés (`8dfcbda`).
+- Tests : 7 ajoutés (3 sur `buildPlan`, 4 sur le câblage disque de `plan.ts`), fixture `tests/fixtures/chico/report-n2.md`. `bun test` : 216 pass, 0 fail.
+- Vérifié sur chico avec le plugin `main` fusionné :
+
+```bash
+cd /Users/recarnot/dev/chico-happiness
+bun /Users/recarnot/dev/erom-agence-seo/plugin/skills/build/scripts/plan.ts --audit seo/audits/2026-08-28-n2 | tail -1
+jq -c '[.findings[] | select(.kind == "hors-build") | {id, origine}]' seo/audits/2026-08-28-n2/derived/build-plan.json
+```
+
+```
+plan : 11 trouvailles ouvertes (0 Critique, 6 Important, 5 Mineur) : 7 code, 3 texte, 1 hors build ; 10 pages avec des textes à valider ; base canonique https://www.commentchercherbonheur.org (audit niveau 0)
+[{"id":"IDX-04","origine":"seo/audits/2026-08-28-n0"}]
+```
+
+AC-6 passe donc au niveau du plan ; le message final de build (étape 6, qui liste les hors build du plan) n'a pas été rejoué en session, il le sera au prochain build réel.
+
+### Reste ouvert
+
+R-7b (textes hors table validée, à proposer à l'étape 2), et les mineurs R-3, R-4, R-7c, R-7d, R-8 : à prendre dans un ménage ou au chantier 4.
