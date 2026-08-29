@@ -7,13 +7,14 @@ spec_mere: docs/superpowers/specs/2026-08-27-erom-seo-design.md
 notes_liees:
   - docs/superpowers/specs/2026-08-28-erom-seo-build-design.md
   - docs/superpowers/plans/2026-08-28-erom-seo-chantier-3-recette.md
+  - docs/recherches/2026-08-29-niveau-1-apis.md
   - .claude/notes/2026-08-27-reprise-2120.md
 cobaye: /Users/recarnot/dev/chico-happiness (commentchercherbonheur.org, Next.js 16, build fusionné et déployé le 29/08, audit n2 à 0 Critique 0 Important, IDX-04 réglé en 308)
 ---
 
 # erom-seo, chantier 4 : `checklist`
 
-Cette spec porte le chantier 4 de l'ordre D8 de la spec mère. La spec mère l'appelait `launch` (section 6.3 : « Écrit `seo/launch.md`, deux listes à cocher, chaque ligne avec sa façon de vérifier »). Le nom change (D23), le fond reste : une liste à cocher, avant et après le déploiement, chaque ligne avec sa preuve. Elle précise la spec mère là où le chantier 4 la touche et ne la répète pas. Décisions prises avec Romain le 2026-08-29 entre 13 h 16 et 13 h 52.
+Cette spec porte le chantier 4 de l'ordre D8 de la spec mère. La spec mère l'appelait `launch` (section 6.3 : « Écrit `seo/launch.md`, deux listes à cocher, chaque ligne avec sa façon de vérifier »). Le nom change (D23), le fond reste : une liste à cocher, avant et après le déploiement, chaque ligne avec sa preuve. Elle précise la spec mère là où le chantier 4 la touche et ne la répète pas. Décisions prises avec Romain le 2026-08-29 entre 13 h 16 et 13 h 52 ; amendée à 14 h 10 d'après la note de recherche `docs/recherches/2026-08-29-niveau-1-apis.md` (session d'idéation, même jour) : méthodes Bing confirmées sur la doc officielle, modèle d'accès agence, ce qui restera à la main par construction.
 
 ## 1. But
 
@@ -50,14 +51,14 @@ Le suivi J+N vit dans ce fichier seul : dates calculées depuis « Mise en ligne
 
 Battu : des rappels dans l'agenda Google créés par la skill (question 3, option B). Perdu parce que ça ajoute une dépendance à un MCP présent dans la session de Romain seulement, et rien à synchroniser quand tout est dans le repo du site.
 
-### D26. Aucun effet de bord sans `--agir` ; deux actions, pas plus
+### D26. Aucune écriture sans `--agir` ; deux actions, pas plus
 
-Sans le drapeau `--agir`, un passage de `checklist.ts` ne fait aucune requête sortante autre que la lecture de l'ancien sitemap (D28). Avec `--agir`, passé par la skill après avoir dit à Romain ce qu'elle va envoyer, deux actions et deux seulement :
+Sans le drapeau `--agir`, un passage de `checklist.ts` ne fait que des lectures : l'ancien sitemap (D28) et, si `BING_WMT_API_KEY` est là, `GetUserSites` chez Bing (« Get user sites », `IWebmasterApi`) pour savoir si le site est dans le compte. Avec `--agir`, passé par la skill après avoir dit à Romain ce qu'elle va envoyer, deux écritures et deux seulement :
 
 1. le ping IndexNow (une requête, la clé de `seo/strategy.md`, les URL du sitemap de prod que l'audit vient de collecter) ;
-2. la soumission du sitemap à Bing Webmaster Tools par l'API JSON déjà utilisée par `keywords.ts` (`ssl.bing.com/webmaster/api.svc/json`, clé `BING_WMT_API_KEY`).
+2. la soumission du sitemap à Bing Webmaster Tools, méthode `SubmitFeed(siteUrl, feedUrl)` (« Submits feed », `IWebmasterApi`), par l'API JSON déjà utilisée par `keywords.ts` (`ssl.bing.com/webmaster/api.svc/json`, clé `BING_WMT_API_KEY`).
 
-Google Search Console reste à la main : l'API exige un compte OAuth, c'est le chantier 5. Chaque action se fait une fois par mise en ligne ; la refaire demande `--agir` à nouveau et la skill le dit.
+Google Search Console reste à la main, et pas seulement en attendant le chantier 5 : la note du 29/08 (section 5) fixe que le jeton de l'agence sera toujours demandé en `webmasters.readonly`, donc `sitemaps.submit` est refusé par construction ; le clic de soumission reste au propriétaire de la propriété. Même logique chez Bing pour un site client : le client délègue en lecture seule au compte de l'agence, et `SubmitFeed` sera refusé ; la ligne le dit et donne le clic au client. Sur les sites de Romain, le compte est propriétaire et l'action passe. Chaque action se fait une fois par mise en ligne ; la refaire demande `--agir` à nouveau et la skill le dit.
 
 Battu : « regarder seulement » (question 2, option A). Perdu parce que les deux gestes sont gratuits, déjà outillés (clé Bing en place, clé IndexNow déposée par `build`), et sont exactement le J+1 de la liste.
 
@@ -129,8 +130,8 @@ Avant le déploiement :
 1. **Audit niveau 2 vert** · auto · coché si le dernier n2 a 0 Critique et 0 Important ; preuve : le chemin du rapport et les comptes. Pas de n2 : vide, « aucun audit niveau 2 : lance `/erom-seo:build` ».
 2. **Branche seo-build fusionnée** · auto · coché si la branche courante est `main` ou `master` et que `git log --grep="^seo(" -1` y rend un commit ; preuve : ce commit. Sur une branche `seo-build-*` : vide, « tu es sur `seo-build-…`, fusionne d'abord ».
 3. **Hors build réglés** · main · sous-lignes : les trouvailles hors build (table `KINDS`) du dernier audit n0 s'il en existe un, chacune avec son `ou`. Aucun n0 ou aucune trouvaille hors build : « aucune trouvaille hors build connue ». Après le déploiement, la ligne « Prod verte » couvre le même terrain (IDX-03 et IDX-04 sont évaluées au niveau 0) ; celle-ci reste ce que Romain en a fait.
-4. **Search Console : propriété créée** · main · « search.google.com/search-console, Ajouter une propriété, type Domaine, enregistrement TXT chez le registrar » (marche avant le déploiement).
-5. **Bing Webmaster Tools : site ajouté** · main · « bing.com/webmasters, Ajouter un site, Importer depuis Google Search Console ».
+4. **Search Console : propriété créée** · main · « search.google.com/search-console, Ajouter une propriété, type Domaine, enregistrement TXT chez le registrar » (marche avant le déploiement). Sous-ligne pour un site client : « ajouter le compte de l'agence comme utilisateur de la propriété (rôle minimal, note du 29/08, section 5) ».
+5. **Bing Webmaster Tools : site ajouté** · auto si `BING_WMT_API_KEY` est là (le site est dans `GetUserSites` ; preuve : « présent dans le compte Bing de l'agence le <date> »), main sinon · « bing.com/webmasters, Ajouter un site, Importer depuis Google Search Console ». Sous-ligne pour un site client : « le client délègue le site en lecture seule au compte de l'agence (écran Users) ; ne jamais demander sa clé ».
 6. **Ancien sitemap sauvegardé** · auto · coché avec le chemin `seo/checklist/ancien-sitemap.xml` et le nombre d'URL ; sans `--ancien-sitemap` : coché « sans objet (pas d'ancien site) ».
 
 Après le déploiement (toutes vides tant que « Mise en ligne : non ») :
@@ -138,11 +139,11 @@ Après le déploiement (toutes vides tant que « Mise en ligne : non ») :
 7. **Prod verte** · auto · coché si le dernier audit n0 postérieur à la mise en ligne a 0 Critique et 0 Important ; preuve : chemin et comptes. Sinon vide, avec la ligne « En bref » du rapport.
 8. **Redirections de l'ancien site** · auto · coché si chaque URL de l'ancien sitemap finit en 200 après 301 ou 308 uniquement ; vide sinon, une sous-ligne par URL en défaut (`<url> → <code final>` ou `→ 302 puis 200`). Sans ancien site : « sans objet ».
 9. **Ping IndexNow** · action · voir 5.3.
-10. **Sitemap soumis à Bing** · action · voir 5.3 ; « en attente : Bing Webmaster Tools pas encore configuré » tant que la ligne 5 est vide.
-11. **J+1 <date> : sitemap soumis dans Search Console** · main · « Search Console, Sitemaps, coller `/sitemap.xml` ».
-12. **J+3 <date> : pages clés indexées** · main · « Search Console, Inspection d'URL » ; sous-lignes : les pages de `seo/strategy.md`, en URL absolues.
+10. **Sitemap soumis à Bing** · action · voir 5.3 ; « en attente : Bing Webmaster Tools pas encore configuré » tant que la ligne 5 est vide ; refus de Bing (délégation lecture seule sur un site client) : la ligne devient une consigne, « à faire par le client : bing.com/webmasters, Sitemaps, Soumettre `/sitemap.xml` ».
+11. **J+1 <date> : sitemap soumis dans Search Console** · main · « Search Console, Sitemaps, coller `/sitemap.xml` » ; par le propriétaire de la propriété, par construction (D26).
+12. **J+3 <date> : pages clés indexées** · main · « Search Console, Inspection d'URL » ; sous-lignes : les pages de `seo/strategy.md`, en URL absolues. Le chantier 5 rendra cette ligne `auto` (`urlInspection.index.inspect`, note du 29/08, section 3.2).
 13. **J+7 <date> : premières impressions** · main · « Search Console, Performances, 7 derniers jours ».
-14. **J+30 <date> : rapports IA lus** · main · « Search Console, Performances, filtre Generative AI ; Bing Webmaster Tools, AI Performance ».
+14. **J+30 <date> : rapports IA lus** · main · « Search Console, Performances, filtre Generative AI (pas sur toutes les propriétés) ; Bing Webmaster Tools, AI Performance ». Ces deux rapports sont hors API (note du 29/08, sections 2 et 4) : ils resteront des exports à la main, que le chantier 5 saura lire depuis `seo/imports/`.
 15. **J+90 <date> : audit de contrôle** · main · « relance `/erom-seo:checklist`, l'audit niveau 0 est refait ; le niveau 1 (Search Console et Bing par API) arrive au chantier 5 ».
 
 Les dates J+N sont calculées depuis « Mise en ligne » et font partie du libellé. Une ligne J+N dont la date est passée et la case vide est dite « en retard » dans la restitution, pas dans le fichier.
@@ -165,7 +166,9 @@ Les dates J+N sont calculées depuis « Mise en ligne » et font partie du libel
 
 **Ping IndexNow.** Conditions : « Mise en ligne » posée, clé dans `seo/strategy.md`, un audit n0 postérieur à la mise en ligne avec un `raw/sitemap.xml` d'au moins une URL, case pas déjà cochée. Requête : `POST https://api.indexnow.org/indexnow`, corps JSON `{ host, key, keyLocation, urlList }`, `keyLocation` = `https://<host>/<clé>.txt`, `urlList` = les URL du sitemap collecté, `Content-Type: application/json; charset=utf-8`. Coché sur 200 ou 202 avec la date et le nombre d'URL ; vide sur tout autre code, avec le code et la raison. 422 : « la clé de `seo/strategy.md` n'est pas celle que sert la prod » (AI-02 du rapport n0 le dit aussi). Format exact du corps et des codes : `[NON VERIFIE]`, à figer sur la doc officielle pendant la recherche pré-plan.
 
-**Sitemap chez Bing.** Conditions : ligne 5 cochée, `BING_WMT_API_KEY` dans l'environnement, « Mise en ligne » posée, case pas déjà cochée. Requête sur l'API JSON de Bing Webmaster Tools, même base et même clé que `keywords.ts` ; la méthode (hypothèse : `SubmitFeed`, paramètres `siteUrl` et `feedUrl`) est `[NON VERIFIE]`. Coché sur succès avec la date ; vide avec le code et le message sinon. Clé refusée (`InvalidApiKey`) : « la clé de `~/.zshenv` n'est plus la bonne » (incident du 28/08). La clé n'apparaît jamais, ni dans le fichier, ni sur la sortie, ni dans un message d'erreur : les URL de requête sont expurgées avant tout affichage, comme dans `keywords.ts`.
+**Sitemap chez Bing.** Conditions : ligne 5 cochée, `BING_WMT_API_KEY` dans l'environnement, « Mise en ligne » posée, case pas déjà cochée. Méthode `SubmitFeed(siteUrl, feedUrl)` de l'API JSON de Bing Webmaster Tools (`IWebmasterApi`, « Submits feed »), même base et même clé que `keywords.ts` ; `feedUrl` = `https://<site>/sitemap.xml` tel que l'audit n0 l'a trouvé. Le verbe HTTP et la forme du corps pour une méthode d'écriture en JSON sont `[NON VERIFIE]` (page `api-protocols`, à lire pendant la recherche pré-plan). Coché sur succès avec la date ; vide avec le code et le message sinon. Refus pour droits insuffisants (site client délégué en lecture seule) : consigne au client (ligne 10). Clé refusée (`InvalidApiKey`) : « la clé de `~/.zshenv` n'est plus la bonne » (incident du 28/08). La clé n'apparaît jamais, ni dans le fichier, ni sur la sortie, ni dans un message d'erreur : tout ce qui s'écrit passe par `assertNoSecret(content, key)` de `skills/strategy/scripts/lib/keywords.ts`, et les URL de requête sont expurgées avant affichage.
+
+**Lecture `GetUserSites`** (sans `--agir`, D26) : même base, même clé ; le site de la stratégie présent dans la réponse (apex et www confondus) coche la ligne 5. La forme exacte de la réponse est `[NON VERIFIE]`, à capturer avec la vraie clé sur le compte de Romain pendant la recherche pré-plan.
 
 ### 5.4 Le fetch est injecté
 
@@ -220,8 +223,8 @@ Sur le modèle de `plan.test.ts` et `keywords.test.ts` : fixtures chico (les rap
 - Les dates J+N sont calculées depuis la mise en ligne (J+30 d'un 29 août est le 28 septembre).
 - Un n0 antérieur à la mise en ligne est ignoré ; un n0 postérieur vert coche « Prod verte ».
 - Ancien sitemap : une URL en 404 laisse la case vide et la liste ; une chaîne 301 puis 200 passe ; une 302 échoue avec la raison.
-- Sans `--agir` aucune requête sortante ; avec `--agir`, le corps du ping porte `host`, `key`, `keyLocation` et toutes les URL du sitemap ; 202 coche ; 422 laisse vide avec le code ; une action déjà cochée n'est pas refaite.
-- Bing : sans ligne 5 cochée, « en attente » et aucun appel ; clé refusée, message sans la clé.
+- Sans `--agir` aucune requête d'écriture (le faux `fetch` ne voit ni IndexNow ni `SubmitFeed`) ; avec `--agir`, le corps du ping porte `host`, `key`, `keyLocation` et toutes les URL du sitemap ; 202 coche ; 422 laisse vide avec le code ; une action déjà cochée n'est pas refaite.
+- Bing : sans clé, ligne 5 `main` et aucun appel ; avec clé, `GetUserSites` qui liste le site coche la ligne 5, qui ne le liste pas la laisse vide ; sans ligne 5 cochée, `SubmitFeed` n'est pas appelé (« en attente ») ; refus pour droits insuffisants, consigne au client ; clé refusée, message sans la clé.
 - Ligne inconnue dans le fichier : exit 1, fichier intact.
 - Le CLI : exit 0 et fichier écrit sur le cas nominal ; exit 1 et rien d'écrit sans stratégie.
 - `check-sources.ts` retrouve chaque citation de `consoles.md`.
@@ -229,8 +232,8 @@ Sur le modèle de `plan.test.ts` et `keywords.test.ts` : fixtures chico (les rap
 ## 10. Critères d'acceptation
 
 - **AC-1**
-  Comportement : quand je lance `/erom-seo:checklist` dans chico sans date de mise en ligne, alors `seo/checklist.md` existe, la moitié « Avant le déploiement » est remplie d'après le dernier audit niveau 2 (lignes 1 et 2 cochées, 3 à 5 vides avec leur consigne, 6 « sans objet »), la moitié « Après » est vide, et aucune requête n'est partie.
-  Vérifié par : `cat seo/checklist.md` ; le script relancé à la main avec `--seo seo` sous un `fetch` de trace ne journalise rien.
+  Comportement : quand je lance `/erom-seo:checklist` dans chico sans date de mise en ligne, alors `seo/checklist.md` existe, la moitié « Avant le déploiement » est remplie d'après le dernier audit niveau 2 (lignes 1 et 2 cochées, 3 et 4 vides avec leur consigne, 5 cochée par `GetUserSites` si chico est dans le compte Bing de Romain, 6 « sans objet »), la moitié « Après » est vide, et aucune écriture n'est partie.
+  Vérifié par : `cat seo/checklist.md` ; le script relancé à la main avec `--seo seo` sous un `fetch` de trace ne journalise que `GetUserSites`.
 
 - **AC-2**
   Comportement : quand je coche « Search Console : propriété créée » à la main dans le fichier, puis relance la skill, alors la case reste cochée.
@@ -262,12 +265,13 @@ Le déploiement lui-même ; l'API Search Console et l'API de rapports Bing (nive
 
 ## 12. Points à instruire pendant la recherche pré-plan
 
-- IndexNow : corps exact de la requête groupée, en-têtes, codes de réponse et leur sens (200, 202, 400, 403, 422, 429), limite d'URL par requête. `[NON VERIFIE]`
-- Bing Webmaster Tools, API JSON : nom de la méthode de soumission d'un sitemap et ses paramètres ; existe-t-il une méthode qui liste les sites du compte (ce qui rendrait la ligne 5 `auto`) ; ce que change le retrait SOAP/POX du 31 août pour l'endpoint JSON. `[NON VERIFIE]`
+- IndexNow : corps exact de la requête groupée, en-têtes, codes de réponse et leur sens (200, 202, 400, 403, 422, 429), limite d'URL par requête. `[NON VERIFIE]` (la doc `indexnow.org/documentation` est déjà épinglée au chantier 1, AI-02 ; il manque la forme du POST groupé.)
+- Bing Webmaster Tools, API JSON : `SubmitFeed` et `GetUserSites` sont confirmés par `IWebmasterApi` (note du 29/08, section 4.2). Restent le verbe HTTP et la forme du corps d'une méthode d'écriture en JSON (page `api-protocols`), la forme de la réponse de `GetUserSites` (à capturer avec la vraie clé, jamais affichée), et le code renvoyé quand la délégation est en lecture seule. `[NON VERIFIE]`
 - Search Console : méthodes de vérification d'une propriété Domaine (DNS TXT), et si la vérification peut précéder le déploiement. `[NON VERIFIE]`
+- Ce que change le retrait SOAP/POX du 31 août pour l'endpoint JSON : sonde du 1er septembre déjà au calendrier (note de reprise), à étendre à `GetUserSites`.
 - Google, migration de site : ce que la doc dit des codes 301 et 308 (le 308 est accepté par Google comme redirection permanente ; à citer) et du délai.
 - Comment `build` a laissé chico : nombre de pages du sitemap de prod, clé IndexNow servie ou non (AI-02 du dernier n0 prod), pour que la recette AC-4 parte d'un état connu.
 
 ## 13. Sources et échantillons à vérifier
 
-Aucun échantillon réel d'IndexNow ni de la méthode Bing n'a encore été capturé : les deux payloads de la section 5.3 sont des hypothèses, à figer sur la doc officielle et sur une vraie réponse pendant la recherche pré-plan, jamais dans le code d'abord. Les fixtures existantes : `plugin/skills/build/scripts/tests/fixtures/chico/` (manifest, pages, rapports n0 et n2, stratégie), collectées le 28/08 sur chico.
+Vérifié par la note `docs/recherches/2026-08-29-niveau-1-apis.md` (sources en HTTP 200 le 29/08) : `SubmitFeed(siteUrl, feedUrl)` et `GetUserSites()` dans `IWebmasterApi` (Microsoft Learn, 2023-11-14) ; le format JSON `ssl.bing.com/webmaster/api.svc/json/METHODE?apikey=…` (page `api-protocols`, 2026-08-10) ; le jeton Search Console demandé en `webmasters.readonly` par posture, `sitemaps.submit` réservé au scope `webmasters` (discovery doc, révision 20260825) ; les rapports IA de Google et de Bing hors API. Aucun échantillon réel d'IndexNow groupé ni d'une réponse `SubmitFeed` ou `GetUserSites` n'a encore été capturé : les corps de la section 5.3 restent à figer sur la doc officielle et sur une vraie réponse pendant la recherche pré-plan, jamais dans le code d'abord. Les fixtures existantes : `plugin/skills/build/scripts/tests/fixtures/chico/` (manifest, pages, rapports n0 et n2, stratégie), collectées le 28/08 sur chico.
