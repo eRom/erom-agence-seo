@@ -76,9 +76,16 @@ if (import.meta.main) {
 
     const n2 = await readReport(await latestAuditDir(seoDir, { level: 2 }));
     const n0 = await readReport(await latestAuditDir(seoDir, { level: 0 }));
-    // origine réellement servie : la home du dernier audit n0 (www ou apex), sinon la stratégie (même règle que build, D21)
+    // origine réellement servie : la home du dernier audit n0 (www ou apex), sinon la stratégie (même règle que build, D21).
+    // raw/ est souvent hors git (chico) : à défaut du manifeste, derived/pages.json porte l'URL servie de chaque page (R-1, recette du 29/08).
     let origin = `https://${site}`;
-    if (n0) { try { const m = JSON.parse(await Bun.file(join(n0.dir, "raw/manifest.json")).text()) as Manifest; const f = m.pages[0]?.final; if (f) origin = new URL(f).origin; } catch { warn(`${n0.dir}/raw/manifest.json illisible : origine prise dans la stratégie`); } }
+    if (n0) {
+      let found: string | null = null;
+      try { const m = JSON.parse(await Bun.file(join(n0.dir, "raw/manifest.json")).text()) as Manifest; found = m.pages[0]?.final ?? null; } catch { /* raw/ absent ou illisible : repli sur derived/ */ }
+      if (!found) { try { const pages = JSON.parse(await Bun.file(join(n0.dir, "derived/pages.json")).text()) as { url: string }[]; found = pages[0]?.url ?? null; } catch { /* derived/ absent : repli sur la stratégie */ } }
+      if (found) { try { origin = new URL(found).origin; } catch { found = null; } }
+      if (!found) warn(`${n0.dir} : ni raw/manifest.json ni derived/pages.json lisibles, origine prise dans la stratégie (${origin})`);
+    }
     const n0Prod = n0 && miseEnLigne && n0.report.date >= miseEnLigne ? n0 : null;
     if (n0 && miseEnLigne && !n0Prod) warn(`audit niveau 0 ${n0.dir} antérieur à la mise en ligne (${miseEnLigne}) : il ne juge pas la prod`);
 

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { cp, mkdir, mkdtemp } from "node:fs/promises";
+import { cp, mkdir, mkdtemp, unlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -40,6 +40,23 @@ describe("checklist.ts en ligne de commande", () => {
     expect(md).toContain("- [ ] Bing Webmaster Tools : site ajouté · main ·");
     expect(md).toContain("- [ ] Prod verte · auto · pas encore déployé");
     expect(md).toContain("- [ ] J+1 : sitemap soumis dans Search Console · main ·");
+  });
+  test("raw/ hors git : l'origine servie vient de derived/pages.json, sinon de la stratégie avec un avertissement (R-1)", async () => {
+    // chico garde seo/**/raw/ hors git : le manifeste du n0 n'est plus sur le disque, derived/pages.json si
+    const cwd = await fakeSite();
+    await unlink(join(cwd, "seo/audits/2026-08-28-n0/raw/manifest.json"));
+    await mkdir(join(cwd, "seo/audits/2026-08-28-n0/derived"), { recursive: true });
+    await cp(`${F}/pages.json`, join(cwd, "seo/audits/2026-08-28-n0/derived/pages.json"));
+    const r = run(cwd);
+    expect(r.exitCode, r.stderr.toString()).toBe(0);
+    expect(r.stderr.toString()).not.toContain("origine prise dans la stratégie");
+    expect(await Bun.file(join(cwd, "seo/checklist.md")).text()).toContain("  - https://www.commentchercherbonheur.org/methode");
+    // ni manifeste ni pages.json : la stratégie, et on le dit
+    await unlink(join(cwd, "seo/audits/2026-08-28-n0/derived/pages.json"));
+    const r2 = run(cwd);
+    expect(r2.exitCode, r2.stderr.toString()).toBe(0);
+    expect(r2.stderr.toString()).toContain("origine prise dans la stratégie (https://commentchercherbonheur.org)");
+    expect(await Bun.file(join(cwd, "seo/checklist.md")).text()).toContain("  - https://commentchercherbonheur.org/methode");
   });
   test("une case main cochée à la main survit ; la mise en ligne date les jalons et lit le n0 postérieur", async () => {
     const cwd = await fakeSite();
