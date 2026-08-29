@@ -242,6 +242,7 @@ git commit -m "feat(console): résolution d'une propriété Search Console et d'
   - `chooseProvider(env: Env): "gcloud" | "service-account"`
   - `getAccessToken(env: Env, deps: { gcloud: GcloudRunner; serviceAccount: (path: string) => Promise<string> }): Promise<GoogleAuth>`
   - `defaultGcloud: GcloudRunner` (appelle le binaire ; jamais journalisé)
+  - `type FetchInit` et `type Fetcher` (auth-google déclare les siens : la tâche 3 n'existe pas encore quand celle-ci s'écrit, et `gsc.ts` déclarera les mêmes ; formes identiques, TypeScript les accepte structurellement)
   - `serviceAccountToken(keyFilePath: string, fetcher: Fetcher): Promise<string>` **non normatif**, voir Step 5.
 
 - [ ] **Step 1: Write the failing test**
@@ -306,6 +307,9 @@ export type Provider = "gcloud" | "service-account";
 export type GoogleAuth = { token: string; quotaProject: string | null; provider: Provider };
 export type Env = { GSC_SA_KEY_FILE?: string; GSC_QUOTA_PROJECT?: string };
 export type GcloudRunner = () => Promise<string | null>;
+// auth-google déclare son propre Fetcher : gsc.ts (tâche 3) n'existe pas encore, et déclarera la même forme.
+export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
+export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
 
 export const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
 
@@ -466,7 +470,9 @@ describe("listProperties", () => {
   });
   test("un 403 de scope donne la commande de connexion", async () => {
     const { f } = fake(() => ({ status: 403, text: '{"error":{"code":403,"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}],"message":"Request had insufficient authentication scopes."}}' }));
-    await listProperties(f, AUTH).catch((e: GscError) => expect(e.hint).toContain("gcloud auth application-default login"));
+    const p = listProperties(f, AUTH);
+    await expect(p).rejects.toBeInstanceOf(GscError);
+    await p.catch((e: GscError) => expect(e.hint).toContain("gcloud auth application-default login"));
   });
 });
 
@@ -713,12 +719,16 @@ describe("bingUserSites", () => {
   });
   test("throttle : consigne de réessayer plus tard", async () => {
     const { f } = fake(() => ({ status: 400, text: '{"ErrorCode":4,"Message":"ERROR!!! ThrottleUser"}' }));
-    await bingUserSites(f, KEY).catch((e: BingError) => expect(e.hint).toContain("plus tard"));
+    const p = bingUserSites(f, KEY);
+    await expect(p).rejects.toBeInstanceOf(BingError);
+    await p.catch((e: BingError) => expect(e.hint).toContain("plus tard"));
   });
   test("droits ou site inconnu : 11, 13 et 14 mènent à la même consigne", async () => {
     for (const code of [11, 13, 14]) {
       const { f } = fake(() => ({ status: 400, text: `{"ErrorCode":${code},"Message":"x"}` }));
-      await bingUserSites(f, KEY).catch((e: BingError) => expect(e.hint).toContain("acces.md"));
+      const p = bingUserSites(f, KEY);
+      await expect(p).rejects.toBeInstanceOf(BingError);
+      await p.catch((e: BingError) => expect(e.hint).toContain("acces.md"));
     }
   });
 });
@@ -1110,7 +1120,7 @@ function deps(opts: { key?: string | null; reply?: (c: Call) => { status: number
     const c = { url, method: init.method ?? "GET" };
     calls.push(c);
     if (opts.reply) return opts.reply(c);
-    if (url.includes("/sites/")) return { status: 200, text: '{"sitemap":[]}' };
+    if (url.includes("/webmasters/v3/sites/")) return { status: 200, text: '{"sitemap":[]}' };
     if (url.includes("/webmasters/v3/sites")) return { status: 200, text: SITES };
     if (url.includes("index:inspect")) return { status: 200, text: INSPECT };
     if (url.includes("GetUserSites")) return { status: 200, text: '{"d":[]}' };
