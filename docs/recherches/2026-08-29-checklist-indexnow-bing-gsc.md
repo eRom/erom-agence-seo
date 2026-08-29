@@ -38,6 +38,8 @@ Codes HTTP relevés par la session mère le 29/08 (`curl -sL -o /dev/null -w '%{
 | MS-SITE | https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.site | 200 | 2019-04-26 | 3.2, champs d'un site |
 | MS-ERRORS | https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.apierrorcode | 200 | 2019-04-26 | 3.2, enum d'erreurs |
 | MS-USERROLE | https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.siteroles.userrole | 200 | 2019-04-26 | 3.2, rôles de délégation |
+| MS-ADDSITEROLES | https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.addsiteroles | 200 (agent) | 2023-11-14 | consoles.md CL-05, « Delegate site access to user » (cité aussi par la note niveau 1) |
+| IN-SE (rappel) | https://www.indexnow.org/searchengines | 200 (agent) | non affichée | consoles.md CL-09, « within 10 second after the verification » |
 | G-VERIFY | https://support.google.com/webmasters/answer/9008080 | 200 (GET) | non affichée | 3.3, propriété Domaine, TXT |
 | G-PERMS | https://support.google.com/webmasters/answer/7687615 | 200 (GET) | non affichée | 3.3, rôles, ajout d'utilisateur |
 | G-SITEMAP | https://support.google.com/webmasters/answer/7451001 | 200 (GET) | non affichée | 3.3, soumettre un sitemap |
@@ -141,7 +143,7 @@ HTTP/1.1 200 OK
 }
 ```
 
-Champs de `Site` (MS-SITE) : `AuthenticationCode`, `DnsVerificationCode`, `IsVerified`, `Url`. Pour la ligne 5 de la checklist : le site est « ajouté » si une entrée a `Url` sur le même hôte que la stratégie (apex et www confondus, comparaison par `sameSite` de `lib/sitemap.ts`) ; la preuve dit aussi `IsVerified` (un site ajouté mais non vérifié ne recevra pas de `SubmitFeed`).
+Champs de `Site` (MS-SITE) : `AuthenticationCode`, `DnsVerificationCode`, `IsVerified`, `Url`. La page MS-GETUSERSITES porte aussi un exemple C# introduit par « This example shows how to list all sites which are not verified. » (boucle sur `IsVerified`), cité par `consoles.md` CL-05. Pour la ligne 5 de la checklist : le site est « ajouté » si une entrée a `Url` sur le même hôte que la stratégie (apex et www confondus, comparaison par `sameSite` de `lib/sitemap.ts`) ; la preuve dit aussi `IsVerified` (un site ajouté mais non vérifié ne recevra pas de `SubmitFeed`).
 
 **Erreurs** (MS-ERRORS, enum `ApiErrorCode`) : None 0, InternalError 1, UnknownError 2, InvalidApiKey 3, ThrottleUser 4, ThrottleHost 5, UserBlocked 6, InvalidUrl 7, InvalidParameter 8, TooManySites 9, UserNotFound 10, NotFound 11, AlreadyExists 12, NotAllowed 13, NotAuthorized 14, UnexpectedState 15, Deprecated 16. Forme observée le 27/08 et le 29/08 : HTTP 400, corps `{"ErrorCode":3,"Message":"ERROR!!! InvalidApiKey"}`. Le script lit `ErrorCode` et `Message` ; 4 et 5 = réessayer plus tard, 13 et 14 = droits insuffisants (consigne au client), 11 = site inconnu (ligne 5 à refaire). Lequel de 13, 14 ou 11 sort réellement pour un site absent du compte : incertitude 2.
 
