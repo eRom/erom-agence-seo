@@ -48,7 +48,8 @@ if (import.meta.main) {
   const opt = (name: string) => { const i = args.indexOf(name); return i >= 0 ? args[i + 1] : undefined; };
   if (args.includes("--help")) { console.error("usage : bun checklist.ts [--mise-en-ligne AAAA-MM-JJ] [--ancien-sitemap <url ou fichier>] [--agir] [--seo seo] [--today AAAA-MM-JJ]"); process.exit(2); }
   const seoDir = opt("--seo") ?? "seo";
-  const today = opt("--today") ?? new Date().toISOString().slice(0, 10);
+  // heure locale, pas UTC : entre 0 h et 2 h à Paris, la date UTC est encore la veille et --mise-en-ligne du jour serait refusée comme future
+  const today = opt("--today") ?? new Date().toLocaleDateString("sv-SE");
   const agir = args.includes("--agir");
   const key = process.env.BING_WMT_API_KEY ?? null;
   const warn = (m: string) => console.error(redact(`attention : ${m}`, key));
@@ -118,16 +119,25 @@ if (import.meta.main) {
       const done = (id: string) => prevForCompute?.lines.get(id)?.checked ?? false;
       if (strategy.indexnow && !done("CL-09")) {
         const host = new URL(feedUrl ?? origin).host;
-        actions.indexnow = await pingIndexNow(defaultFetcher, { host, key: strategy.indexnow, urls });
-      } else if (!strategy.indexnow) warn("IndexNow : non dans seo/strategy.md, pas de ping");
+        const onHost = urls.filter((u) => { try { return new URL(u).host === host; } catch { return false; } });
+        if (onHost.length < urls.length) warn(`ping IndexNow : ${urls.length - onHost.length} URL du sitemap ne sont pas sur ${host}, non soumises`);
+        actions.indexnow = await pingIndexNow(defaultFetcher, { host, key: strategy.indexnow, urls: onHost });
+      }
       const bingSite = bing?.find((b) => bingSiteMatches(b.Url) && b.IsVerified) ?? null;
       if (key && bingSite && feedUrl && !done("CL-10")) actions.bing = await bingSubmitFeed(defaultFetcher, key, bingSite.Url, feedUrl);
     } else if (agir) warn("--agir sans effet : mise en ligne non posée ou aucun audit prod depuis");
 
+    // raisons pour lesquelles --agir ne pourra rien faire, connues du CLI seul (spec 5.3, la lib ne les devine pas)
+    const pending: ChecklistInput["pending"] = {};
+    if (!strategy.indexnow) pending.indexnow = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
+    else if (n0Prod && urls.length === 0) pending.indexnow = "aucune URL de sitemap en 200 dans l'audit prod";
+    if (!key) pending.bing = "BING_WMT_API_KEY absente, la soumission se fait à la main (voir consoles.md, ligne « Sitemap soumis à Bing »)";
+    else if (n0Prod && !feedUrl) pending.bing = "aucun sitemap en 200 dans l'audit prod";
+
     const cl = computeChecklist({
       site, origin, today, miseEnLigne, previous: prevForCompute, n2, n0, n0Prod, git: { branch, seoCommit },
       horsBuildOu: (id) => { const k = kindOf(id); return k.kind === "hors-build" ? k.ou : undefined; },
-      ancienSitemap, redirections, bing, bingSiteMatches, pages: strategy.pages.map((p) => p.page), actions,
+      ancienSitemap, redirections, bing, bingSiteMatches, pages: strategy.pages.map((p) => p.page), actions, pending,
     });
     const md = renderChecklist(cl);
     assertNoSecret(md, key);

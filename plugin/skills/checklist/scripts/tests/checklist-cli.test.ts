@@ -65,12 +65,37 @@ describe("checklist.ts en ligne de commande", () => {
     await mkdir(join(n0b, "raw"), { recursive: true });
     await cp(`${F}/report-n2.md`, join(n0b, "report.md"));
     await cp(`${F}/manifest.json`, join(n0b, "raw/manifest.json"));
+    // manifest.json déclare sitemap-0.xml (status 200) sans le fichier brut ; prodSitemapUrls le lit vraiment (F2)
+    await Bun.write(join(n0b, "raw/sitemap-0.xml"), '<?xml version="1.0"?><urlset><url><loc>https://www.commentchercherbonheur.org/</loc></url></urlset>');
     const r = run(cwd, "--mise-en-ligne", "2026-08-29");
     expect(r.exitCode, r.stderr.toString()).toBe(0);
     const md = await Bun.file(join(cwd, "seo/checklist.md")).text();
-    expect(md).toContain("- [x] Prod verte · auto · seo/audits/2026-08-30-n0/report.md · 0 Critique, 0 Important");
+    expect(md).toContain("- [x] Prod verte · auto · seo/audits/2026-08-30-n0/report.md · 0 Critique · 0 Important · 0 Mineur · 0 Info");
     expect(md).toContain("- [ ] Ping IndexNow · action · à faire : relance avec --agir");
     expect(md).toContain("- [ ] Sitemap soumis à Bing · action · en attente : Bing Webmaster Tools pas encore configuré");
+    // sans clé Bing (ENV la vide) la ligne 5 reste à la main : pending.bing ne s'évalue même pas
+    expect(md).toContain("- [ ] Bing Webmaster Tools : site ajouté · main ·");
+  });
+  test("une nouvelle date de mise en ligne remet la moitié Après à zéro, actions comprises", async () => {
+    const cwd = await fakeSite();
+    const n0b = join(cwd, "seo/audits/2026-08-30-n0");
+    await mkdir(join(n0b, "raw"), { recursive: true });
+    await cp(`${F}/report-n2.md`, join(n0b, "report.md"));
+    await cp(`${F}/manifest.json`, join(n0b, "raw/manifest.json"));
+    // manifest.json déclare sitemap-0.xml (status 200) sans le fichier brut ; prodSitemapUrls le lit vraiment (F2)
+    await Bun.write(join(n0b, "raw/sitemap-0.xml"), '<?xml version="1.0"?><urlset><url><loc>https://www.commentchercherbonheur.org/</loc></url></urlset>');
+    expect(run(cwd, "--mise-en-ligne", "2026-08-29").exitCode).toBe(0);
+    const p = join(cwd, "seo/checklist.md");
+    await Bun.write(p, (await Bun.file(p).text()).replace("- [ ] Ping IndexNow · action · à faire : relance avec --agir", "- [x] Ping IndexNow · action · 2026-08-30 · 200, 10 URL"));
+    // relancer sans option : la case cochée à la main survit
+    expect(run(cwd).exitCode).toBe(0);
+    expect(await Bun.file(p).text()).toContain("- [x] Ping IndexNow · action · 2026-08-30 · 200, 10 URL");
+    // relancer avec une nouvelle date de mise en ligne : la moitié Après repart de zéro
+    const r = run(cwd, "--mise-en-ligne", "2026-08-30");
+    expect(r.exitCode, r.stderr.toString()).toBe(0);
+    const md = await Bun.file(p).text();
+    expect(md).toContain("Mise en ligne : 2026-08-30");
+    expect(md).toContain("- [ ] Ping IndexNow · action ·");
   });
   test("ancien sitemap depuis un fichier : sauvegardé sous seo/checklist/, compté sur la ligne 6", async () => {
     const cwd = await fakeSite();
