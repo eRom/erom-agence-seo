@@ -13,7 +13,7 @@ Tu tiens à jour `seo/checklist.md`. Tu ne déploies rien et tu ne lances rien :
 1. Répertoire courant : le repo du site. `seo/strategy.md` absent : proposer `/erom-seo:strategy` et s'arrêter. `Statut : brouillon` : le dire, continuer.
 2. Scripts : `${CLAUDE_PLUGIN_ROOT}/skills/checklist/scripts/`. Si `${CLAUDE_PLUGIN_ROOT}/node_modules` manque : `cd ${CLAUDE_PLUGIN_ROOT} && bun install --frozen-lockfile`.
 3. Lire `seo/checklist.md` s'il existe : la date de mise en ligne, les cases cochées. Lire `${CLAUDE_PLUGIN_ROOT}/skills/checklist/references/consoles.md` en entier : c'est de là que viennent les chemins de clics de la restitution.
-4. Clé Bing : `[ -n "$BING_WMT_API_KEY" ] && echo présente || echo absente`. Jamais `echo $BING_WMT_API_KEY`, jamais la clé dans une commande affichée. Absente : le dire une fois (« la ligne Bing restera à la main »), continuer.
+4. Clé Bing : `source ~/.zshenv 2>/dev/null; [ -n "$BING_WMT_API_KEY" ] && echo présente || echo absente`. Jamais `echo $BING_WMT_API_KEY`, jamais la clé dans une commande affichée. Absente : le dire une fois (« la ligne Bing restera à la main »), continuer.
 
 ## 1. Situer
 
@@ -28,15 +28,16 @@ Si la mise en ligne est posée et qu'aucun `seo/audits/<date>-n0*/report.md` dat
 
 ## 3. Écrire
 
-`bun ${CLAUDE_PLUGIN_ROOT}/skills/checklist/scripts/checklist.ts [--mise-en-ligne <date>] [--ancien-sitemap <url ou fichier>]`, sans `--agir`. Première ligne de la sortie : `fichier : seo/checklist.md` ; deuxième : `checklist : n/15 cochées · mise en ligne : … · dû aujourd'hui : …`. Chaque ligne `attention :` de la sortie d'erreur est répétée à Romain telle quelle. Exit 1 : montrer l'erreur, s'arrêter (le fichier n'a pas été réécrit).
+`source ~/.zshenv 2>/dev/null; bun ${CLAUDE_PLUGIN_ROOT}/skills/checklist/scripts/checklist.ts [--mise-en-ligne <date>] [--ancien-sitemap <url ou fichier>]`, sans `--agir`. Première ligne de la sortie : `fichier : seo/checklist.md` ; deuxième : `checklist : n/15 cochées · mise en ligne : … · dû aujourd'hui : …`. Chaque ligne `attention :` de la sortie d'erreur est répétée à Romain telle quelle. Exit 1 : montrer l'erreur, s'arrêter (le fichier n'a pas été réécrit).
 
 ## 4. Agir
 
 Lire le fichier écrit. Si « Ping IndexNow » ou « Sitemap soumis à Bing » porte « à faire : relance avec --agir » :
 1. Dire exactement ce qui va partir, en une ligne par action : « ping IndexNow : <n> URL du sitemap de <hôte>, clé <clé> » (la clé IndexNow est publique, servie à la racine du site) ; « sitemap <url> soumis à Bing Webmaster Tools pour <site tel que Bing le nomme> ».
-2. Attendre le OK de Romain. Refus : ne rien relancer ; noter « refusé par Romain le <date> » dans la restitution (le fichier garde « à faire »).
+2. Attendre le OK de Romain. Refus : ne rien relancer ; sur la ligne de cette action dans `seo/checklist.md`, remplacer la note après « · action · » par « refusé par Romain le <date> » (même geste que cocher une case `main`), puis relancer le script sans `--agir` : la note reste.
 3. OK : relancer la même commande qu'en 3 avec `--agir` en plus. Relire le fichier : chaque action porte maintenant sa date et sa réponse, ou son code d'erreur. Une action déjà cochée n'est jamais refaite.
 « en attente : … » sur une action : ce n'est pas à toi de le lever, c'est une case à la main (Bing pas configuré, aucun audit prod) : le dire en restitution.
+Une action dont la note porte déjà un refus ou une réponse en erreur (« refusé par… », « 400 : … ») n'est pas reproposée ; Romain la redemande s'il veut réessayer (« relance le ping »).
 
 ## 5. Restituer
 

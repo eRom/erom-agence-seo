@@ -52,7 +52,7 @@ Depuis le repo du site, avec `seo/strategy.md` et un build fusionné :
 /erom-seo:checklist
 ```
 
-Sortie : `seo/checklist.md`, quinze cases en deux moitiés. Avant le déploiement : audit niveau 2 vert, branche fusionnée, hors build, Search Console et Bing Webmaster Tools créés, ancien sitemap sauvegardé si le site en remplace un. Après (la skill demande « c'est déployé ? » et la date) : un audit niveau 0 refait sur la prod, les redirections de l'ancien site, le ping IndexNow et le sitemap chez Bing (envoyés seulement après votre OK), puis les jalons J+1, J+3, J+7, J+30, J+90 avec, pour chacun, le chemin de clics. Les cases `auto` suivent les audits et git ; les cases `main` sont à vous et ne sont jamais décochées. Relancez la skill quand vous voulez : elle dit ce qui est dû. Elle ne déploie rien.
+Sortie : `seo/checklist.md`, quinze cases en deux moitiés. Avant le déploiement : audit niveau 2 vert, branche fusionnée, hors build, Search Console et Bing Webmaster Tools créés, ancien sitemap sauvegardé si le site en remplace un. Après (la skill demande « c'est déployé ? » et la date) : un audit niveau 0 refait sur la prod, les redirections de l'ancien site, le ping IndexNow et le sitemap chez Bing (envoyés seulement après un OK explicite), puis les jalons J+1, J+3, J+7, J+30, J+90 avec, pour chacun, le chemin de clics. Les cases `auto` suivent les audits et git ; les cases `main` sont cochées à la main et ne sont jamais décochées. Relancer la skill quand on veut : elle dit ce qui est dû. Elle ne déploie rien.
 
 ## Vérifier que les références n'ont pas dérivé
 

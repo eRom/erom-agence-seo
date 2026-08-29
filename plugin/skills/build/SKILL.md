@@ -63,7 +63,7 @@ Passages + 1. `bun ${CLAUDE_PLUGIN_ROOT}/skills/build/scripts/plan.ts` (sans `--
 
 ## 6. Restituer
 
-Dans l'ordre : chemin du dernier rapport et sa ligne « En bref » ; les commits (`git log --oneline <commit de départ>..HEAD`) ; les « déjà conforme » ; les hors build, chacun avec son `ou` (ceux du premier plan aussi, même si l'audit local les a marqués non applicables) ; les textes refusés ; ce qui reste en Critique ou Important après deux passages. Proposer la suite : régler les hors build, puis `/erom-seo:launch` quand il existera. Dire la branche, et que rien n'est poussé.
+Dans l'ordre : chemin du dernier rapport et sa ligne « En bref » ; les commits (`git log --oneline <commit de départ>..HEAD`) ; les « déjà conforme » ; les hors build, chacun avec son `ou` (ceux du premier plan aussi, même si l'audit local les a marqués non applicables) ; les textes refusés ; ce qui reste en Critique ou Important après deux passages. Proposer la suite : régler les hors build, puis `/erom-seo:checklist`. Dire la branche, et que rien n'est poussé.
 
 ## 7. Règles d'écriture
 

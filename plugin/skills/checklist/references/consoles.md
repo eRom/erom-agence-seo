@@ -19,6 +19,7 @@ Source   : https://support.google.com/webmasters/answer/7687615 « Restricted us
 ### Bing Webmaster Tools : site ajouté (CL-05)
 Chemin   : bing.com/webmasters, se connecter avec le compte de l'agence, Ajouter un site, « Importer depuis Google Search Console » (un clic, la vérification est reprise de Google), ou Ajouter manuellement puis vérifier (fichier XML, balise meta ou CNAME). Site client : le client, depuis son propre compte, va dans Settings, Users, Add user, l'adresse du compte de l'agence, rôle Read only ; l'agence ne demande jamais sa clé API.
 Piège    : la clé API Bing est faite par utilisateur, pas par site : une clé ouvre tous les sites du compte, en écriture. C'est pour ça que la délégation en lecture seule est la seule bonne réponse pour un client.
+Source   : https://learn.microsoft.com/en-us/bingwebmaster/getting-access « Only one API key can be generated per user. »
 Piège    : quand `BING_WMT_API_KEY` est là, la skill lit `GetUserSites` et coche seule si le site y est et est vérifié (IsVerified) ; un site présent mais non vérifié laisse la case vide.
 Piège    : le bouton « Importer depuis Google Search Console » n'est attesté que par des sources secondaires (les pages d'aide Bing ne se lisent pas par script) ; s'il manque, ajouter le site à la main et le vérifier par fichier XML, balise meta ou CNAME.
 Source   : https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.getusersites « This example shows how to list all sites which are not verified. »
@@ -54,6 +55,7 @@ Chemin   : fait par la skill avec `--agir` quand le site est dans le compte Bing
 Piège    : les protocoles SOAP et POX sont retirés le 31 août 2026 ; la skill parle JSON, comme `keywords.ts`. Si l'API répond InvalidApiKey, la clé de ~/.zshenv n'est plus la bonne (Settings, API Access ; une seule clé par compte).
 Source   : https://learn.microsoft.com/en-us/dotnet/api/microsoft.bing.webmaster.api.interfaces.iwebmasterapi.submitfeed « Supported formats: Sitemap, RSS 2.0, Atom 0.3, Atom 1.0 and text files. »
 Source   : https://learn.microsoft.com/en-us/bingwebmaster/api-protocols « Legacy SOAP and POX APIs will be retired on August 31, 2026. »
+Source   : https://learn.microsoft.com/en-us/bingwebmaster/getting-access « Only one API key can be generated per user. »
 
 ### J+1, sitemap soumis dans Search Console (CL-11)
 Chemin   : search.google.com/search-console, choisir la propriété, Sitemaps (menu Indexation), « Ajouter un sitemap », coller l'URL complète https://<site>/sitemap.xml, Envoyer. Le statut doit passer à « Opération réussie » ; sinon cliquer la ligne pour le détail.
