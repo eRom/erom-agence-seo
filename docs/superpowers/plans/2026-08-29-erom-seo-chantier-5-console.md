@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-08-29-erom-seo-console-design.md`
 
-**Code exécuté avant l'écriture de ce plan.** Toute la logique pure des tâches 1 à 6 a été lancée par la session mère le 29/08 dans un bac à sable, contre les échantillons réels ci-dessous. Nombre de `test()` écrits par fichier, comptés sur les blocs de ce plan : `resolve` 9, `auth-google` 8, `gsc` 12, `bing` 9, `render` 14, `console-cli` 15, `acces` 4. Les blocs de code de ce plan sont ceux qui ont tourné, à la mise en forme près.
+**Code exécuté avant l'écriture de ce plan.** Toute la logique pure des tâches 1 à 6 a été lancée par la session mère le 29/08 dans un bac à sable, contre les échantillons réels ci-dessous. Nombre de `test()` écrits par fichier, comptés sur les blocs de ce plan : `resolve` 9, `auth-google` 13, `gsc` 12, `bing` 9, `render` 14, `console-cli` 15, `acces` 4. Les blocs de code de ce plan sont ceux qui ont tourné, à la mise en forme près.
 
 **Une seule zone reste non normative** : le décodage détaillé de `GetFeeds`, `GetUrlInfo`, `GetCrawlStats` et `GetCrawlIssues` (tâche 4), dont aucune réponse réelle n'a pu être capturée puisque le compte Bing est vide. Le décodage s'y arrête à l'enveloppe `{"d": …}` et ne devine aucun champ. Tout le reste, `serviceAccountToken` compris, est écrit et testé.
 
@@ -275,14 +275,16 @@ git commit -m "feat(console): résolution d'une propriété Search Console et d'
   - `defaultGcloud: GcloudRunner` (appelle le binaire ; sa sortie n'est jamais journalisée)
   - `serviceAccountToken(keyFilePath: string, fetcher: Fetcher, now?: () => number): Promise<string>`
 
-**Tout est normatif dans cette tâche.** `serviceAccountToken` est exporté et testé ici, parce que `console.ts` (tâche 6) l'importe : une tâche 2 déclarée verte sans cet export ferait échouer le chargement du module en tâche 6, avec un message sans rapport avec la cause.
+**Tout est normatif dans cette tâche.** Ce bloc porte les correctifs de la revue de tâche du 29/08 : garde du JWT rendu réel (le jeton signé est capturé, pas cherché par son nom), `defaultGcloud` rendu testable et couvert sur quatre branches, `JSON.parse` de la réponse de jeton gardé, `exp` ramené à 3540 secondes. Les nouveaux tests anti-fuite ont été prouvés par mutation : on a fait fuir le secret, vu le test échouer, puis remis en état.
+
+ `serviceAccountToken` est exporté et testé ici, parce que `console.ts` (tâche 6) l'importe : une tâche 2 déclarée verte sans cet export ferait échouer le chargement du module en tâche 6, avec un message sans rapport avec la cause.
 
 - [ ] **Step 1: Write the failing test**
 
 ```ts
 // plugin/skills/console/scripts/tests/auth-google.test.ts
 import { describe, test, expect } from "bun:test";
-import { chooseProvider, getAccessToken, serviceAccountToken, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
+import { chooseProvider, getAccessToken, serviceAccountToken, defaultGcloud, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
 
 const gcloudOk = async () => "ya29.FAUX-JETON";
 const gcloudKo = async () => null;
@@ -318,8 +320,38 @@ describe("getAccessToken", () => {
     await p.catch((e: AuthError) => {
       expect(e.hint).toContain("gcloud auth application-default login");
       expect(e.hint).toContain(SCOPE);
-      expect(`${e.message}${e.hint}`).not.toContain("ya29.");
     });
+  });
+});
+
+describe("defaultGcloud (I-1, le seul export qui touche le binaire producteur du secret)", () => {
+  // Faux binaires exécutables jetables, écrits dans tmp-sa/ (déjà ignoré par git).
+  const ecrireFaux = async (nom: string, script: string) => {
+    const chemin = `${import.meta.dir}/tmp-sa/${nom}`;
+    await Bun.write(chemin, script);
+    const chmod = Bun.spawn(["chmod", "+x", chemin]);
+    await chmod.exited;
+    return chemin;
+  };
+
+  test("sortie 0 avec jeton sur stdout : le jeton est rendu, débarrassé de ses espaces", async () => {
+    const chemin = await ecrireFaux("gcloud-ok", "#!/bin/sh\nprintf '  ya29.SCRIPT-JETON\\n'\nexit 0\n");
+    expect(await defaultGcloud(chemin)).toBe("ya29.SCRIPT-JETON");
+  });
+
+  test("sortie 1 malgré un jeton sur stdout : null, le jeton n'est pas rendu", async () => {
+    const chemin = await ecrireFaux("gcloud-echec", "#!/bin/sh\nprintf 'ya29.NE-DOIT-PAS-SORTIR\\n'\nexit 1\n");
+    expect(await defaultGcloud(chemin)).toBeNull();
+  });
+
+  test("sortie 0 sans rien sur stdout : null", async () => {
+    const chemin = await ecrireFaux("gcloud-vide", "#!/bin/sh\nexit 0\n");
+    expect(await defaultGcloud(chemin)).toBeNull();
+  });
+
+  test("binaire inexistant : null, sans lever", async () => {
+    const chemin = `${import.meta.dir}/tmp-sa/gcloud-absent-${Date.now()}`;
+    expect(await defaultGcloud(chemin)).toBeNull();
   });
 });
 
@@ -355,7 +387,7 @@ describe("serviceAccountToken", () => {
     expect(claims.iss).toBe("agence@projet.iam.gserviceaccount.com");
     expect(claims.scope).toBe(SCOPE);
     expect(claims.aud).toBe(TOKEN_ENDPOINT);
-    expect(claims.exp - claims.iat).toBe(3600);
+    expect(claims.exp - claims.iat).toBe(3540);
     // base64url : ni remplissage, ni + ni /
     for (const part of [h, c, sig]) expect(part).not.toMatch(/[=+/]/);
     const octets = Uint8Array.from(atob(sig.replace(/-/g, "+").replace(/_/g, "/")), (ch) => ch.charCodeAt(0));
@@ -366,13 +398,18 @@ describe("serviceAccountToken", () => {
     const { pem } = await paire();
     const dir = `${import.meta.dir}/tmp-sa`;
     await Bun.write(`${dir}/ok.json`, JSON.stringify({ client_email: "x@y.iam.gserviceaccount.com", private_key: pem }));
-    const f: Fetcher = async () => ({ status: 400, text: '{"error":"invalid_grant"}' });
+    let jwtEnvoye = "";
+    const f: Fetcher = async (_url, init = {}) => {
+      jwtEnvoye = new URLSearchParams(init.body ?? "").get("assertion") ?? "";
+      return { status: 400, text: '{"error":"invalid_grant"}' };
+    };
     const p = serviceAccountToken(`${dir}/ok.json`, f);
     await expect(p).rejects.toBeInstanceOf(AuthError);
     await p.catch((e: AuthError) => {
       const tout = `${e.message}${e.hint}`;
+      expect(jwtEnvoye.length).toBeGreaterThan(100); // le JWT a bien été formé, sinon le test ne prouve rien
+      expect(tout).not.toContain(jwtEnvoye);
       expect(tout).not.toContain("PRIVATE KEY");
-      expect(tout).not.toContain("assertion");
       expect(e.hint).toContain("ACC-04");
     });
   });
@@ -383,6 +420,14 @@ describe("serviceAccountToken", () => {
     const f: Fetcher = async () => ({ status: 200, text: '{"access_token":"x"}' });
     await expect(serviceAccountToken(`${dir}/casse.json`, f)).rejects.toBeInstanceOf(AuthError);
     await expect(serviceAccountToken(`${dir}/absent.json`, f)).rejects.toBeInstanceOf(AuthError);
+  });
+
+  test("I-3 : réponse HTTP 200 au corps non-JSON (portail captif) : AuthError, pas une trace SyntaxError brute", async () => {
+    const { pem } = await paire();
+    const dir = `${import.meta.dir}/tmp-sa`;
+    await Bun.write(`${dir}/ok.json`, JSON.stringify({ client_email: "x@y.iam.gserviceaccount.com", private_key: pem }));
+    const f: Fetcher = async () => ({ status: 200, text: "<html>portail captif</html>" });
+    await expect(serviceAccountToken(`${dir}/ok.json`, f)).rejects.toBeInstanceOf(AuthError);
   });
 });
 ```
@@ -450,10 +495,13 @@ export async function getAccessToken(
   return { token, quotaProject, provider: "gcloud" };
 }
 
-/** Appelle le binaire gcloud. Sa sortie n'est jamais journalisée : c'est un jeton porteur. */
-export const defaultGcloud: GcloudRunner = async () => {
+/**
+ * Appelle le binaire gcloud. Sa sortie n'est jamais journalisée : c'est un jeton porteur.
+ * Le nom du binaire est paramétrable pour les tests ; assignable à GcloudRunner (appel sans argument).
+ */
+export const defaultGcloud = async (binaire = "gcloud"): Promise<string | null> => {
   try {
-    const p = Bun.spawn(["gcloud", "auth", "application-default", "print-access-token"], { stdout: "pipe", stderr: "ignore" });
+    const p = Bun.spawn([binaire, "auth", "application-default", "print-access-token"], { stdout: "pipe", stderr: "ignore" });
     const out = (await new Response(p.stdout).text()).trim();
     return (await p.exited) === 0 && out.length > 0 ? out : null;
   } catch {
@@ -489,7 +537,8 @@ export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher,
   }
   const iat = Math.floor(now() / 1000);
   const header = b64urlText(JSON.stringify({ alg: "RS256", typ: "JWT" }));
-  const claims = b64urlText(JSON.stringify({ iss: email, scope: SCOPE, aud: TOKEN_ENDPOINT, exp: iat + 3600, iat }));
+  // 3540 s (59 min), une minute sous le maximum documenté par Google : marge contre une horloge locale légèrement en retard.
+  const claims = b64urlText(JSON.stringify({ iss: email, scope: SCOPE, aud: TOKEN_ENDPOINT, exp: iat + 3540, iat }));
   let jwt: string;
   try {
     const key = await crypto.subtle.importKey("pkcs8", pkcs8Bytes(privateKey), { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
@@ -501,7 +550,12 @@ export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher,
   const body = new URLSearchParams({ grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt }).toString();
   const r = await fetcher(TOKEN_ENDPOINT, { method: "POST", headers: { "content-type": "application/x-www-form-urlencoded" }, body });
   if (r.status !== 200) throw new AuthError(`Google a refusé la clé de compte de service (HTTP ${r.status})`, SA_HINT);
-  const token = (JSON.parse(r.text) as { access_token?: string }).access_token;
+  let token: string | undefined;
+  try {
+    token = (JSON.parse(r.text) as { access_token?: string }).access_token;
+  } catch {
+    throw new AuthError("réponse de jeton illisible", SA_HINT);
+  }
   if (!token) throw new AuthError("réponse de jeton sans access_token", SA_HINT);
   return token;
 }
@@ -512,7 +566,7 @@ Références officielles de ce flux : `https://developers.google.com/identity/pr
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `cd plugin && bun test skills/console/scripts/tests/auth-google.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 13 tests.
 
 - [ ] **Step 5: Vérifier qu'aucun résidu de test ne traîne**
 
