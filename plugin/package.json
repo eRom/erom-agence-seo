@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "bun test",
+    "console": "bun skills/console/scripts/console.ts",
     "collect": "bun skills/audit/scripts/collect.ts",
     "check-sources": "bun skills/audit/scripts/check-sources.ts",
     "lint-report": "bun skills/audit/scripts/lint-report.ts"
