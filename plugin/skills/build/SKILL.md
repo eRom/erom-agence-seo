@@ -45,7 +45,7 @@ Règles : mot-clé principal au début du title (la marque vient du `template` d
 Dans l'ordre de `findings`. Trouvaille `hors-build` : rien, gardée pour l'étape 6. Pour chaque `code` ou `texte` :
 
 1. Lire le bloc de la référence qui porte son id, puis les fichiers visés. Déjà conforme : noter « déjà conforme », passer.
-2. Modifier. Règle texte : h1 et première phrase seulement, valeurs validées, jamais un autre paragraphe, un lien, une image ou une classe ; ne rien supprimer. Bloc Organization : `organization` du plan, tel quel. Hôte : `canonicalBase.origin`, partout.
+2. Modifier. Règle texte : le h1 et la première phrase sont remplacés par les valeurs validées ; l'ancien h1 et l'ancienne phrase disparaissent. Rien d'autre n'est touché ni supprimé : pas un autre paragraphe, un lien, une image, une classe. Bloc Organization : `organization` du plan, tel quel. Hôte : `canonicalBase.origin`, partout.
 3. `bun x tsc --noEmit` si `tsconfig.json` existe. Échec : corriger avant de commiter.
 4. Commit : `git add <fichiers>` puis `git commit -m "seo(IDX-02): canonical absolu et auto-référent sur chaque page"`. Une modification qui règle plusieurs ids porte tous les ids : `seo(SD-02, STRAT-02, STRAT-03): bloc Organization sur la home`. Le commit des textes : `seo(TAG-01, TAG-02, TAG-03, STRAT-01): title, description, h1 et ouverture, textes validés par Romain le <date>`.
 
