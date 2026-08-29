@@ -10,7 +10,7 @@ Source   : https://developers.google.com/search/docs/crawling-indexing/301-redir
 ### Search Console : propriété créée (CL-04)
 Chemin   : search.google.com/search-console, Ajouter une propriété, type Domaine (le nom de domaine nu, sans https ni www), puis dans la fenêtre de vérification, Select record type : TXT ; chez le registrar, un enregistrement TXT sur la racine (Host vide ou @), Value = la chaîne donnée par Search Console ; revenir et cliquer Verify. Site client : ensuite Settings, Users and permissions, Add user, l'adresse du compte de l'agence, le rôle minimal.
 Piège    : la vérification par TXT ne touche que le DNS, pas une page servie ; elle peut donc précéder le déploiement (déduction, la page ne le dit pas noir sur blanc). Le DNS peut mettre jusqu'à trois jours à servir l'enregistrement.
-Piège    : Restricted ne permet pas de soumettre un sitemap ; Full oui ; seul Owner ajoute des utilisateurs. Pour l'agence, viser le rôle minimal qui suffit à lire (note niveau 1, section 5).
+Piège    : ni Restricted ni Full ne soumettent un sitemap : il faut le rôle Owner (voir la ligne « J+1, sitemap soumis dans Search Console ») ; seul Owner ajoute des utilisateurs. Pour l'agence, viser le rôle minimal qui suffit à lire (note niveau 1, section 5).
 Source   : https://support.google.com/webmasters/answer/9008080 « For TXT records, a Search Console verification record looks something like google-site-verification= »
 Source   : https://support.google.com/webmasters/answer/9008080 « For manually installed records, it can take up to two or three days for your provider to start serving the record. »
 Source   : https://support.google.com/webmasters/answer/7687615 « Open the Users and permissions page in property settings »
@@ -47,6 +47,7 @@ Source   : https://www.indexnow.org/documentation « You can submit up to 10,000
 Source   : https://www.indexnow.org/documentation « The HTTP 200 response code only indicates that the search engine has received your set of URLs. »
 Source   : https://www.indexnow.org/documentation « You must host a UTF-8 encoded text key file {your-key}.txt listing the key in the file at the root directory of your website. »
 Source   : https://blogs.bing.com/webmaster/March-2024/Optimize-your-Impact-with-IndexNow-Insights « detailed reports on the number of URLs submitted, crawled, and indexed »
+Source   : https://www.indexnow.org/searchengines « within 10 second after the verification »
 
 ### Sitemap soumis à Bing (CL-10)
 Chemin   : fait par la skill avec `--agir` quand le site est dans le compte Bing de l'agence et vérifié (ligne « Bing Webmaster Tools : site ajouté ») : `SubmitFeed` avec l'URL du site telle que Bing la nomme et l'URL du sitemap de prod. Sinon, ou si Bing refuse (site client délégué en lecture seule) : bing.com/webmasters, Sitemaps, Submit sitemap, coller l'URL complète du sitemap, par le propriétaire du site.
