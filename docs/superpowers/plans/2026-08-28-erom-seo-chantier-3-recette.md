@@ -138,3 +138,120 @@ skills/build/scripts/tests/recipes.test.ts:65:    expect(NEXTJS.includes("—"))
 Chemin d'échec réel (renommer `dev`, relancer `/erom-seo:build`) : **à courir avec Romain (tâche 7)**, geste humain dans une session interactive, hors périmètre de cette tâche.
 
 **Statut : OK** pour la partie tests (206 tests verts, 80 citations retrouvées et 0 en échec, aucun em dash de contenu). Chemin d'échec non couvert ici, en attente de la tâche 7.
+
+## Résultats du 2026-08-29, tâche 7 (recette vivante avec Romain)
+
+Session chico `chico-happiness-49` (`0ad6e2bb-cffc-4dbe-af9a-98e31cb71784`), plugin `main` de `/Users/recarnot/dev/erom-agence-seo/plugin` (chantier 3 fusionné, `acbac74`). Préalable : le diff du chantier 2 commité dans chico (`e06f2c5`). Vérifications faites après coup par la session Fable depuis les fichiers de chico, le journal git et le transcript de la session chico.
+
+### AC-2 : OK
+
+Les textes des 10 pages ont été présentés en listes par page (pas de tableau), les quatre champs avec l'actuel en face, puis « Je bloque là, je ne touche aucun fichier avant ton feu vert ». Romain : « ok sur tout » à 10 h 49 min 48 s. Premier commit à 10 h 56 min 12 s (`a8524ce`). Aucune écriture de fichier entre le plan et le OK dans le transcript.
+
+### AC-3 : OK avec un écart mineur
+
+```
+git -C /Users/recarnot/dev/chico-happiness log --oneline e06f2c5..3e7023b
+```
+
+```
+3e7023b seo: audit niveau 2 final, 0 Critique/Important/Mineur
+a1fa533 seo(FRESH-01, FRESH-02): date visible alignée sur dateModified
+81d45a1 seo(SD-01): corrige dateModified JSON-LD /telekinesie et /studies
+4485cd8 seo(TAG-01, TAG-02, TAG-03, STRAT-01): title, description, h1 et ouverture, textes validés par Romain le 2026-08-29
+52e0f3b seo(AI-02): dépôt de la clé IndexNow
+6c14a6f seo(SD-02, STRAT-02, STRAT-03): bloc Organization et phrase d'identité sur la home
+e17ff94 seo(SD-01): JSON-LD Article/WebPage sur les pages de contenu
+a8524ce seo(IDX-02): canonical absolu et auto-référent sur chaque page
+```
+
+`bun run build` dans chico : passe (toutes les routes en statique).
+
+Écart R-3 (mineur) : le neuvième commit `3e7023b` (le rapport d'audit final) ne commence pas par `seo(` et ne porte aucun id. La skill ne dit ni de commiter le rapport ni comment le nommer.
+
+### AC-4 : OK
+
+Serveur lancé par build sur le port 3456 (`bun run dev --port 3456`, pid 94732), audit niveau 2 via la skill `/erom-seo:audit http://localhost:3456`, `seo/audits/2026-08-29-n2-3/report.md` écrit, `kill 94732` puis « serveur arrêté ». Après coup : `lsof -i :3456` vide.
+
+Observation R-4 (mineure) : trois collectes pour un seul passage (`2026-08-29-n2`, `-n2-2`, `-n2-3`). Build a corrigé entre deux collectes sans écrire de rapport (`81d45a1` un `dateModified` faux qu'il avait lui-même introduit, `a1fa533` FRESH-01 et FRESH-02), puis a mis les deux dossiers avortés à la poubelle (un `rm -rf` d'abord, refusé par le garde, puis `trash`). Résultat correct, mais la boucle prévue (étape 4 rapport, étape 5 plan, retour à l'étape 1, deux passages max) n'a pas été suivie à la lettre : un seul passage compté, trois audits joués.
+
+### AC-5 : OK
+
+```
+sed -n 5,6p seo/audits/2026-08-29-n2-3/report.md
+grep -c "^STRAT-0[1-3]\|^SD-02\|^IDX-02\|^TAG-0[12]\|^AI-02" seo/audits/2026-08-29-n2-3/report.md
+```
+
+```
+## En bref
+0 Critique · 0 Important · 0 Mineur · 1 Info
+8
+```
+
+Seule trouvaille restante : `[Info] AI-01 : llms.txt absent`.
+
+### AC-6 : KO
+
+Message final de build : « Rien en attente, pas de "hors build" cette fois ». IDX-04 (307 apex vers www, Vercel) n'apparaît nulle part.
+
+Cause : le plan a été calculé sur `seo/audits/2026-08-28-n2` (audit localhost), pas sur `2026-08-28-n0` (prod). `latestAuditDir` départage deux audits du même jour par la date de modification de `report.md`, et le n2 a été écrit après le n0. Sur localhost, IDX-04 est non applicable, donc absent du plan, donc absent de la restitution. L'étape 6 de la skill prévoit bien de reporter « les hors build du premier plan, même si l'audit local les a marqués non applicables », mais ici le premier plan n'en avait déjà plus. Une trouvaille de prod disparaît en silence dès qu'un audit local plus récent existe.
+
+Trouvaille R-6 (importante) : à trancher par Romain. Pistes : `plan.ts` ajoute les trouvailles `hors-build` du dernier audit n0 (prod) à tout plan calculé sur un audit n2, ou la restitution de build relit le dernier rapport n0 pour lister ses hors build. Pas corrigé pendant la recette.
+
+### AC-7 : KO partiel
+
+```
+git -C /Users/recarnot/dev/chico-happiness diff main..3e7023b --stat | tail -1
+```
+
+```
+52 files changed, 2490 insertions(+), 19 deletions(-)
+```
+
+Fichiers hors `seo/` et `public/` : `src/app/layout.tsx`, `src/app/page.tsx`, 9 `src/app/<page>/page.tsx`, 7 `src/app/<page>/layout.tsx` (6 créés), `src/components/seo/JsonLd.tsx` (créé), `src/components/sections/Hero.tsx`. Dans les `page.tsx` : h1, première phrase, `metadata`, `<JsonLd>`, conformes à la règle.
+
+Trouvaille R-7a (importante, texte visible sur le site) : sur `/ascension` et `/methode`, la phrase d'ouverture validée a été ajoutée devant l'ancienne, et l'ancienne conservée. Résultat visible :
+
+```
+L'ascension C.H.I.C.O. commence ici : choisissez votre niveau de conscience, sans remboursement sur le Nirvana. Pas de remboursement sur le Nirvana.
+```
+
+```
+La Méthode Quantique C.H.I.C.O. combine miroir quantique et hypnose blockchain pour transmuter votre chakra racine en ROI (Retour On Illumination). Là où la blockchain rencontre le chakra racine pour une optimisation quantique de votre ROI (Retour On Illumination)
+```
+
+Cause probable : la règle texte de l'étape 3 dit « h1 et première phrase seulement » et « ne rien supprimer », sans dire que la première phrase est remplacée. Le modèle a pris « ne rien supprimer » au pied de la lettre. Correctif skill à écrire : « remplacer la première phrase par la valeur validée (l'ancienne disparaît), ne rien supprimer d'autre ». Chico : corriger les deux phrases avant fusion.
+
+Écart R-7b (déclaré par build dans sa restitution, à trancher) : deux textes visibles hors de la table validée. L'ouverture de la home remplacée par la phrase d'identité de `seo/strategy.md` (exigée par STRAT-03, l'audit refusait le bloc Organization sans elle) ; une ligne « Mis à jour le 29 août 2026 » ajoutée sur `/methode`, `/telekinesie`, `/studies` (FRESH-01, FRESH-02 : date visible alignée sur `dateModified`). Build les a annoncés franchement, ce qui est le bon comportement, mais la règle 7 « aucun texte visible inventé hors de la table validée » n'est pas tenue. Piste : l'étape 2 propose d'office la phrase d'identité comme ouverture de la home quand STRAT-03 est ouvert, et annonce la ligne de date quand FRESH est ouvert.
+
+Écart R-7c (mineur) : le h1 de la home vit dans `src/components/sections/Hero.tsx`, pas dans `page.tsx` ; la liste de fichiers d'AC-7 ne prévoit pas les composants de section. À préciser dans la spec plutôt qu'à interdire.
+
+Écart R-7d (mineur) : `seo/audits/2026-08-28-n2/derived/build-plan.json` (le premier plan) et tout `seo/audits/2026-08-29-n2-3/` (dont `raw/`) commités sur la branche par build. Depuis la recette, chico ignore `seo/**/raw/` (commit `chore` sur la branche build) ; la skill pourrait poser ce `.gitignore` elle-même.
+
+### AC-8, chemin d'échec : OK
+
+Joué en headless par la session Fable, sur une branche jetable de chico partant de la branche build : `git switch -c ac8-jetable`, `dev` renommé `dev-off` dans `package.json` (commit `2dc0e01`), puis :
+
+```bash
+env -u CLAUDECODE claude -p "/erom-seo:build" --plugin-dir /Users/recarnot/dev/erom-agence-seo/plugin --dangerously-skip-permissions --max-turns 80 --output-format text
+```
+
+Sortie réelle (extrait) :
+
+```
+Build terminé. Rien à corriger, mais je n'ai pas pu revérifier par un audit frais.
+- Plan sur `seo/audits/2026-08-29-n2-3` : 0 trouvaille ouverte. Aucun texte à valider, aucun fichier touché.
+- Étape 4 : je ne peux pas lancer le serveur. Lance `bun run dev`, puis `/erom-seo:audit http://localhost:3000`. Journal : `$TMPDIR/erom-seo-dev.log` (contenu : `error: Script not found "dev"`). Cause : le script s'appelle `dev-off` dans `package.json`.
+- Commits depuis `2dc0e01` : aucun.
+Branche `ac8-jetable`, rien n'est poussé.
+```
+
+Après coup : `git log 2dc0e01..HEAD` vide, `lsof -i :3456` vide, aucun serveur laissé. Branche jetable supprimée, chico remis sur `seo-build-2026-08-29`, `dev` intact.
+
+Observation R-8 (mineure) : `plan.ts` réécrit `derived/build-plan.json`, que build avait commité ; le second lancement laisse donc ce fichier modifié dans l'arbre (` M seo/audits/2026-08-29-n2-3/derived/build-plan.json`). Sans effet sur le contrôle d'arbre propre (fait avant `plan.ts`), mais un run de build sur un arbre déjà porteur d'un plan commité finit avec un fichier modifié non commité.
+
+## Bilan de la tâche 7
+
+- OK : AC-1, AC-2, AC-3, AC-4, AC-5, AC-8. KO : AC-6 (hors build de prod perdus quand le dernier audit est local, R-6). KO partiel : AC-7 (phrases d'ouverture dupliquées sur deux pages, R-7a).
+- À trancher par Romain : R-6 (où build va chercher les hors build de prod), R-7a (correctif de la règle texte de la skill, puis correction des deux phrases dans chico avant fusion), R-7b (textes hors table : les proposer à l'étape 2).
+- Mineurs, à prendre dans un ménage : R-3 (nom du commit du rapport), R-4 (boucle compressée, trois collectes), R-7c (composants de section dans AC-7), R-7d (`.gitignore` de `seo/**/raw/` posé par la skill), R-8 (plan régénéré sur un arbre porteur d'un plan commité).
+- Chico : branche `seo-build-2026-08-29` (8 commits `seo(...)`, le rapport, le `chore` gitignore), non fusionnée, rien poussé. Le site est visible en local avec `bun run dev`.
