@@ -1124,6 +1124,51 @@ describe("renderSites", () => {
     expect(out).toContain("sc-domain:romain-ecarnot.com");
     expect(out).toContain("clé absente");
   });
+  test("une propriété sans sitemap déclaré le dit en clair", () => {
+    const out = renderSites({ google: [{ property: prop, sitemaps: [] }], googleError: null, bing: [], bingError: null });
+    expect(out).toContain("aucun sitemap déclaré");
+  });
+  test("un sitemap sans détail de contenu ne fabrique pas de chiffre", () => {
+    const out = renderSites({ google: [{ property: prop, sitemaps: [{ ...sitemap, contents: [] }] }], googleError: null, bing: [], bingError: null });
+    expect(out).toContain("sans détail");
+    expect(out).not.toMatch(/soumis \d/);
+  });
+  test("un compte Bing non vide nomme chaque site, son statut de vérification et ses flux", () => {
+    const out = renderSites({
+      google: [], googleError: null,
+      bing: [
+        { site: { Url: "https://x.com", IsVerified: true }, feeds: [1, 2] },
+        { site: { Url: "https://y.com", IsVerified: false }, feeds: [] },
+      ],
+      bingError: null,
+    });
+    expect(out).toContain("https://x.com");
+    expect(out).toContain("https://y.com");
+    expect(out).toContain("vérifié");
+    expect(out).toContain("non vérifié");
+    expect(out).toContain("2 flux déclaré(s)");
+    expect(out).toContain("0 flux déclaré(s)");
+    expect(out).not.toContain("aucun site dans ce compte Bing");
+  });
+  test("un refus Google n'empêche pas Bing de répondre", () => {
+    const out = renderSites({ google: null, googleError: "jeton refusé ou expiré", bing: [], bingError: null });
+    expect(out).toContain("jeton refusé ou expiré");
+    expect(out).toContain("aucun site dans ce compte Bing");
+  });
+  test("un sitemap illisible se dit distinctement d'un sitemap absent", () => {
+    const out = renderSites({ google: [{ property: prop, sitemaps: null }], googleError: null, bing: [], bingError: null });
+    expect(out).toContain("sitemaps non lisibles pour cette propriété");
+    expect(out).not.toContain("aucun sitemap déclaré");
+  });
+  test("des flux Bing illisibles se disent distinctement de zéro flux", () => {
+    const out = renderSites({
+      google: [], googleError: null,
+      bing: [{ site: { Url: "https://x.com", IsVerified: true }, feeds: null }],
+      bingError: null,
+    });
+    expect(out).toContain("flux non lisibles");
+    expect(out).not.toContain("0 flux déclaré(s)");
+  });
 });
 
 describe("renderInspect", () => {
@@ -1193,16 +1238,61 @@ describe("renderCrawl", () => {
     expect(out).toContain("1 entrée(s) de statistiques");
     expect(out).toContain("aucune erreur de crawl remontée par Bing");
   });
+  test("des erreurs de crawl remontées par Bing sont comptées, pas noyées dans la phrase d'absence", () => {
+    const out = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [{ y: 1 }, { y: 2 }] }, bingError: null });
+    expect(out).toContain("2 erreur(s) de crawl");
+    expect(out).not.toContain("aucune erreur de crawl remontée par Bing");
+  });
 });
 
 describe("pas de tiret cadratin", () => {
-  test("aucune sortie n'en contient", () => {
-    const outs = [
-      renderSites({ google: [{ property: prop, sitemaps: [sitemap] }], googleError: null, bing: [], bingError: null }),
-      renderInspect({ url: "https://a/", property: prop, google: { link: null, status: known }, googleError: null, bing: null, bingError: null }),
-      renderCrawl({ site: "https://a", bing: null, bingError: null }),
+  // Le filet doit voir chaque chaîne littérale de render.ts au moins une fois : sinon un tiret injecté
+  // dans une branche non exercée passerait la suite sans être vu (trouvaille de la revue du 29/08).
+  test("aucune sortie n'en contient, sur toutes les branches de rendu", () => {
+    const sitesPleine = renderSites({ google: [{ property: prop, sitemaps: [sitemap] }], googleError: null, bing: [], bingError: null });
+    const sitesSansSitemap = renderSites({ google: [{ property: prop, sitemaps: [] }], googleError: null, bing: [], bingError: null });
+    const sitesSansDetail = renderSites({ google: [{ property: prop, sitemaps: [{ ...sitemap, contents: [] }] }], googleError: null, bing: [], bingError: null });
+    const sitesBingPeuple = renderSites({
+      google: [], googleError: null,
+      bing: [
+        { site: { Url: "https://x.com", IsVerified: true }, feeds: [1, 2] },
+        { site: { Url: "https://y.com", IsVerified: false }, feeds: [] },
+      ],
+      bingError: null,
+    });
+    const sitesGoogleEnErreur = renderSites({ google: null, googleError: "jeton refusé ou expiré", bing: [], bingError: null });
+    const sitesSitemapsIllisibles = renderSites({ google: [{ property: prop, sitemaps: null }], googleError: null, bing: [], bingError: null });
+    const sitesFeedsIllisibles = renderSites({
+      google: [], googleError: null,
+      bing: [{ site: { Url: "https://x.com", IsVerified: true }, feeds: null }],
+      bingError: null,
+    });
+
+    const inspectAvecLien = renderInspect({
+      url: "https://romain-ecarnot.com/", property: prop,
+      google: { link: "https://search.google.com/x", status: known }, googleError: null, bing: null, bingError: "clé absente",
+    });
+    const inspectMismatch = renderInspect({
+      url: "https://a/", property: prop,
+      google: { link: null, status: { ...known, userCanonical: "https://a/" } }, googleError: null, bing: null, bingError: null,
+    });
+    const inspectSansEtat = renderInspect({ url: "https://a/", property: prop, google: { link: null, status: null }, googleError: null, bing: null, bingError: null });
+    const inspectBingType = renderInspect({
+      url: "https://a/", property: prop, google: null, googleError: "x",
+      bing: { __type: "UrlInfo:#Microsoft.Bing.Webmaster.Api" }, bingError: null,
+    });
+
+    const crawlSansDonnees = renderCrawl({ site: "https://a", bing: null, bingError: null });
+    const crawlSansErreur = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [] }, bingError: null });
+    const crawlAvecErreurs = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [{ y: 1 }, { y: 2 }] }, bingError: null });
+
+    const sorties = [
+      sitesPleine, sitesSansSitemap, sitesSansDetail, sitesBingPeuple, sitesGoogleEnErreur,
+      sitesSitemapsIllisibles, sitesFeedsIllisibles,
+      inspectAvecLien, inspectMismatch, inspectSansEtat, inspectBingType,
+      crawlSansDonnees, crawlSansErreur, crawlAvecErreurs,
     ];
-    for (const o of outs) expect(o).not.toContain("—");
+    for (const o of sorties) expect(o).not.toContain("—");
   });
 });
 ```
@@ -1224,8 +1314,8 @@ import type { Property, BingSite } from "./resolve";
 import { canonicalMismatch, type Inspection, type SitemapInfo } from "./gsc";
 
 export type SitesView = {
-  google: { property: Property; sitemaps: SitemapInfo[] }[] | null; googleError: string | null;
-  bing: { site: BingSite; feeds: unknown[] }[] | null; bingError: string | null;
+  google: { property: Property; sitemaps: SitemapInfo[] | null }[] | null; googleError: string | null;
+  bing: { site: BingSite; feeds: unknown[] | null }[] | null; bingError: string | null;
 };
 export type InspectView = {
   url: string; property: Property | null;
@@ -1243,8 +1333,9 @@ export function renderSites(v: SitesView): string {
   else if (!v.google || v.google.length === 0) out.push("  aucune propriété visible par ce compte");
   else for (const g of v.google) {
     out.push(`  ${g.property.siteUrl} (${g.property.permissionLevel})`);
-    if (g.sitemaps.length === 0) out.push("    aucun sitemap déclaré");
-    for (const s of g.sitemaps) {
+    if (g.sitemaps === null) out.push("    sitemaps non lisibles pour cette propriété");
+    else if (g.sitemaps.length === 0) out.push("    aucun sitemap déclaré");
+    else for (const s of g.sitemaps) {
       const c = s.contents[0];
       const chiffres = c ? `soumis ${c.submitted ?? "?"}, indexé ${c.indexed ?? "?"}` : "sans détail";
       out.push(`    ${s.path} : ${chiffres}, ${s.errors ?? "?"} erreurs, ${s.warnings ?? "?"} avertissements`);
@@ -1256,7 +1347,7 @@ export function renderSites(v: SitesView): string {
   else if (!v.bing || v.bing.length === 0) out.push("  aucun site dans ce compte Bing");
   else for (const b of v.bing) {
     out.push(`  ${b.site.Url} (${b.site.IsVerified ? "vérifié" : "non vérifié"})`);
-    out.push(`    ${b.feeds.length} flux déclaré(s)`);
+    out.push(b.feeds === null ? "    flux non lisibles" : `    ${b.feeds.length} flux déclaré(s)`);
   }
   return out.join("\n");
 }
@@ -1367,21 +1458,26 @@ import { describe, test, expect } from "bun:test";
 import { runConsole } from "../console";
 
 // Clé de test volontairement non hexadécimale : sur cette machine, l'outil de lecture masque toute
-// chaîne de 32 caractères hexadécimaux (la forme d'une vraie clé Bing), et le masque finissait
-// recopié dans le source. `redact` n'exige qu'une longueur d'au moins 8 caractères.
+// chaîne de 32 caractères hexadécimaux (la forme d'une vraie clé Bing), et le masque finirait recopié
+// dans le source. `redact` n'exige qu'une longueur d'au moins 8 caractères (même valeur que bing.test.ts).
 const KEY = "cle-de-test-bing-jamais-reelle";
 const SITES = '{"siteEntry":[{"siteUrl":"sc-domain:romain-ecarnot.com","permissionLevel":"siteOwner"}]}';
 const INSPECT = '{"inspectionResult":{"inspectionResultLink":"https://search.google.com/x","indexStatusResult":{"verdict":"NEUTRAL","coverageState":"Page with redirect","googleCanonical":"https://www.romain-ecarnot.com/","userCanonical":"https://romain-ecarnot.com/"}}}';
 
 type Call = { url: string; method: string };
-function deps(opts: { key?: string | null; bingSites?: string; inspectStatus?: number }) {
+function deps(opts: {
+  key?: string | null; bingSites?: string; inspectStatus?: number; urlInfo?: string; sitesStatus?: number;
+  sitemapsStatus?: number; feedsError?: string;
+}) {
   const calls: Call[] = [];
   const fetcher = async (url: string, init: { method?: string } = {}) => {
     const c = { url, method: init.method ?? "GET" };
     calls.push(c);
-    if (url.includes("/webmasters/v3/sites/")) return { status: 200, text: '{"sitemap":[]}' };
-    if (url.includes("/webmasters/v3/sites")) return { status: 200, text: SITES };
+    if (url.includes("/webmasters/v3/sites/")) return { status: opts.sitemapsStatus ?? 200, text: opts.sitemapsStatus ? "{}" : '{"sitemap":[]}' };
+    if (url.includes("/webmasters/v3/sites")) return { status: opts.sitesStatus ?? 200, text: opts.sitesStatus ? "{}" : SITES };
     if (url.includes("index:inspect")) return { status: opts.inspectStatus ?? 200, text: opts.inspectStatus ? "{}" : INSPECT };
+    if (url.includes("GetUrlInfo")) return { status: 200, text: opts.urlInfo ?? '{"d":null}' };
+    if (url.includes("GetFeeds")) return { status: 200, text: opts.feedsError ?? '{"d":[]}' };
     if (url.includes("GetUserSites")) return { status: 200, text: opts.bingSites ?? '{"d":[]}' };
     return { status: 200, text: '{"d":null}' };
   };
@@ -1389,7 +1485,7 @@ function deps(opts: { key?: string | null; bingSites?: string; inspectStatus?: n
     calls,
     deps: {
       fetcher,
-      env: { GSC_QUOTA_PROJECT: "p-123", BING_WMT_API_KEY: opts.key === undefined ? KEY : (opts.key ?? undefined) },
+      env: { GSC_QUOTA_PROJECT: "p-123", BING_WMT_API_KEY: (opts.key === undefined ? KEY : opts.key ?? undefined) },
       // Un jeton reconnaissable : les tests de fuite cherchent ce préfixe dans les sorties.
       gcloud: async () => "ya29.JETON-SECRET",
       serviceAccount: async () => "sa.FAUX",
@@ -1419,6 +1515,40 @@ describe("console sites", () => {
     expect(() => JSON.parse(r.out)).not.toThrow();
     expect(r.out).not.toContain(KEY);
   });
+  test("un 500 sur la liste des propriétés Google : Bing répond quand même, code 0", async () => {
+    const { deps: d } = deps({ sitesStatus: 500, bingSites: '{"d":[{"Url":"https://x.com","IsVerified":true}]}' });
+    const r = await runConsole(["sites"], d);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("https://x.com");
+  });
+  test("un ErrorCode Bing sur GetUserSites : Google répond quand même, code 0", async () => {
+    const { deps: d } = deps({ bingSites: '{"ErrorCode":3,"Message":"InvalidApiKey"}' });
+    const r = await runConsole(["sites"], d);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("sc-domain:romain-ecarnot.com");
+  });
+  test("aucun moteur n'a répondu : code 1", async () => {
+    const { deps: d } = deps({ key: null });
+    const r = await runConsole(["sites"], { ...d, gcloud: async () => null });
+    expect(r.code).toBe(1);
+  });
+  test("sitemaps illisibles sur une propriété : la sortie le dit, sans prétendre à zéro sitemap, code 0", async () => {
+    const { deps: d } = deps({ sitemapsStatus: 403 });
+    const r = await runConsole(["sites"], d);
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("sitemaps non lisibles");
+    expect(r.out).not.toContain("aucun sitemap déclaré");
+  });
+  test("flux Bing illisibles sur un site : la sortie le dit, sans prétendre à zéro flux, le site reste nommé", async () => {
+    const { deps: d } = deps({
+      bingSites: '{"d":[{"Url":"https://x.com","IsVerified":true}]}',
+      feedsError: '{"ErrorCode":2,"Message":"UnknownError"}',
+    });
+    const r = await runConsole(["sites"], d);
+    expect(r.out).toContain("https://x.com");
+    expect(r.out).toContain("flux non lisibles");
+    expect(r.out).not.toContain("0 flux déclaré(s)");
+  });
 });
 
 describe("console inspect", () => {
@@ -1436,17 +1566,34 @@ describe("console inspect", () => {
     expect(calls.some((c) => c.url.includes("index:inspect"))).toBe(false);
   });
   // Le compte Bing de Romain est vide aujourd'hui : sans ce cas, la branche reste intestée
-  // et le défaut se réveillerait le jour où un site entre dans le compte.
-  test("hors de toute propriété mais site présent chez Bing : toujours 1 (AC-4)", async () => {
-    const { deps: d, calls } = deps({ bingSites: '{"d":[{"Url":"https://example.com","IsVerified":true}]}' });
+  // et le défaut se réveillerait le jour où un site entre dans le compte. Bing doit vraiment
+  // répondre (urlInfo non vide), sinon le test ne prouve rien : `bing` resterait null de toute
+  // façon et le code 1 ne devrait rien à la garde qu'il prétend couvrir.
+  test("hors de toute propriété mais site présent chez Bing, qui répond : toujours 1 (AC-4)", async () => {
+    const { deps: d, calls } = deps({
+      bingSites: '{"d":[{"Url":"https://example.com","IsVerified":true}]}',
+      urlInfo: '{"d":{"Url":"https://example.com/"}}',
+    });
     const r = await runConsole(["inspect", "https://example.com/"], d);
     expect(r.code).toBe(1);
+    expect(calls.some((c) => c.url.includes("GetUrlInfo"))).toBe(true);
     expect(calls.some((c) => c.url.includes("index:inspect"))).toBe(false);
   });
   test("sur un 403 de Google, le rôle observé apparaît dans la sortie", async () => {
     const { deps: d } = deps({ inspectStatus: 403 });
     const r = await runConsole(["inspect", "https://romain-ecarnot.com/"], d);
     expect(r.out).toContain("siteOwner");
+  });
+  test("compte Bing vide, sur une URL couverte par une propriété : le dit en clair", async () => {
+    const { deps: d } = deps({});
+    const r = await runConsole(["inspect", "https://romain-ecarnot.com/"], d);
+    expect(r.out).toContain("aucun site dans ce compte Bing");
+  });
+  test("compte Bing non vide mais hôte absent, sur inspect : la phrase le dit, sans prétendre que le compte est vide", async () => {
+    const { deps: d } = deps({ bingSites: '{"d":[{"Url":"https://autre.com","IsVerified":true}]}' });
+    const r = await runConsole(["inspect", "https://romain-ecarnot.com/"], d);
+    expect(r.out).toContain("ce site n'est pas dans le compte Bing");
+    expect(r.out).not.toContain("aucun site dans ce compte Bing");
   });
 });
 
@@ -1483,35 +1630,78 @@ describe("aucun secret ne sort", () => {
   });
 });
 
+describe("redact protège les erreurs réseau", () => {
+  test("une erreur qui porte l'URL complète, donc la clé, ne fuite jamais dans la sortie", async () => {
+    const { deps: d } = deps({});
+    const fetcherQuiFuit = async (url: string, init: { method?: string } = {}) => {
+      if (url.includes("GetUserSites")) throw new Error(`connexion refusée sur ${url}`);
+      return d.fetcher(url, init);
+    };
+    const r = await runConsole(["sites"], { ...d, fetcher: fetcherQuiFuit });
+    expect(r.out).not.toContain(KEY);
+    expect(r.out).toContain("[clé]");
+  });
+});
+
 describe("aucune écriture", () => {
-  test("aucun appel ne vise SubmitFeed, SubmitUrlBatch ni IndexNow", async () => {
+  test("aucun appel ne vise SubmitFeed, SubmitUrlBatch ni IndexNow, et tout appel hors inspection est un GET", async () => {
     const { deps: d, calls } = deps({});
     await runConsole(["sites"], d);
     await runConsole(["inspect", "https://romain-ecarnot.com/"], d);
     await runConsole(["crawl", "--site", "https://romain-ecarnot.com"], d);
     const interdits = ["SubmitFeed", "SubmitUrlBatch", "indexnow", "/sitemaps/"];
-    for (const c of calls) for (const i of interdits) expect(c.url.includes(i)).toBe(false);
+    for (const c of calls) {
+      for (const i of interdits) expect(c.url.includes(i)).toBe(false);
+      // index:inspect est le seul appel en écriture de flux HTTP (POST) : une lecture (D30, D34).
+      if (!c.url.includes("index:inspect")) expect(c.method).toBe("GET");
+    }
   });
 });
 
 describe("erreurs de mise en route", () => {
-  test("sans GSC_QUOTA_PROJECT, la consigne nomme la variable et la commande d'activation", async () => {
+  test("sans GSC_QUOTA_PROJECT, la consigne nomme la variable et la commande d'activation, et Bing répond quand même", async () => {
     const { deps: d } = deps({});
     const r = await runConsole(["sites"], { ...d, env: { BING_WMT_API_KEY: KEY } });
     expect(r.out).toContain("GSC_QUOTA_PROJECT");
     expect(r.out).toContain("gcloud services enable searchconsole.googleapis.com");
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("aucun site dans ce compte Bing");
   });
-  test("sans jeton du tout, la consigne donne la commande de connexion et son scope", async () => {
+  test("sans jeton du tout, la consigne donne la commande de connexion et son scope, et Bing répond quand même", async () => {
     const { deps: d } = deps({});
     const r = await runConsole(["sites"], { ...d, gcloud: async () => null });
     expect(r.out).toContain("gcloud auth application-default login");
     expect(r.out).toContain("webmasters.readonly");
+    expect(r.code).toBe(0);
+    expect(r.out).toContain("aucun site dans ce compte Bing");
   });
   test("crawl sans site et sans strategy.md sort en 1 avec la consigne", async () => {
     const { deps: d } = deps({});
     const r = await runConsole(["crawl"], d);
     expect(r.code).toBe(1);
     expect(r.out).toContain("--site");
+  });
+  test("crawl --site sans valeur le dit, sans retomber en silence sur strategy.md", async () => {
+    const { deps: d } = deps({});
+    const r = await runConsole(["crawl", "--site"], { ...d, readStrategy: async () => "# Stratégie SEO/GEO : example.com" });
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("--site");
+    expect(r.out).toContain("attend une URL");
+  });
+  test("une strategy.md présente mais invalide le dit, pas la consigne de dossier", async () => {
+    const { deps: d } = deps({});
+    const r = await runConsole(["crawl"], { ...d, readStrategy: async () => "markdown invalide sans titre" });
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("ne s'analyse pas");
+    expect(r.out).not.toContain("lance depuis un dossier");
+  });
+  test("console inspect sur une URL malformée rend une phrase française, pas Invalid URL", async () => {
+    const { deps: d, calls } = deps({});
+    const r = await runConsole(["inspect", "pas-une-url"], d);
+    expect(r.code).toBe(1);
+    expect(r.out).toContain("n'est pas une URL valide");
+    expect(r.out).not.toContain("Invalid URL");
+    expect(calls.length).toBe(0);
   });
 });
 ```
@@ -1568,8 +1758,9 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
   const key = d.env.BING_WMT_API_KEY ?? null;
   let token: string | null = null;
 
-  // redact retire la clé Bing ; assertNoSecret est le garde-fou de dernier recours, sur la clé ET sur le
-  // jeton porteur (spec sections 3 et 9). Il lève plutôt que de laisser fuir : c'est le bon échec.
+  // redact retire la clé Bing de tout ce qui sort. assertNoSecret est le filet de tout dernier recours,
+  // sur la clé ET sur le jeton (spec sections 3 et 9) : il ne se déclenche que si redact a laissé passer
+  // quelque chose, donc sans chemin d'exercice normal en usage correct ; il lève plutôt que de laisser fuir.
   const done = (view: unknown, text: string, code: 0 | 1) => {
     const out = redact(json ? JSON.stringify(view, null, 2) : text, key);
     assertNoSecret(out, key);
@@ -1593,8 +1784,9 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
       try {
         const props = await listProperties(d.fetcher, a);
         google = [];
-        // Un sitemap illisible sur une propriété ne doit pas emporter les autres propriétés.
-        for (const p of props) google.push({ property: p, sitemaps: await listSitemaps(d.fetcher, a, p.siteUrl).catch(() => []) });
+        // Un sitemap illisible sur une propriété ne doit pas emporter les autres propriétés, mais ne doit
+        // pas non plus se déguiser en « zéro sitemap » : null distingue l'échec de lecture de l'absence.
+        for (const p of props) google.push({ property: p, sitemaps: await listSitemaps(d.fetcher, a, p.siteUrl).catch(() => null) });
       } catch (e) { googleError = reason(e); }
     }
     let bing: SitesView["bing"] = null;
@@ -1603,7 +1795,7 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
       try {
         const sites = await bingUserSites(d.fetcher, key);
         bing = [];
-        for (const s of sites) bing.push({ site: s, feeds: await bingFeeds(d.fetcher, key, s.Url).catch(() => []) });
+        for (const s of sites) bing.push({ site: s, feeds: await bingFeeds(d.fetcher, key, s.Url).catch(() => null) });
       } catch (e) { bingError = reason(e); }
     }
     const view: SitesView = { google, googleError, bing, bingError };
@@ -1613,6 +1805,12 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
   if (cmd === "inspect") {
     const url = rest[1];
     if (!url) return { out: USAGE, code: 1 };
+    let host: string;
+    try {
+      host = new URL(url).hostname;
+    } catch {
+      return { out: `« ${url} » n'est pas une URL valide. Exemple : console inspect https://exemple.fr/page`, code: 1 };
+    }
     const [a, authErr] = await auth();
     let property: Property | null = null;
     let google: InspectView["google"] = null;
@@ -1633,7 +1831,6 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     let bingError: string | null = key ? null : NOKEY;
     if (key) {
       try {
-        const host = new URL(url).hostname;
         const sites = await bingUserSites(d.fetcher, key);
         const site = resolveBingSite(host, sites);
         if (!site) bingError = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
@@ -1647,12 +1844,22 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
 
   if (cmd === "crawl") {
     const i = rest.indexOf("--site");
+    if (i >= 0 && !rest[i + 1]) return { out: "--site attend une URL en argument", code: 1 };
     let site = i >= 0 ? rest[i + 1] : undefined;
+    let raisonStrategie: string | null = null;
     if (!site) {
       const md = await d.readStrategy();
-      if (md) { try { site = parseStrategy(md).site; } catch { /* stratégie inanalysable : on demande --site */ } }
+      if (md) {
+        try {
+          site = parseStrategy(md).site;
+        } catch (e) {
+          // Une stratégie présente mais invalide n'est pas une stratégie absente : le dire évite à
+          // l'utilisateur de chercher un fichier qui existe déjà.
+          raisonStrategie = `seo/strategy.md est présent mais ne s'analyse pas :\n  ${reason(e)}`;
+        }
+      }
     }
-    if (!site) return { out: "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
+    if (!site) return { out: raisonStrategie ?? "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
     let bing: CrawlView["bing"] = null;
     let bingError: string | null = key ? null : NOKEY;
     if (key) {
@@ -1682,19 +1889,25 @@ if (import.meta.main) {
       throw new Error(`service injoignable : ${e instanceof Error ? e.message : String(e)}`);
     }
   };
-  // assertNoSecret lève si un secret a survécu à redact : on préfère un échec net à une fuite.
-  const { out, code } = await runConsole(process.argv.slice(2), {
-    fetcher: defaultFetcher,
-    env: process.env,
-    gcloud: defaultGcloud,
-    serviceAccount: (path) => serviceAccountToken(path, defaultFetcher),
-    readStrategy: async () => {
-      const f = Bun.file("seo/strategy.md");
-      return (await f.exists()) ? f.text() : null;
-    },
-  });
-  console.log(out);
-  process.exit(code);
+  try {
+    const { out, code } = await runConsole(process.argv.slice(2), {
+      fetcher: defaultFetcher,
+      env: process.env,
+      gcloud: defaultGcloud,
+      serviceAccount: (path) => serviceAccountToken(path, defaultFetcher),
+      readStrategy: async () => {
+        const f = Bun.file("seo/strategy.md");
+        return (await f.exists()) ? f.text() : null;
+      },
+    });
+    console.log(out);
+    process.exit(code);
+  } catch (e) {
+    // Un échec ici (par exemple assertNoSecret qui lève parce qu'un secret a survécu à redact) ne sort
+    // jamais en trace brute : même traitement que le reste du CLI, jamais une fuite.
+    console.log(reason(e));
+    process.exit(1);
+  }
 }
 ```
 
