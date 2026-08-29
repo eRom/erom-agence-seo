@@ -9,7 +9,7 @@ notes_liees:
   - docs/recherches/2026-08-29-checklist-indexnow-bing-gsc.md
   - docs/superpowers/specs/2026-08-29-erom-seo-checklist-design.md
   - .claude/notes/2026-08-27-reprise-2120.md
-cobaye: sc-domain:romain-ecarnot.com (propriété Search Console de Romain, rôle propriétaire, sitemap déclaré). Chico n'a de propriété ni chez Google ni chez Bing au 29/08.
+cobaye: sc-domain:romain-ecarnot.com (propriété Search Console de Romain, rôle propriétaire, sitemap déclaré) et, depuis le 29/08 au soir, les deux mêmes sites vérifiés dans Bing Webmaster Tools. Chico n'a de propriété ni chez Google ni chez Bing.
 ---
 
 # erom-seo, chantier 5 étape 1 : `console`
@@ -168,6 +168,8 @@ Chaque cas a une phrase et une consigne, jamais une trace.
 - Aucun jeton disponible : exit 1, la commande de connexion avec son scope.
 - `GSC_QUOTA_PROJECT` absente avec le fournisseur gcloud : exit 1, la variable à poser et la commande `gcloud services enable searchconsole.googleapis.com --project=<projet>`.
 - 403 scope insuffisant : la même consigne que le cas précédent, avec le scope manquant nommé.
+- 403 `SERVICE_DISABLED` alors que `GSC_QUOTA_PROJECT` est posée : c'est la **seule** branche réelle de ce code, puisqu'une variable absente arrête le verbe avant tout appel réseau. Le message nomme le projet fautif et donne la commande d'activation pour ce projet-là. Dire « variable absente » ici est faux (relevé à la revue finale du 29/08).
+- 400 `USER_PROJECT_DENIED` : le projet nommé par `GSC_QUOTA_PROJECT` n'existe pas ou n'est pas accessible à ce compte.
 - Aucune propriété ne couvre l'URL demandée : exit 1, la liste des propriétés vues, et le renvoi à `acces.md`.
 - Propriété visible mais rôle insuffisant (403 sur l'inspection) : le rôle observé est nommé, consigne au propriétaire de la propriété. La ligne « propriété : … (rôle) » s'écrit avant tout branchement d'erreur, sinon elle disparaît exactement quand elle sert.
 - `BING_WMT_API_KEY` absente : Bing « non interrogé (clé absente) », Google répond, exit 0.
@@ -194,12 +196,12 @@ Dette (D34) : `BING_API_BASE` et le décodage `{"ErrorCode","Message"}` existent
 
 ## 10. Critères d'acceptation
 
-- **AC-1** Quand je lance `console sites`, alors la sortie nomme les trois propriétés Search Console de Romain avec leur rôle et, pour chacune, ses sitemaps déclarés avec soumis et indexé ; côté Bing elle dit « aucun site dans ce compte Bing ».
-  Vérifié par : la commande, sortie collée dans la recette.
+- **AC-1** Quand je lance `console sites`, alors la sortie nomme les trois propriétés Search Console de Romain avec leur rôle et, pour chacune, ses sitemaps déclarés avec soumis et indexé ; côté Bing elle nomme les sites du compte avec leur état de vérification et, pour chacun, ses flux déclarés avec leur statut.
+  Vérifié par : la commande, sortie collée dans la recette. Amendé le 29/08 au soir : le compte Bing, vide à l'écriture de cette spec, contient depuis deux sites vérifiés.
 - **AC-2** Quand je lance `console inspect https://romain-ecarnot.com/`, alors la sortie nomme la propriété retenue (`sc-domain:romain-ecarnot.com`) et porte verdict, état de couverture, état robots.txt, état d'indexation, date du dernier crawl, état de récupération, et les deux canonicals côte à côte, plus le lien d'inspection.
   Vérifié par : la commande, sortie collée ; le lien ouvert une fois pour contrôle visuel.
-- **AC-3** Quand j'inspecte une URL du site qui n'existe pas, alors la sortie le dit sans planter des deux côtés, et le code de sortie est 0.
-  Vérifié par : `console inspect https://romain-ecarnot.com/page-qui-nexiste-pas`.
+- **AC-3** Quand j'inspecte une URL du site qui n'existe pas, alors la sortie le dit sans planter des deux côtés, et le code de sortie est 0. Côté Bing elle dit « pas dans l'index Bing » et **n'affiche aucune date .NET brute** : Bing rend un objet complet avec des sentinelles `DateTime.MinValue`, pas une réponse vide.
+  Vérifié par : `console inspect https://romain-ecarnot.com/page-qui-nexiste-pas`, dont la sortie ne doit contenir ni `/Date(` ni `HttpStatus`.
 - **AC-4** Quand j'inspecte une URL qu'aucune propriété ne couvre, alors la commande sort en 1, nomme les propriétés vues, et aucune requête d'inspection n'est partie.
   Vérifié par : `console inspect https://example.com/` sous un `fetch` de trace.
 - **AC-5** Quand aucun jeton Google n'est disponible, alors la sortie donne la commande exacte à lancer avec son scope, et aucun jeton n'apparaît.
@@ -208,8 +210,8 @@ Dette (D34) : `BING_API_BASE` et le décodage `{"ErrorCode","Message"}` existent
   Vérifié par : `env -u GSC_QUOTA_PROJECT bun scripts/console.ts sites`.
 - **AC-7** Quand `BING_WMT_API_KEY` est absente, alors Google répond quand même, Bing est marqué « non interrogé (clé absente) », et le code de sortie est 0.
   Vérifié par : `env -u BING_WMT_API_KEY bun scripts/console.ts sites`.
-- **AC-8** Quand je lance `console crawl --site https://romain-ecarnot.com`, alors la sortie dit que Google n'expose pas ses statistiques de crawl, côté Bing « aucun site dans ce compte Bing », et le code de sortie est 1 puisque rien n'a pu être lu.
-  Vérifié par : la commande, suivie de `echo "code=$?"`.
+- **AC-8** Quand je lance `console crawl --site https://romain-ecarnot.com`, alors la sortie dit que Google n'expose pas ses statistiques de crawl et rend ce que Bing a répondu. Le site étant désormais dans le compte, Bing est lu et le code de sortie est 0 ; les deux listes sont vides, le site venant d'être ajouté et n'ayant pas d'historique, et la sortie le dit sans le confondre avec une absence de site.
+  Vérifié par : la commande, suivie de `echo "code=$?"`. Amendé le 29/08 au soir pour la même raison qu'AC-1.
 - **AC-9** Quand une commande tourne avec `--json`, alors la sortie s'analyse et ne contient ni clé Bing ni jeton Google.
   Vérifié par : `console sites --json | python3 -m json.tool`, plus une recherche de la clé et du préfixe `ya29.` dans la sortie enregistrée. La recherche lit la clé depuis l'environnement, jamais depuis `argv` (`ps` la rendrait lisible), et refuse de conclure si la variable est vide.
 - **AC-10** Quand la suite de tests tourne, alors elle est verte et `check-sources.ts` retrouve les citations de `acces.md` en plus des 107 existantes.
@@ -265,14 +267,38 @@ Deux appels successifs le 29/08 ont rendu les trois propriétés dans un ordre d
 
 Lève l'incertitude 4 de la note d'idéation : `contents[].indexed` est bien renseigné, en chaîne. Que sa valeur soit ici `0` alors que `submitted` vaut `1` reste un échantillon unique, non généralisable [candidat 1x, capture du 29/08].
 
-### 12.5 Bing, inchangé
+### 12.5 Bing, le matin : compte vide
 
-`GetUserSites` avec la clé de Romain rend `{"d":[]}` (capturé le 29/08 pendant le chantier 4). Le compte ne contient aucun site.
+`GetUserSites` avec la clé de Romain rend `{"d":[]}` (capturé le 29/08 pendant le chantier 4). C'est l'état sur lequel tout le chantier a été écrit.
+
+### 12.6 Bing, le soir : les quatre méthodes enfin observables
+
+Romain a ajouté ses deux sites le 29/08 en soirée. Capturé dans la foulée par la session mère.
+
+`GetUserSites` : `{"d":[{"Url":"https://lebonpote.romain-ecarnot.com/","IsVerified":true},{"Url":"https://romain-ecarnot.com/","IsVerified":true}]}`
+
+`GetUrlInfo` sur une URL **connue** :
+
+```json
+{"d":{"__type":"UrlInfo:#Microsoft.Bing.Webmaster.Api","AnchorCount":10,"DiscoveryDate":"/Date(1760511600000-0700)/","DocumentSize":41823,"HttpStatus":0,"IsPage":true,"LastCrawledDate":"/Date(1785610378000)/","TotalChildUrlCount":0,"Url":"https://romain-ecarnot.com/"}}
+```
+
+`GetUrlInfo` sur une URL **inconnue** : même forme, tous les compteurs à zéro et les deux dates à `/Date(-62135568000000-0800)/`, soit `DateTime.MinValue`.
+
+`GetFeeds` :
+
+```json
+{"d":[{"__type":"Feed:#Microsoft.Bing.Webmaster.Api","Compressed":false,"FileSize":783,"LastCrawled":"/Date(1788021382000)/","Status":"Success","Submitted":"/Date(1788021381496)/","Type":"Sitemap","Url":"https://lebonpote.romain-ecarnot.com/sitemap.xml","UrlCount":1}]}
+```
+
+`GetCrawlStats` et `GetCrawlIssues` : `{"d":[]}` sur les deux sites.
+
+**Trois faits que ces captures établissent.** Bing sérialise ses dates en `/Date(<ms>[±hhmm])/`, format .NET. Une URL inconnue ne rend pas `null` mais un objet à sentinelles, donc le décodage doit reconnaître `DateTime.MinValue`. `HttpStatus` vaut `0` même sur une URL connue et indexée : l'afficher induirait en erreur, et il n'est pas un discriminant.
 
 ## 13. Incertitudes
 
-1. **`GetUrlInfo` sur une URL inconnue de Bing** : réponse vide, `null` ou erreur ? Non capturable tant que le compte est vide. Traitement unique en attendant (5.4).
-2. **Forme de `GetCrawlStats` et `GetCrawlIssues`** : jamais capturée. Décodage écrit d'après la doc, sonde au calendrier de la recette dès qu'un site entre dans le compte.
+1. **`GetUrlInfo` sur une URL inconnue de Bing : LEVÉE le 29/08 au soir**, quand Romain a ajouté ses deux sites. Ce n'est ni vide, ni `null`, ni une erreur : c'est un objet complet dont les deux dates valent `DateTime.MinValue`, soit `/Date(-62135568000000-0800)/`. `HttpStatus` vaut `0` même sur une URL connue et indexée, ce n'est donc pas un discriminant : la sentinelle de `DiscoveryDate` est le seul signal fiable. Voir 12.6.
+2. **Forme de `GetCrawlStats` et `GetCrawlIssues` : réduite le 29/08 au soir.** Les deux rendent `{"d":[]}` sur les deux sites, tout juste ajoutés et sans historique. La forme d'une entrée non vide reste inconnue : le décodage s'arrête à l'enveloppe et le rendu compte les entrées sans supposer leur forme. À reprendre quand un site aura de l'historique.
 3. **Permission minimale pour l'inspection d'URL** : la sonde du 29/08 a été faite en rôle propriétaire. Ce qu'un rôle restreint obtient reste ouvert (incertitude 1 de la note d'idéation, non levée). C'est pourquoi la sortie nomme toujours le rôle observé : le jour où un 403 tombe, la cause est à l'écran.
 4. **Survie de l'endpoint JSON Bing après le retrait SOAP et POX du 31/08/2026** : sonde déjà au calendrier du 1er septembre, à étendre à `GetUrlInfo`, `GetCrawlStats` et `GetFeeds`.
 5. **Scope `webmasters.readonly` sur le client gcloud** : accordé le 29/08 sur le compte de Romain. Qu'il le soit toujours après une reconnexion, ou sur un autre compte, n'est pas garanti par une phrase officielle.
@@ -283,4 +309,4 @@ Aucun ne bloque l'écriture du code ; les trois bloquent une partie de la recett
 
 1. `export GSC_QUOTA_PROJECT="gen-lang-client-0479935649"` posé par Romain dans `~/.zshenv` le 29/08 à 18 h 51 ; API Search Console activée sur ce projet dans la foulée, `sites.list` vérifié en 200. Fait.
 2. Chico n'a pas de propriété Search Console. AC-1 à AC-4 se jouent donc sur `romain-ecarnot.com`.
-3. Le compte Bing de Romain est vide. AC-1, AC-7 et AC-8 vérifient l'état « compte vide » ; la lecture réelle de Bing attend qu'un site y soit ajouté, et les incertitudes 1 et 2 avec.
+3. Le compte Bing de Romain était vide à l'écriture de cette spec. **Il ne l'est plus depuis le 29/08 au soir** : deux sites vérifiés, avec un flux soumis sur lebonpote. AC-1 et AC-8 ont été amendés en conséquence, l'incertitude 1 est levée et l'incertitude 2 réduite (voir 12.6). Ce qui reste inconnu : la forme d'une entrée de `GetCrawlStats` ou `GetCrawlIssues` non vide, les deux sites n'ayant pas encore d'historique.
