@@ -10,6 +10,7 @@ import { buildPlan, DEFAULT_KIND, KINDS, kindOf, planSummary, type BuildPlanInpu
 const F = `${import.meta.dir}/fixtures/chico`;
 const strategy = parseStrategy(await Bun.file(`${F}/strategy.md`).text());
 const report = parseReport(await Bun.file(`${F}/report.md`).text());
+const reportN2 = parseReport(await Bun.file(`${F}/report-n2.md`).text());
 const manifest = JSON.parse(await Bun.file(`${F}/manifest.json`).text()) as Manifest;
 const pages = JSON.parse(await Bun.file(`${F}/pages.json`).text()) as PageFacts[];
 const strategyEval = JSON.parse(await Bun.file(`${F}/strategy-eval.json`).text()) as StrategyEval;
@@ -17,6 +18,8 @@ const input: BuildPlanInput = {
   strategy, strategyPath: "seo/strategy.md", report, pages, strategyEval,
   homeFinalUrl: manifest.pages[0].final, deps: ["next", "react"], auditDir: "seo/audits/2026-08-28-n0", now: "2026-08-28T13:00:00.000Z",
 };
+/** Le même input, mais avec le rapport niveau 2 propre (0 trouvaille) : le point de départ des tests R-6. */
+const inputN2: BuildPlanInput = { ...input, report: reportN2, auditDir: "seo/audits/2026-08-29-n2" };
 
 describe("buildPlan sur les vrais fichiers de chico (audit n0 du 28/08, stratégie validée)", () => {
   const plan = buildPlan(input);
@@ -91,6 +94,30 @@ describe("buildPlan, cas dégradés", () => {
     expect(plan.stack).toBe("autre");
     expect(plan.indexnow).toBeNull();
     expect(plan.organization).toMatchObject({ telephone: "+33 2 00 00 00 00", address: "1 rue du Port, 44000 Nantes" });
+  });
+});
+
+describe("buildPlan, hors build de l'audit niveau 0 fusionnés dans le plan (R-6)", () => {
+  test("audit n2 sans IDX-04 + audit n0 plus ancien avec IDX-04 ouvert : IDX-04 apparaît en hors build, avec ou et origine", () => {
+    const plan = buildPlan({ ...inputN2, n0: { dir: "seo/audits/2026-08-28-n0", report } });
+    expect(plan.findings).toHaveLength(1);
+    expect(plan.findings[0]).toMatchObject({ id: "IDX-04", kind: "hors-build", severity: "Mineur", origine: "seo/audits/2026-08-28-n0" });
+    expect(plan.findings[0].ou).toContain("Vercel");
+  });
+  test("le même id ouvert dans les deux audits n'apparaît qu'une fois", async () => {
+    const md = (await Bun.file(`${F}/report-n2.md`).text()).replace(
+      "## Trouvailles\n",
+      "## Trouvailles\n\n### [Mineur] IDX-04 : déjà vu localement\nPreuve    : test\nPourquoi  : test\nSource    : https://developers.google.com/x « x »\nCorrectif : test\nEffort    : rapide\n",
+    );
+    const reportN2AvecIdx04 = parseReport(md);
+    const plan = buildPlan({ ...inputN2, report: reportN2AvecIdx04, n0: { dir: "seo/audits/2026-08-28-n0", report } });
+    expect(plan.findings.filter((f) => f.id === "IDX-04")).toHaveLength(1);
+    // Vient du rapport n2 lui-même, pas de la fusion : pas d'origine.
+    expect(plan.findings[0].origine).toBeUndefined();
+  });
+  test("audit n2 seul, sans n0 : plan inchangé", () => {
+    const plan = buildPlan(inputN2);
+    expect(plan.findings).toEqual([]);
   });
 });
 

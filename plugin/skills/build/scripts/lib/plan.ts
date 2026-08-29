@@ -28,7 +28,7 @@ export const KINDS: Record<string, KindEntry> = {
 export const DEFAULT_KIND: KindEntry = { kind: "hors-build", ou: "hors du périmètre de build : vérification de niveau 1 ou inconnue" };
 export function kindOf(id: string): KindEntry { return KINDS[id] ?? DEFAULT_KIND; }
 
-export type PlanFinding = { id: string; severity: Severity; title: string; kind: Kind; correctif: string; effort: string; ou?: string };
+export type PlanFinding = { id: string; severity: Severity; title: string; kind: Kind; correctif: string; effort: string; ou?: string; origine?: string };
 export type TexteField = "title" | "description" | "h1" | "opening";
 export type PlanPage = {
   page: string; intention: string; motCle: string; secondaires: string[]; cadence: string;
@@ -61,17 +61,35 @@ const KIND_RANK: Record<Kind, number> = { code: 0, texte: 1, "hors-build": 2 };
 export type BuildPlanInput = {
   strategy: Strategy; strategyPath: string; report: Report; pages: PageFacts[]; strategyEval: StrategyEval | null;
   homeFinalUrl: string | null; deps: string[]; auditDir: string; now?: string;
+  /** Dernier audit niveau 0, s'il diffère de l'audit du plan : ses hors build ouverts s'ajoutent aux findings (R-6). */
+  n0?: { dir: string; report: Report } | null;
 };
 
 export function buildPlan(input: BuildPlanInput): BuildPlan {
   const { strategy, report, pages, strategyEval } = input;
   const warnings: string[] = [];
 
-  const findings: PlanFinding[] = report.findings
+  const baseFindings: PlanFinding[] = report.findings
     .filter((f) => f.severity !== "Info")
-    .map((f) => { const k = kindOf(f.id); return { id: f.id, severity: f.severity, title: f.title, kind: k.kind, correctif: f.correctif, effort: f.effort, ...(k.ou ? { ou: k.ou } : {}) }; })
+    .map((f) => { const k = kindOf(f.id); return { id: f.id, severity: f.severity, title: f.title, kind: k.kind, correctif: f.correctif, effort: f.effort, ...(k.ou ? { ou: k.ou } : {}) }; });
+  const open = new Set(baseFindings.map((f) => f.id));
+
+  // Hors build de l'audit niveau 0 (prod) : IDX-04, IDX-03, PERF-01… n'existent pas sur un audit local, et build ne
+  // peut de toute façon rien pour un hors build. Seulement s'ils sont encore ouverts côté n0 et absents du plan.
+  const n0Findings: PlanFinding[] = [];
+  if (input.n0) {
+    const seen = new Set<string>();
+    for (const f of input.n0.report.findings) {
+      if (f.severity === "Info" || open.has(f.id) || seen.has(f.id)) continue;
+      const k = kindOf(f.id);
+      if (k.kind !== "hors-build") continue;
+      seen.add(f.id);
+      n0Findings.push({ id: f.id, severity: f.severity, title: f.title, kind: k.kind, correctif: f.correctif, effort: f.effort, ou: k.ou, origine: input.n0.dir });
+    }
+  }
+
+  const findings: PlanFinding[] = [...baseFindings, ...n0Findings]
     .sort((a, b) => SEV_RANK[a.severity] - SEV_RANK[b.severity] || KIND_RANK[a.kind] - KIND_RANK[b.kind] || a.id.localeCompare(b.id));
-  const open = new Set(findings.map((f) => f.id));
 
   let canonicalBase: BuildPlan["canonicalBase"] | null = null;
   if (input.homeFinalUrl) { try { canonicalBase = { origin: new URL(input.homeFinalUrl).origin, source: "audit niveau 0" }; } catch { /* URL illisible : repli ci-dessous */ } }
