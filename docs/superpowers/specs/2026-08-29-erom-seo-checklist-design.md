@@ -93,7 +93,8 @@ plugin/
           actions.test.ts
           ancien-sitemap.test.ts
           checklist-cli.test.ts
-          fixtures/chico/           report-n2.md, report-n0.md, strategy.md, checklist.md, sitemap.xml
+          consoles.test.ts          format de consoles.md : ids connus, un chemin de clics, sources admises
+          fixtures/chico/           report.md (n0), report-n2.md, manifest.json, strategy.md, copiés des fixtures de build
       references/
         consoles.md                 chemins de clics et sources officielles (section 6)
   skills/audit/scripts/check-sources.ts   étendu aux citations de consoles.md
@@ -141,7 +142,7 @@ Après le déploiement (toutes vides tant que « Mise en ligne : non ») :
 9. **Ping IndexNow** · action · voir 5.3.
 10. **Sitemap soumis à Bing** · action · voir 5.3 ; « en attente : Bing Webmaster Tools pas encore configuré » tant que la ligne 5 est vide ; refus de Bing (délégation lecture seule sur un site client) : la ligne devient une consigne, « à faire par le client : bing.com/webmasters, Sitemaps, Soumettre `/sitemap.xml` ».
 11. **J+1 <date> : sitemap soumis dans Search Console** · main · « Search Console, Sitemaps, coller `https://<site>/sitemap.xml` » ; par le propriétaire de la propriété, par construction (D26) et par la doc (« You must have owner permissions on a property to submit a sitemap », recherche du 29/08, G-SITEMAP).
-12. **J+3 <date> : pages clés indexées** · main · « Search Console, Inspection d'URL » ; sous-lignes : les pages de `seo/strategy.md`, en URL absolues. Le chantier 5 rendra cette ligne `auto` (`urlInspection.index.inspect`, note du 29/08, section 3.2).
+12. **J+3 <date> : pages clés indexées** · main · « Search Console, Inspection d'URL » ; sous-lignes : les pages de `seo/strategy.md`, en URL absolues sur l'origine réellement servie (5.1). Le chantier 5 rendra cette ligne `auto` (`urlInspection.index.inspect`, note du 29/08, section 3.2).
 13. **J+7 <date> : premières impressions** · main · « Search Console, Performances, 7 derniers jours ».
 14. **J+30 <date> : rapports IA lus** · main · « Search Console, Performances, filtre Generative AI (pas sur toutes les propriétés) ; Bing Webmaster Tools, AI Performance ». Ces deux rapports sont hors API (note du 29/08, sections 2 et 4) : ils resteront des exports à la main, que le chantier 5 saura lire depuis `seo/imports/`.
 15. **J+90 <date> : audit de contrôle** · main · « relance `/erom-seo:checklist`, l'audit niveau 0 est refait ; le niveau 1 (Search Console et Bing par API) arrive au chantier 5 ».
@@ -156,7 +157,8 @@ Les dates J+N sont calculées depuis « Mise en ligne » et font partie du libel
 - Le dernier `seo/audits/*-n2*/report.md` et le dernier `*-n0*/report.md`, par `latestAuditDir` et `parseReport`. Pour l'audit prod, `raw/sitemap.xml` et `raw/manifest.json` du n0 (les URL du sitemap collecté, pour le ping).
 - `seo/checklist.md` s'il existe : la date de mise en ligne, les cases `main`, les cases `action` déjà faites, la présence d'un ancien sitemap.
 - git : branche courante, dernier commit `seo(`.
-- Options : `--mise-en-ligne <AAAA-MM-JJ>` (une fois ; redonner une autre date demande `--mise-en-ligne` à nouveau et le fichier repart de « Après » vide, les actions comprises), `--ancien-sitemap <url>`, `--agir`, `--seo <dossier>` (défaut `seo`, pour les tests).
+- Options : `--mise-en-ligne <AAAA-MM-JJ>` (une fois ; redonner une autre date demande `--mise-en-ligne` à nouveau et le fichier repart de « Après » vide, les actions comprises ; une date invalide ou future est refusée), `--ancien-sitemap <url ou fichier>` (un chemin existant est lu tel quel : utile quand l'ancien site est déjà éteint et qu'on a gardé son sitemap), `--agir`, `--seo <dossier>` (défaut `seo`, pour les tests), `--today <AAAA-MM-JJ>` (date du passage, pour les tests et la recette).
+- Origine réellement servie (www ou apex) : la home du dernier audit n0, comme `build` (D21) ; à défaut `https://<site>` de la stratégie. Elle sert aux URL absolues des sous-lignes de J+3, à la comparaison avec les sites Bing et aux redirections de l'ancien site.
 
 ### 5.2 Sortie
 
