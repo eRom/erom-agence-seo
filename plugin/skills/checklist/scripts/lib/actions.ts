@@ -13,7 +13,7 @@ const JSON_UTF8 = "application/json; charset=utf-8";
 export const INDEXNOW_MESSAGES: Record<number, string> = {
   200: "OK, URL reçues", 202: "Accepted, URL reçues, validation de la clé en attente",
   400: "Bad request, format invalide", 403: "Forbidden, clé non servie en /<clé>.txt sur la prod ou différente de celle du fichier",
-  422: "Unprocessable Entity, une URL n'est pas sur host, ou la clé n'a pas la forme attendue", 429: "Too Many Requests, réessayer plus tard",
+  422: "Unprocessable Entity, une URL n'est pas sur host, ou la clé n'a pas la forme attendue", 429: "Too Many Requests, trop de soumissions, réessayer plus tard",
 };
 
 /** Enum ApiErrorCode de Bing Webmaster Tools (learn.microsoft.com, 2019-04-26). */
@@ -71,5 +71,5 @@ export async function bingUserSites(f: Fetcher, key: string): Promise<BingSite[]
 export async function bingSubmitFeed(f: Fetcher, key: string, siteUrl: string, feedUrl: string): Promise<ActionResult> {
   const r = await f(`${BING_API_BASE}/SubmitFeed?${new URLSearchParams({ apikey: key })}`, { method: "POST", headers: { "content-type": JSON_UTF8 }, body: JSON.stringify({ siteUrl, feedUrl }) });
   if (r.status === 200) return { ok: true, status: 200, message: `sitemap ${feedUrl} soumis pour ${siteUrl}` };
-  return { ok: false, status: r.status, message: bingError(r.status, r.text, key) };
+  return { ok: false, status: r.status, message: bingError(r.status, r.text, key).replace("https://<site>/sitemap.xml", feedUrl) };
 }

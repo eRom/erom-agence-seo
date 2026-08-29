@@ -58,9 +58,10 @@ describe("Bing Webmaster Tools", () => {
     expect(JSON.parse(calls[0].body!)).toEqual({ siteUrl: "https://www.chico.org/", feedUrl: "https://www.chico.org/sitemap.xml" });
     for (const code of [11, 13, 14]) {
       const { f: fe } = fake(() => ({ status: 400, text: JSON.stringify({ ErrorCode: code, Message: "ERROR!!! x" }) }));
-      const e = await bingSubmitFeed(fe, KEY, "s", "u");
+      const e = await bingSubmitFeed(fe, KEY, "s", "https://www.chico.org/sitemap.xml");
       expect(e.ok).toBe(false);
       expect(e.message).toContain("bing.com/webmasters, Sitemaps");
+      expect(e.message).toContain("Soumettre https://www.chico.org/sitemap.xml");
     }
   });
   test("bingError et redact : throttle dit de réessayer, texte illisible tronqué, clé masquée", () => {
