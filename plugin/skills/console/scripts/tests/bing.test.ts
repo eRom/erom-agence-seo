@@ -2,7 +2,10 @@
 import { describe, test, expect } from "bun:test";
 import { bingUserSites, bingUrlInfo, bingCrawlStats, redact, BingError, BING_API_BASE, type Fetcher } from "../lib/bing";
 
-const KEY = "[REDACTED:env_secret]";
+// Clé de test volontairement non hexadécimale : sur cette machine, l'outil de lecture masque toute
+// chaîne de 32 caractères hexadécimaux (la forme d'une vraie clé Bing), et le masque finissait recopié
+// dans le source. `redact` n'exige qu'une longueur d'au moins 8 caractères.
+const KEY = "cle-de-test-bing-jamais-reelle";
 type Call = { url: string; method: string };
 function fake(reply: (c: Call) => { status: number; text: string }): { f: Fetcher; calls: Call[] } {
   const calls: Call[] = [];
