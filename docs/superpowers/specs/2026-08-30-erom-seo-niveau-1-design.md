@@ -74,7 +74,9 @@ Ceci lève l'incertitude 4 de la note d'idéation.
 
 ### D40. Les briques Google et Bing montent dans `plugin/lib/`
 
-D34 avait recopié le transport Bing dans `console` et daté la mise en commun « après un inventaire de ce qui se répète vraiment ». L'inventaire est fait le 30/08 : `BING_API_BASE` et la table `BING_ERROR_CODES` existent en trois exemplaires (`strategy/scripts/keywords.ts`, `checklist/scripts/lib/actions.ts`, `console/scripts/lib/bing.ts`). Le niveau 1 en ferait un quatrième, deux jours avant l'échéance Bing du 31 août.
+D34 avait recopié le transport Bing dans `console` et daté la mise en commun « après un inventaire de ce qui se répète vraiment ». L'inventaire est fait le 30/08 : `BING_API_BASE` existe en **trois** exemplaires (`strategy/scripts/keywords.ts`, `checklist/scripts/lib/actions.ts`, `console/scripts/lib/bing.ts`) et la table `BING_ERROR_CODES` en **deux** (`actions.ts` et `bing.ts` ; `keywords.ts` n'en a pas, il teste `/InvalidApiKey/` sur le texte de la réponse). Le niveau 1 ajouterait une copie de plus, deux jours avant l'échéance Bing du 31 août.
+
+Correction du 30/08 : cette section annonçait d'abord trois copies de la table. C'était faux, relevé par la revue du plan et confirmé à l'exécution de la tâche 3, dont le diff sur `keywords.ts` ne fait que trois lignes. La décision ne change pas pour autant : une adresse d'API en trois exemplaires suffit à la justifier, et c'est elle que l'échéance Bing menace.
 
 Décision de Romain le 30/08 : on solde. Le détail du déplacement est en section 3.
 
