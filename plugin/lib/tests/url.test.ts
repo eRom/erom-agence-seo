@@ -32,6 +32,32 @@ describe("sameSite", () => {
   });
 });
 
+describe("pageKey", () => {
+  test("même page en apex et en www : une seule clé", () => {
+    expect(pageKey("https://acme.fr/a")).toBe(pageKey("https://www.acme.fr/a"));
+    expect(pageKey("https://acme.fr/a")).toBe("acme.fr/a");
+  });
+  test("la barre finale fait partie de la clé : /a et /a/ restent deux pages distinctes", () => {
+    // C'est la différence avec le helper propre à keywordChecks (plugin/skills/audit/scripts/lib/level1.ts) :
+    // wantedPages s'appuie sur pageKey pour dédoublonner des pages à collecter, où /a et /a/ peuvent
+    // légitimement être deux requêtes distinctes. pageKey ne doit donc jamais gommer cette barre lui-même.
+    expect(pageKey("https://acme.fr/a")).not.toBe(pageKey("https://acme.fr/a/"));
+  });
+  test("la requête fait partie de la clé", () => {
+    expect(pageKey("https://acme.fr/a?x=1")).not.toBe(pageKey("https://acme.fr/a"));
+  });
+  // Repli sur une entrée non absolue (T1) : c'est ce trou de couverture qui a laissé passer C-1. Une page de
+  // stratégie est toujours un chemin nu (« /methode », imposé par parseStrategy) : new URL() lève sans base,
+  // et pageKey doit rendre l'entrée telle quelle plutôt que de faire sortir une exception du module.
+  test("une entrée non absolue (chemin nu de strategy.md) est rendue telle quelle, jamais résolue", () => {
+    expect(pageKey("/methode")).toBe("/methode");
+    expect(pageKey("/")).toBe("/");
+  });
+  test("une chaîne totalement inanalysable est rendue telle quelle", () => {
+    expect(pageKey("pas une url du tout")).toBe("pas une url du tout");
+  });
+});
+
 test("rewriteToOrigin garde chemin et requête, change schéma et hôte", () => {
   expect(rewriteToOrigin("https://commentchercherbonheur.org/methode?x=1", "http://localhost:3000")).toBe("http://localhost:3000/methode?x=1");
   expect(rewriteToOrigin("https://commentchercherbonheur.org", "http://localhost:3000")).toBe("http://localhost:3000/");
