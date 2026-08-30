@@ -241,7 +241,7 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
         await mkdir(join(raw, dirname(f.path)), { recursive: true });
         await save(f.path, f.body);
       }
-      const derivedConsole = deriveConsole(r, strat?.strategy?.pages.map((p) => ({ page: p.page, motCle: p.motCle })) ?? null);
+      const derivedConsole = deriveConsole(r, strat?.strategy?.pages.map((p) => ({ page: p.page, motCle: p.motCle })) ?? null, origin);
       const text = JSON.stringify(derivedConsole, null, 2);
       assertNoSecret(text, bingKey);
       assertNoSecret(text, auth?.token ?? null);

@@ -286,19 +286,37 @@ export function canonicalFindings(pages: InspectedPage[]): CanonicalFinding[] {
 }
 
 /**
+ * C-1. Clé d'appariement propre à `keywordChecks`, à ne pas confondre avec `pageKey` : une page de
+ * stratégie est toujours un chemin nu (« /methode », `/^\/\S*$/` imposé par `parseStrategy`), alors que
+ * Google rend `keys[0]` en URL absolue. Il faut donc résoudre l'un sur l'origine du site avant de
+ * comparer, ET gommer la barre finale des deux côtés : Google la restitue souvent (WordPress, Next en
+ * `trailingSlash: true`), la stratégie ne l'écrit jamais.
+ * Ne touche pas à `pageKey` lui-même : `wantedPages` (collect.ts) s'en sert pour dédoublonner des pages
+ * à COLLECTER, où `/a` et `/a/` peuvent légitimement être deux requêtes distinctes.
+ */
+function stratPageKey(u: string, origin: string): string {
+  let abs = u;
+  try { abs = new URL(u, origin).toString(); } catch { /* laisse pageKey gérer, il rend u tel quel */ }
+  const k = pageKey(abs);
+  return k.endsWith("/") ? k.slice(0, -1) : k;
+}
+
+/**
  * STRAT-05. Trois états et non deux : le mot visé est trouvé, il est raté, ou la page n'a aucune
  * impression sur la période (keywordFound null), ce qui n'est pas un échec de stratégie.
  * Les lignes viennent de dimensions ["page","query"] : keys[0] est la page, keys[1] la requête.
+ * `origin` vient de collect.ts (celle du site audité) : c'est elle qui résout les chemins nus de
+ * `planned.page` en URL comparables aux lignes absolues de Google (C-1).
  */
-export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle: string }[]): KeywordCheck[] {
+export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle: string }[], origin: string): KeywordCheck[] {
   const byPage = new Map<string, SearchRow[]>();
   for (const r of rows) {
     if (r.keys.length < 2) continue;
-    const k = pageKey(r.keys[0]);
+    const k = stratPageKey(r.keys[0], origin);
     byPage.set(k, [...(byPage.get(k) ?? []), r]);
   }
   return planned.map((p) => {
-    const found = (byPage.get(pageKey(p.page)) ?? []).slice().sort((a, b) => b.impressions - a.impressions);
+    const found = (byPage.get(stratPageKey(p.page, origin)) ?? []).slice().sort((a, b) => b.impressions - a.impressions);
     const queries = found.map((r) => r.keys[1]);
     return {
       page: p.page, keyword: p.motCle,
@@ -314,8 +332,10 @@ export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle
  * recopiées telles quelles, et une absence de donnée reste une absence.
  * `permissionLevel` est conservé parce que c'est lui qui explique un refus (AC-7) ; le perdre rendrait
  * le rapport muet sur la cause.
+ * `origin` (C-1) vient de collect.ts : seul `keywordChecks` en a besoin, pour résoudre les chemins nus
+ * de la stratégie sur le site réellement audité.
  */
-export function deriveConsole(r: Level1Result, planned: { page: string; motCle: string }[] | null): ConsoleDerived {
+export function deriveConsole(r: Level1Result, planned: { page: string; motCle: string }[] | null, origin: string): ConsoleDerived {
   const g = r.google;
   const b = r.bing;
   const unknown = b.pages.filter((p) => !p.known).map((p) => p.url);
@@ -333,6 +353,6 @@ export function deriveConsole(r: Level1Result, planned: { page: string; motCle: 
       truncated: g.search?.truncated ?? false,
     },
     bing: { site: b.site, error: b.error, known: b.pages.length - unknown.length, total: b.pages.length, unknown },
-    strategy: planned === null ? null : keywordChecks(g.search?.rows ?? [], planned),
+    strategy: planned === null ? null : keywordChecks(g.search?.rows ?? [], planned, origin),
   };
 }

@@ -2,6 +2,8 @@
 import { test, expect, describe } from "bun:test";
 import { collectLevel1, bingKnows, indexSummary, canonicalFindings, keywordChecks, deriveConsole, type Level1Deps } from "../lib/level1";
 import type { SearchRow, Fetcher } from "../../../../lib/gsc";
+import { parseStrategy } from "../../../../lib/strategy";
+import { VALID } from "../../../../lib/tests/fixtures/strategy-valide";
 
 const NOFETCH: any = async () => { throw new Error("aucune requête ne doit partir"); };
 const PAGES = [{ url: "https://x.test/", slug: "index" }];
@@ -375,11 +377,16 @@ test("IDX-07 laisse le canonical absent à TAG-03", () => {
 // AI-03 n'est pas ici : `bingKnows` et ses quatre cas vivent en tâche 5, avec `collectBing` qui les
 // consomme. Une règle testée loin de son seul appelant laisse passer une implémentation qui ment.
 
+// C-1 : `planned.page` est toujours un chemin nu (`/^\/\S*$/`, imposé par `parseStrategy`), jamais une
+// URL absolue. Les fixtures ci-dessous l'écrivent ainsi et passent `origin` séparément : la forme
+// absolue qu'écrivaient les tests d'origine est une forme que `parseStrategy` refuse, donc impossible
+// sur une vraie stratégie ; C-1 est exactement le bug que cette forme impossible cachait.
+
 test("STRAT-05 retrouve le mot visé dans une requête plus longue, requêtes réelles du 30/08", () => {
   const rows = [
     { keys: ["https://lebonpote.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
   ];
-  const r = keywordChecks(rows, [{ page: "https://lebonpote.romain-ecarnot.com/", motCle: "bon pote" }]);
+  const r = keywordChecks(rows, [{ page: "/", motCle: "bon pote" }], "https://lebonpote.romain-ecarnot.com");
   expect(r[0].hasImpressions).toBe(true);
   expect(r[0].keywordFound).toBe(true);
   expect(r[0].topQueries).toEqual(["bon pote nantes"]);
@@ -387,7 +394,7 @@ test("STRAT-05 retrouve le mot visé dans une requête plus longue, requêtes r�
 
 test("STRAT-05 distingue le mot raté de la page sans impression", () => {
   const rows = [{ keys: ["https://x/a", "autre chose"], clicks: 0, impressions: 3, ctr: 0, position: 9 }];
-  const r = keywordChecks(rows, [{ page: "https://x/a", motCle: "agence seo" }, { page: "https://x/b", motCle: "quoi que ce soit" }]);
+  const r = keywordChecks(rows, [{ page: "/a", motCle: "agence seo" }, { page: "/b", motCle: "quoi que ce soit" }], "https://x");
   expect(r[0]).toMatchObject({ hasImpressions: true, keywordFound: false, topQueries: ["autre chose"] });
   expect(r[1]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
 });
@@ -399,22 +406,57 @@ test("STRAT-05 distingue le mot raté de la page sans impression", () => {
 
 test("STRAT-05 apparie l'apex déclaré à la stratégie et le www rendu par Google, capture réelle du montage", () => {
   // Une propriété Search Console de type Domaine restitue ses lignes en www ; strategy.md déclare la page
-  // en apex. Une comparaison d'URL brute (sans normalisation `pageKey`) les traiterait comme deux pages
-  // distinctes et rendrait un faux « aucune impression » sur une page qui en a bel et bien.
+  // en apex (chemin nu « / », résolu sur l'origine avant comparaison). Une comparaison d'URL brute, sans
+  // résolution ni normalisation `pageKey`, les traiterait comme deux pages distinctes et rendrait un faux
+  // « aucune impression » sur une page qui en a bel et bien : c'est exactement C-1.
   const rows = [
     { keys: ["https://www.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 5, ctr: 0, position: 3 },
   ];
-  const r = keywordChecks(rows, [{ page: "https://romain-ecarnot.com/", motCle: "bon pote" }]);
+  const r = keywordChecks(rows, [{ page: "/", motCle: "bon pote" }], "https://romain-ecarnot.com");
   expect(r[0].hasImpressions).toBe(true);
   expect(r[0].keywordFound).toBe(true);
   expect(r[0].topQueries).toEqual(["bon pote nantes"]);
 });
 
+test("STRAT-05 apparie une vraie page de stratégie (chemin nu) à une ligne Google absolue", () => {
+  // La stratégie valide de référence (plugin/lib/tests/fixtures/strategy-valide.ts), pas une fixture
+  // ad hoc : c'est elle que `parseStrategy` accepte réellement, avec des chemins nus « / » et « /methode ».
+  const planned = parseStrategy(VALID).pages.map((p) => ({ page: p.page, motCle: p.motCle }));
+  const rows = [
+    { keys: ["https://www.commentchercherbonheur.org/methode", "methode bonheur institut"], clicks: 0, impressions: 4, ctr: 0, position: 2 },
+  ];
+  const r = keywordChecks(rows, planned, "https://commentchercherbonheur.org");
+  const methode = r.find((x) => x.page === "/methode")!;
+  expect(methode.hasImpressions).toBe(true);
+  expect(methode.keywordFound).toBe(true);
+  const home = r.find((x) => x.page === "/")!;
+  expect(home).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+test("STRAT-05 apparie malgré la barre finale que Google ajoute et que la stratégie n'écrit jamais", () => {
+  // WordPress, Next en trailingSlash: true : Google rend souvent l'URL indexée avec une barre finale que
+  // strategy.md ne porte jamais (parseStrategy interdit même l'espace après le chemin). Sans la gommer
+  // des deux côtés, cette page se lirait « aucune impression » alors qu'elle en a, le même mensonge que
+  // C-1 par une autre porte.
+  const rows = [{ keys: ["https://x.test/methode/", "methode bonheur"], clicks: 0, impressions: 2, ctr: 0, position: 4 }];
+  const r = keywordChecks(rows, [{ page: "/methode", motCle: "methode" }], "https://x.test");
+  expect(r[0].hasImpressions).toBe(true);
+  expect(r[0].keywordFound).toBe(true);
+});
+
 test("STRAT-05 ne confond pas deux sous-domaines qui partagent le même chemin", () => {
-  // cv.example.com/ et www.example.com/ ont tous deux le chemin « / » (mesuré, cf. brief). Un appariement
-  // par le chemin seul ferait fuiter la requête de la boutique dans les topQueries du blog.
+  // boutique.example.com/ et blog.example.com/ ont tous deux le chemin « / ». Un appariement par le
+  // chemin seul ferait fuiter la requête de la boutique dans les topQueries du blog.
   const rows = [{ keys: ["https://boutique.example.com/", "achat en ligne"], clicks: 0, impressions: 5, ctr: 0, position: 3 }];
-  const r = keywordChecks(rows, [{ page: "https://blog.example.com/", motCle: "quoi que ce soit" }]);
+  const r = keywordChecks(rows, [{ page: "/", motCle: "quoi que ce soit" }], "https://blog.example.com");
+  expect(r[0]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+test("STRAT-05 garde un sous-domaine distinct du www du même domaine", () => {
+  // Le cas que www ne doit PAS neutraliser : bareHost() retire un seul « www. » de tête, jamais un
+  // sous-domaine quelconque. blog.acme.test et www.acme.test ne sont pas le même site.
+  const rows = [{ keys: ["https://blog.acme.test/", "actualites"], clicks: 0, impressions: 5, ctr: 0, position: 3 }];
+  const r = keywordChecks(rows, [{ page: "/", motCle: "peu importe" }], "https://www.acme.test");
   expect(r[0]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
 });
 
@@ -430,7 +472,7 @@ const bloc = (over: any = {}) => ({
 });
 
 test("deriveConsole projette un bloc complet", () => {
-  const d = deriveConsole(bloc() as any, null);
+  const d = deriveConsole(bloc() as any, null, "https://x.test");
   expect(d.google.property).toBe("sc-domain:x.test");
   expect(d.google.permissionLevel).toBe("siteOwner");
   expect(d.google.index).toMatchObject({ total: 2, indexed: 1 });
@@ -441,7 +483,7 @@ test("deriveConsole projette un bloc complet", () => {
 test("deriveConsole recopie les raisons de panne sans rien inventer", () => {
   const vide = { google: { property: null, error: "aucun jeton Google", pages: [], sitemaps: [], sitemapsError: null, search: null },
                  bing: { site: null, error: "clé Bing absente", pages: [] }, raw: [] };
-  const d = deriveConsole(vide as any, null);
+  const d = deriveConsole(vide as any, null, "https://x.test");
   expect(d.google.error).toBe("aucun jeton Google");
   expect(d.bing.error).toBe("clé Bing absente");
   expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [] });
@@ -463,13 +505,13 @@ test("deriveConsole compte known et unknown sans les inverser, fixture asymétri
       ],
     },
   });
-  const d = deriveConsole(b as any, null);
+  const d = deriveConsole(b as any, null, "https://x.test");
   expect(d.bing).toMatchObject({ known: 3, total: 4, unknown: ["https://x.test/d"] });
 });
 
 test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () => {
-  expect(deriveConsole(bloc() as any, null).strategy).toBeNull();
-  expect(deriveConsole(bloc() as any, [{ page: "https://x.test/", motCle: "x" }]).strategy).toHaveLength(1);
+  expect(deriveConsole(bloc() as any, null, "https://x.test").strategy).toBeNull();
+  expect(deriveConsole(bloc() as any, [{ page: "/", motCle: "x" }], "https://x.test").strategy).toHaveLength(1);
 });
 
 // Fix round 2 : la propriété est accessible (google.error null), mais searchAnalytics.query a échoué seul
@@ -478,13 +520,13 @@ test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () =
 // `lastDataDate` vaut null sans qu'aucun champ ne dise pourquoi.
 test("deriveConsole porte l'échec de searchAnalytics dans searchError, sans le confondre avec google.error", () => {
   const b = bloc({ google: { search: { lastDataDate: null, rows: [], truncated: false, error: "quota Search Console dépassé" } } });
-  const d = deriveConsole(b as any, [{ page: "https://x.test/", motCle: "x" }]);
+  const d = deriveConsole(b as any, [{ page: "/", motCle: "x" }], "https://x.test");
   expect(d.google.error).toBeNull();
   expect(d.google.searchError).toBe("quota Search Console dépassé");
   expect(d.google.lastDataDate).toBeNull();
   // strategy dérive quand même (rows vide), keywordFound null : c'est searchError qui doit empêcher de le
   // lire comme « aucune impression », pas une valeur inventée ici.
-  expect(d.strategy).toEqual([{ page: "https://x.test/", keyword: "x", hasImpressions: false, keywordFound: null, topQueries: [] }]);
+  expect(d.strategy).toEqual([{ page: "/", keyword: "x", hasImpressions: false, keywordFound: null, topQueries: [] }]);
 });
 
 // Le filet du repo est une liste explicite de sorties à exercer, par skill (voir
