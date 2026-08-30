@@ -29,7 +29,7 @@
 
 | Fichier | Responsabilité |
 |---|---|
-| `plugin/lib/url.ts` | primitives d'URL partagées : `sameSite`, `pageKey`, `rewriteToOrigin` |
+| `plugin/lib/url.ts` | primitives d'URL partagées : `sameSite`, `pageKey`, `rewriteToOrigin`, plus `bareHost` et `comparableHost` qui restent privés |
 | `plugin/lib/tests/url.test.ts` | leurs tests, repris de `sitemap.test.ts` |
 | `plugin/skills/audit/scripts/lib/level1.ts` | collecte et dérivés du niveau 1, pur |
 | `plugin/skills/audit/scripts/tests/level1.test.ts` | ses tests |
@@ -73,15 +73,19 @@ Sans cette tâche, `resolve.ts` monté dans `plugin/lib/` importerait une skill,
 
 **Interfaces:**
 - Consumes: rien.
-- Produces: `sameSite(u: string, origin: string): boolean`, `pageKey(u: string): string`, `rewriteToOrigin(u: string, origin: string): string | null`, exportées par `plugin/lib/url.ts`. Signatures identiques à celles d'aujourd'hui : c'est un déménagement, pas une réécriture.
+- Produces: `sameSite(u: string, origin: string): boolean`, `pageKey(u: string): string`, `rewriteToOrigin(u: string, origin: string): string | null`, exportées par `plugin/lib/url.ts`. Signatures identiques à celles d'aujourd'hui : c'est un déménagement, pas une réécriture. `bareHost` et `comparableHost` descendent avec elles et restent non exportés.
 
-- [ ] **Step 1: lire les trois fonctions à déplacer**
+- [ ] **Step 1: lire les CINQ fonctions à déplacer**
 
 ```bash
-cd plugin && sed -n '38,60p' skills/audit/scripts/lib/sitemap.ts
+cd plugin && sed -n '26,60p' skills/audit/scripts/lib/sitemap.ts
 ```
 
+**Cinq, pas trois.** `sameSite` appelle `comparableHost`, et `pageKey` appelle `bareHost` : ces deux helpers sont privés à `sitemap.ts` (non exportés) et ne servent qu'à ces deux fonctions. Déplacer les trois publiques sans eux ne compile pas. Ils descendent dans `url.ts` et **y restent privés** : rien d'autre dans le repo ne les utilise (vérifié le 30/08 par grep sur `skills` et `lib`).
+
 Les recopier **à l'octet près**, commentaires compris. Toute reformulation ici est une régression silencieuse : ces fonctions décident quelles URL entrent dans une collecte.
+
+`sitemap.ts` garde `collectSitemapUrls`, qui appelle les trois publiques aux lignes 90, 101 et 102 : d'où l'import de l'étape 4.
 
 - [ ] **Step 2: créer `plugin/lib/url.ts`**
 
@@ -561,10 +565,14 @@ test("sans jeton Google, la moitié Google est non vue et Bing continue", async 
 test("sans clé Bing, aucune requête Bing ne part", async () => {
   const fetcher: any = async (url: string) => {
     if (url.includes("bing.com")) throw new Error("la clé est absente, rien ne doit partir vers Bing");
-    if (url.includes("/sites/")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
-    if (url.includes("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    // searchAnalytics AVANT /sites/ : son URL est .../sites/<propriété>/searchAnalytics/query et
+    // matcherait la branche sitemaps, qui rendrait un corps sans `rows`. Le test passerait quand même,
+    // en n'exerçant pas ce qu'il prétend exercer.
+    if (url.includes("searchAnalytics")) return { status: 200, text: JSON.stringify({ rows: [] }) };
+    if (url.includes("/sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
     if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
-    return { status: 200, text: JSON.stringify({ rows: [] }) };
+    throw new Error(`appel inattendu : ${url}`);
   };
   const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
   expect(r.bing!.error).toBe("clé Bing absente");
@@ -1159,7 +1167,9 @@ Trois endroits : l'étape 0.2 (le niveau ne se devine pas, `--level 1` est expli
 cd plugin && bun test skills/audit/scripts/tests/checks-format.test.ts && bun skills/audit/scripts/check-sources.ts
 ```
 
-Attendu : format valide, et **119 citations retrouvées** (115 aujourd'hui, plus quatre). Une citation non retrouvée est une citation inventée : la corriger sur la page réelle, ne jamais la retirer du fichier pour faire passer le contrôle.
+Attendu : format valide, **0 citation en échec**, et un compte de citations retrouvées supérieur de quatre à celui d'avant la tâche. Relever le compte de départ AVANT de toucher aux références (`bun skills/audit/scripts/check-sources.ts | tail -1`) plutôt que de le prédire : le nombre bouge à chaque ajout, et un plan qui fige « 119 » devient faux au prochain chantier. Ce qui fait foi est le **0 en échec**.
+
+Une citation non retrouvée est une citation inventée : la corriger sur la page réelle, ne jamais la retirer du fichier pour faire passer le contrôle.
 
 - [ ] **Step 8: commit**
 
