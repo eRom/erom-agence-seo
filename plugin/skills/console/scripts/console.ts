@@ -1,9 +1,9 @@
 // Le verbe console : trois lectures, aucune écriture (D30). Toutes les dépendances entrent en paramètre,
 // jamais depuis process.env directement : c'est ce qui rend « aucune requête ne part » testable.
-import { resolveProperty, resolveBingSite, type Property } from "./lib/resolve";
-import { getAccessToken, defaultGcloud, serviceAccountToken, type GoogleAuth } from "./lib/auth-google";
-import { listProperties, listSitemaps, inspectUrl, type Fetcher } from "./lib/gsc";
-import { bingUserSites, bingFeeds, bingUrlInfo, bingCrawlStats, bingCrawlIssues, redact } from "./lib/bing";
+import { resolveProperty, resolveBingSite, type Property } from "../../../lib/resolve";
+import { getAccessToken, defaultGcloud, serviceAccountToken, type GoogleAuth } from "../../../lib/auth-google";
+import { listProperties, listSitemaps, inspectUrl, type Fetcher } from "../../../lib/gsc";
+import { bingUserSites, bingFeeds, bingUrlInfo, bingCrawlStats, bingCrawlIssues, redact } from "../../../lib/bing";
 import { renderSites, renderInspect, renderCrawl, type SitesView, type InspectView, type CrawlView } from "./lib/render";
 import { parseStrategy } from "../../../lib/strategy";
 import { assertNoSecret } from "../../strategy/scripts/lib/keywords";

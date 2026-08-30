@@ -1,6 +1,6 @@
-// plugin/skills/console/scripts/tests/resolve.test.ts
+// plugin/lib/tests/resolve.test.ts
 import { describe, test, expect } from "bun:test";
-import { resolveProperty, resolveBingSite, type Property } from "../lib/resolve";
+import { resolveProperty, resolveBingSite, type Property } from "../resolve";
 
 // Les trois propriétés réelles du compte de Romain, capture du 29/08 (échantillon A du plan).
 const PROPS: Property[] = [

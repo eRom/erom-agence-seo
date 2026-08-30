@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, GscError, type Fetcher } from "../lib/gsc";
-import type { GoogleAuth } from "../lib/auth-google";
+import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, GscError, type Fetcher } from "../gsc";
+import type { GoogleAuth } from "../auth-google";
 
 const AUTH: GoogleAuth = { token: "ya29.FAUX", quotaProject: "p-123", provider: "gcloud" };
 const SA: GoogleAuth = { token: "sa.FAUX", quotaProject: null, provider: "service-account" };

@@ -1,4 +1,4 @@
-// plugin/skills/console/scripts/lib/bing.ts
+// plugin/lib/bing.ts
 // Lectures Bing Webmaster Tools. Aucune écriture (D30) : SubmitFeed et SubmitUrlBatch ne sont pas ici.
 // BING_API_BASE et le décodage d'erreur sont recopiés depuis skills/checklist/scripts/lib/actions.ts (D34,
 // décision de Romain le 29/08) : la mise en commun se fera après un inventaire de ce qui se répète vraiment.

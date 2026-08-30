@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { chooseProvider, getAccessToken, serviceAccountToken, defaultGcloud, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
+import { chooseProvider, getAccessToken, serviceAccountToken, defaultGcloud, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../auth-google";
 
 const gcloudOk = async () => "ya29.FAUX-JETON";
 const gcloudKo = async () => null;
