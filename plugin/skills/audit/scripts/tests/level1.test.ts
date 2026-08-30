@@ -1,6 +1,6 @@
 // plugin/skills/audit/scripts/tests/level1.test.ts
 import { test, expect, describe } from "bun:test";
-import { collectLevel1, bingKnows, indexSummary, canonicalFindings, keywordChecks, deriveConsole, type Level1Deps } from "../lib/level1";
+import { collectLevel1, bingKnows, indexSummary, bingKnownSummary, canonicalFindings, keywordChecks, deriveConsole, type Level1Deps } from "../lib/level1";
 import type { SearchRow, Fetcher } from "../../../../lib/gsc";
 import { parseStrategy } from "../../../../lib/strategy";
 import { VALID } from "../../../../lib/tests/fixtures/strategy-valide";
@@ -332,7 +332,48 @@ test("IDX-06 compte les pages indexées et nomme les autres", () => {
 });
 
 test("IDX-06 sur zéro page inspectée", () => {
-  expect(indexSummary([])).toEqual({ total: 0, indexed: 0, notIndexed: [] });
+  expect(indexSummary([])).toEqual({ total: 0, indexed: 0, notIndexed: [], notInspected: [] });
+});
+
+// C-2 : une page dont l'inspection a échoué (error non nul) n'est ni indexée ni notIndexed, elle n'a
+// pas été jugée. Fixture volontairement asymétrique (2 indexées, 2 non indexées, 1 en échec) : une
+// fixture symétrique laisserait passer une implémentation qui confond les trois compteurs par coïncidence.
+test("IDX-06 range une page en échec dans notInspected, jamais dans indexed ni notIndexed", () => {
+  const pages = [
+    page("https://x/1", "PASS", "Submitted and indexed"),
+    page("https://x/2", "PASS", "Submitted and indexed"),
+    page("https://x/3", "FAIL", "Crawled - currently not indexed"),
+    page("https://x/4", "FAIL", "Crawled - currently not indexed"),
+    { ...page("https://x/5", "VERDICT_UNSPECIFIED", "inconnu"), error: "HTTP 429" },
+  ];
+  const r = indexSummary(pages);
+  expect(r.indexed).toBe(2);
+  expect(r.notIndexed).toEqual([
+    { url: "https://x/3", coverageState: "Crawled - currently not indexed" },
+    { url: "https://x/4", coverageState: "Crawled - currently not indexed" },
+  ]);
+  expect(r.notInspected).toEqual([{ url: "https://x/5", error: "HTTP 429" }]);
+  // L'invariant à tenir en toute circonstance : jamais un compte gelé, toujours la somme des trois.
+  expect(r.total).toBe(r.indexed + r.notIndexed.length + r.notInspected.length);
+});
+
+// AI-03 : même invariant côté Bing, via bingKnownSummary (le pendant d'indexSummary pour BingPage).
+test("AI-03 range une page en échec dans notChecked, jamais dans known ni unknown", () => {
+  const pages = [
+    { url: "https://x/1", slug: "1", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x/2", slug: "2", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x/3", slug: "3", known: false, lastCrawled: null, error: null },
+    { url: "https://x/4", slug: "4", known: false, lastCrawled: null, error: "ThrottleUser" },
+    { url: "https://x/5", slug: "5", known: false, lastCrawled: null, error: "ThrottleUser" },
+  ];
+  const r = bingKnownSummary(pages);
+  expect(r.known).toBe(2);
+  expect(r.unknown).toEqual(["https://x/3"]);
+  expect(r.notChecked).toEqual([
+    { url: "https://x/4", error: "ThrottleUser" },
+    { url: "https://x/5", error: "ThrottleUser" },
+  ]);
+  expect(r.total).toBe(r.known + r.unknown.length + r.notChecked.length);
 });
 
 // Fix round 1 : la fixture précédente fait toujours coïncider PASS et un coverageState qui contient
@@ -486,9 +527,29 @@ test("deriveConsole recopie les raisons de panne sans rien inventer", () => {
   const d = deriveConsole(vide as any, null, "https://x.test");
   expect(d.google.error).toBe("aucun jeton Google");
   expect(d.bing.error).toBe("clé Bing absente");
-  expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [] });
+  expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [], notInspected: [] });
   expect(d.google.lastDataDate).toBeNull();       // search null ne doit pas lever
   expect(d.google.truncated).toBe(false);
+});
+
+// C-2 : le trou exact que la revue a démontré. Sans `notInspected`/`notChecked`, une page en échec
+// d'inspection se comptait « non indexée » (IDX-06) ou « inconnue » (AI-03) alors que l'API n'a jamais
+// répondu. Ici une page réussie et une page en échec, des deux côtés Google et Bing : le résultat doit
+// distinguer proprement les trois catégories, jamais confondre l'échec avec un verdict négatif.
+test("deriveConsole porte les pages en échec dans notInspected et notChecked, jamais dans notIndexed ou unknown", () => {
+  const b = bloc({
+    google: { pages: [
+      page("https://x.test/", "PASS", "Submitted and indexed"),
+      { ...page("https://x.test/b", "VERDICT_UNSPECIFIED", "inconnu"), error: "HTTP 429" },
+    ] },
+    bing: { pages: [
+      { url: "https://x.test/", slug: "index", known: true, lastCrawled: "2026-08-29", error: null },
+      { url: "https://x.test/b", slug: "b", known: false, lastCrawled: null, error: "ThrottleUser" },
+    ] },
+  });
+  const d = deriveConsole(b as any, null, "https://x.test");
+  expect(d.google.index).toEqual({ total: 2, indexed: 1, notIndexed: [], notInspected: [{ url: "https://x.test/b", error: "HTTP 429" }] });
+  expect(d.bing).toMatchObject({ known: 1, total: 2, unknown: [], notChecked: [{ url: "https://x.test/b", error: "ThrottleUser" }] });
 });
 
 // Fix round 1 : `bloc()` a une page connue et une inconnue, parfaitement symétrique. Inverser

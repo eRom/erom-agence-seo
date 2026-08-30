@@ -62,7 +62,7 @@ Couche     : absolue
 Niveau     : 1
 Sévérité   : Critique
 Vérifie    : les pages collectées sont dans l'index Google. Une page absente de l'index ne reçoit aucun trafic, quelle que soit sa qualité.
-Comment    : derived/console.json → google : error non nul = non vue, avec la raison. Sinon google.index : indexed sur total, et notIndexed liste chaque page avec son coverageState. Dire toujours que le compte porte sur les pages collectées et non sur le site entier (--max-pages plafonne). Ne jamais utiliser le champ indexed de sitemaps.list : il vaut « 0 » même sur des pages indexées (mesure du 30/08).
+Comment    : derived/console.json → google : error non nul = non vue, avec la raison. Sinon google.index : indexed sur total, et notIndexed liste chaque page avec son coverageState. Dire toujours que le compte porte sur les pages collectées et non sur le site entier (--max-pages plafonne). Ne jamais utiliser le champ indexed de sitemaps.list : il vaut « 0 » même sur des pages indexées (mesure du 30/08). google.index.notInspected liste les pages dont l'inspection a échoué, chacune avec son erreur : dans « Ce que je n'ai pas pu voir », jamais comptées dans notIndexed. Si notInspected couvre la totalité des pages inspectées, IDX-06 entière est non vue, avec la ou les erreurs.
 Source     : https://support.google.com/webmasters/answer/9012289 « The URL Inspection tool provides information about Google's indexed version of a specific page, and also allows you to test whether a URL might be indexable. »
 Correctif  : vérifier robots.txt et la balise robots, soumettre la page dans Search Console, et s'assurer qu'elle est atteignable depuis le sitemap et un lien interne.
 Effort     : moyen

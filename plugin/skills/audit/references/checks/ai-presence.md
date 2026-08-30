@@ -27,7 +27,7 @@ Couche     : absolue
 Niveau     : 1
 Sévérité   : Mineur
 Vérifie    : chaque page collectée est connue de l'index Bing, qui alimente Copilot.
-Comment    : derived/console.json → bing : error non nul = non vue, avec la raison. Sinon known sur total, et unknown liste les pages inconnues. Une page est connue si Bing rend une date de dernier crawl qui n'est pas la sentinelle DateTime.MinValue. Ne jamais citer HttpStatus : il vaut 0 même sur une page indexée (capture du 29/08).
+Comment    : derived/console.json → bing : error non nul = non vue, avec la raison. Sinon known sur total, et unknown liste les pages inconnues. Une page est connue si Bing rend une date de dernier crawl qui n'est pas la sentinelle DateTime.MinValue. Ne jamais citer HttpStatus : il vaut 0 même sur une page indexée (capture du 29/08). bing.notChecked liste les pages dont l'appel GetUrlInfo a échoué, chacune avec son erreur : dans « Ce que je n'ai pas pu voir », jamais comptées dans unknown. Si notChecked couvre la totalité des pages, AI-03 entière est non vue, avec la ou les erreurs.
 Source     : https://blogs.bing.com/webmaster/February-2026/Introducing-AI-Performance-in-Bing-Webmaster-Tools-Public-Preview « shows how publisher content appears across Microsoft Copilot, AI-generated summaries in Bing, and select partner integrations »
 Correctif  : ajouter le site dans Bing Webmaster Tools, soumettre le sitemap, et déclarer une clé IndexNow (AI-02) pour accélérer la découverte.
 Effort     : rapide

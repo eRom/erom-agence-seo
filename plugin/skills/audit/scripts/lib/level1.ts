@@ -243,7 +243,20 @@ export async function collectLevel1(deps: Level1Deps, o: Level1Options): Promise
 // Les quatre vérifications transforment Level1Result en un seul fichier, derived/console.json,
 // que le rapport d'audit lit sans jamais retoucher les blocs Google et Bing bruts.
 
-export type IndexSummary = { total: number; indexed: number; notIndexed: { url: string; coverageState: string }[] };
+export type IndexSummary = {
+  total: number; indexed: number;
+  notIndexed: { url: string; coverageState: string }[];
+  /** C-2. Une page dont l'inspection a échoué (InspectedPage.error non nul) n'a reçu aucun verdict :
+   *  elle ne va ni dans indexed ni dans notIndexed, sous peine d'écrire un « non indexée » que l'API
+   *  n'a jamais rendu. Invariant à tenir partout : total === indexed + notIndexed.length + notInspected.length. */
+  notInspected: { url: string; error: string }[];
+};
+export type BingSummary = {
+  total: number; known: number; unknown: string[];
+  /** Même garde côté Bing : GetUrlInfo en échec n'est ni known ni unknown, il n'a pas répondu.
+   *  Même invariant : total === known + unknown.length + notChecked.length. */
+  notChecked: { url: string; error: string }[];
+};
 export type CanonicalFinding = { url: string; googleCanonical: string; userCanonical: string };
 export type KeywordCheck = { page: string; keyword: string; hasImpressions: boolean; keywordFound: boolean | null; topQueries: string[] };
 export type ConsoleDerived = {
@@ -264,17 +277,37 @@ export type ConsoleDerived = {
     lastDataDate: string | null;
     truncated: boolean;
   };
-  bing: { site: string | null; error: string | null; known: number; total: number; unknown: string[] };
+  bing: { site: string | null; error: string | null; known: number; total: number; unknown: string[]; notChecked: { url: string; error: string }[] };
   strategy: KeywordCheck[] | null;
 };
 
-/** IDX-06. Le verdict fait foi, pas coverageState : PASS est la seule valeur qui dise « indexée ». */
+/**
+ * IDX-06. Le verdict fait foi, pas coverageState : PASS est la seule valeur qui dise « indexée ».
+ * C-2 : une page en échec (error non nul) est mise à part avant tout, elle n'entre dans aucun des deux
+ * autres compteurs. `total` reste le nombre de pages SOUMISES à l'inspection, pas seulement celles qui
+ * ont répondu : un total qui baisserait avec les échecs fabriquerait un second mensonge plus discret.
+ */
 export function indexSummary(pages: InspectedPage[]): IndexSummary {
-  const ok = pages.filter((p) => p.verdict === "PASS");
+  const failed = pages.filter((p) => p.error !== null);
+  const seen = pages.filter((p) => p.error === null);
   return {
     total: pages.length,
-    indexed: ok.length,
-    notIndexed: pages.filter((p) => p.verdict !== "PASS").map((p) => ({ url: p.url, coverageState: p.coverageState })),
+    indexed: seen.filter((p) => p.verdict === "PASS").length,
+    notIndexed: seen.filter((p) => p.verdict !== "PASS").map((p) => ({ url: p.url, coverageState: p.coverageState })),
+    notInspected: failed.map((p) => ({ url: p.url, error: p.error! })),
+  };
+}
+
+/** AI-03. Le pendant de `indexSummary` côté Bing, même invariant, même raison d'être : une page dont
+ *  GetUrlInfo a échoué n'a reçu aucune réponse, elle n'est ni known ni unknown. */
+export function bingKnownSummary(pages: BingPage[]): BingSummary {
+  const failed = pages.filter((p) => p.error !== null);
+  const seen = pages.filter((p) => p.error === null);
+  return {
+    total: pages.length,
+    known: seen.filter((p) => p.known).length,
+    unknown: seen.filter((p) => !p.known).map((p) => p.url),
+    notChecked: failed.map((p) => ({ url: p.url, error: p.error! })),
   };
 }
 
@@ -338,7 +371,6 @@ export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle
 export function deriveConsole(r: Level1Result, planned: { page: string; motCle: string }[] | null, origin: string): ConsoleDerived {
   const g = r.google;
   const b = r.bing;
-  const unknown = b.pages.filter((p) => !p.known).map((p) => p.url);
   return {
     level: 1,
     google: {
@@ -352,7 +384,7 @@ export function deriveConsole(r: Level1Result, planned: { page: string; motCle: 
       lastDataDate: g.search?.lastDataDate ?? null,
       truncated: g.search?.truncated ?? false,
     },
-    bing: { site: b.site, error: b.error, known: b.pages.length - unknown.length, total: b.pages.length, unknown },
+    bing: { site: b.site, error: b.error, ...bingKnownSummary(b.pages) },
     strategy: planned === null ? null : keywordChecks(g.search?.rows ?? [], planned, origin),
   };
 }
