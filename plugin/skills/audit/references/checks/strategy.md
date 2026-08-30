@@ -1,6 +1,6 @@
 # Couche stratégique
 
-Contexte pour Claude : `derived/strategy-eval.json`, écrit par `strategy-eval.ts` quand `seo/strategy.md` existe et s'analyse. Sans ce fichier, les cinq vérifications de cette couche (STRAT-01 à STRAT-04, AI-02) vont dans « Ce que je n'ai pas pu voir » avec la raison « pas de seo/strategy.md » ou « seo/strategy.md inanalysable : <défauts> ». La stratégie est un engagement pris avec le client ; ces vérifications disent si le site le tient.
+Contexte pour Claude : `derived/strategy-eval.json`, écrit par `strategy-eval.ts` quand `seo/strategy.md` existe et s'analyse. Sans ce fichier, les six vérifications de cette couche (STRAT-01 à STRAT-05, AI-02) vont dans « Ce que je n'ai pas pu voir » avec la raison « pas de seo/strategy.md » ou « seo/strategy.md inanalysable : <défauts> ». La stratégie est un engagement pris avec le client ; ces vérifications disent si le site le tient.
 
 ### STRAT-01 : chaque page prévue existe et vise son mot-clé
 Couche     : stratégique
