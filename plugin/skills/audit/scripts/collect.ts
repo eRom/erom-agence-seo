@@ -236,8 +236,13 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
         // Round 2 de revue : raw/ reçoit des réponses brutes d'API, la même garde que le dérivé et le
         // manifeste s'applique ici, avant l'écriture — un secret qui fuit dans une réponse ne doit pas
         // survivre plus longtemps parce que le fichier qui le porte est un raw/ plutôt qu'un derived/.
+        // I-1 : GSC_SA_KEY_FILE en troisième secret, même garde que bingKey et le jeton. Le chemin d'une
+        // clé de compte de service nomme souvent le client (dossier, sous-domaine) : la retirer du seul
+        // message qui la citait (auth-google.ts) ne suffit pas si un autre appel venait un jour à la
+        // recopier (siteUrl, erreur réseau qui échoue une URL complète, etc).
         assertNoSecret(f.body, bingKey);
         assertNoSecret(f.body, auth?.token ?? null);
+        assertNoSecret(f.body, process.env.GSC_SA_KEY_FILE ?? null);
         await mkdir(join(raw, dirname(f.path)), { recursive: true });
         await save(f.path, f.body);
       }
@@ -245,6 +250,7 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
       const text = JSON.stringify(derivedConsole, null, 2);
       assertNoSecret(text, bingKey);
       assertNoSecret(text, auth?.token ?? null);
+      assertNoSecret(text, process.env.GSC_SA_KEY_FILE ?? null);
       await Bun.write(join(derived, "console.json"), text);
       level1 = { attempted: true, googleError: r.google.error, bingError: r.bing.error };
     } catch (e) {
@@ -277,6 +283,7 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
   const manifestText = JSON.stringify(manifest, null, 2);
   assertNoSecret(manifestText, bingKey);
   assertNoSecret(manifestText, auth?.token ?? null);
+  assertNoSecret(manifestText, process.env.GSC_SA_KEY_FILE ?? null);
   await Bun.write(join(raw, "manifest.json"), manifestText);
   return { ...manifest, out };
 }

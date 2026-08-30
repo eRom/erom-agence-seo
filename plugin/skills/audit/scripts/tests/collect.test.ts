@@ -351,6 +351,35 @@ describe("niveau 1", () => {
     expect(m.pages.length).toBeGreaterThan(0);
   });
 
+  test("le chemin de GSC_SA_KEY_FILE ne fuit jamais dans raw/, derived/ ni le manifeste (I-1)", async () => {
+    // Même mécanique que « fuite dans un corps raw » ci-dessus, mais avec GSC_SA_KEY_FILE au lieu du
+    // jeton : un chemin de clé nomme souvent le client (dossier, sous-domaine) et n'a rien à faire sur le
+    // disque de l'audit. sites.list embarque le chemin dans un siteUrl bidon, avant toute résolution de
+    // propriété : ce qui compte est le contenu du corps poussé dans raw/, pas la suite de la collecte.
+    const cheminSensible = "clients-acme-corp-secrets-sa-search-console";
+    const avant = process.env.GSC_SA_KEY_FILE;
+    process.env.GSC_SA_KEY_FILE = cheminSensible;
+    try {
+      const espion: any = async (url: string) => {
+        if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: `sc-domain:leak-${cheminSensible}.example`, permissionLevel: "inconnu" }] }) };
+        return { status: 200, text: JSON.stringify({}) };
+      };
+      const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-sakeyfile-"));
+      const m = await runCollect({
+        url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+        consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+      });
+      expect(m.level1?.attempted).toBe(true);
+      expect(m.level1?.googleError).toContain("clé API");
+      expect(await Bun.file(join(dir, "raw/gsc/sites.json")).exists()).toBe(false);    // jamais écrit : la garde a agi avant
+      expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+      const manifestText = await Bun.file(join(dir, "raw/manifest.json")).text();
+      expect(manifestText).not.toContain(cheminSensible);
+    } finally {
+      if (avant === undefined) delete process.env.GSC_SA_KEY_FILE; else process.env.GSC_SA_KEY_FILE = avant;
+    }
+  });
+
   test("sans accès (jeton indisponible), le niveau 1 le dit sans appeler Google", async () => {
     // Comportement légitime, distinct d'une panne : demandé en round 1 pour ne pas confondre les deux.
     // L'espion rend toujours un succès inoffensif : s'il levait, un vrai BING_WMT_API_KEY dans
