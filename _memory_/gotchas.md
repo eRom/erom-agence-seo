@@ -1,4 +1,4 @@
-# Pièges (mis à jour le 2026-08-29, 22 h)
+# Pièges (mis à jour le 2026-08-30, 15 h)
 
 **Sessions et outillage**
 - Checkout partagé : jamais `git switch` ni `checkout` dans `/Users/recarnot/dev/erom-agence-seo` ; une session déléguée qui l'a fait a basculé la session mère sur sa branche (28/08). Délégation = worktree frère.
@@ -69,3 +69,34 @@
 - **Le dossier `.superpowers/sdd/` est ignoré par git** : le registre d'exécution et tous les rapports de revue meurent avec le worktree. Copier le registre dans `docs/superpowers/journaux/` avant de supprimer le worktree.
 - **Un brief de tâche généré d'avance devient périmé** dès qu'on corrige le plan. Régénérer juste avant chaque dispatch (arrivé le 29/08 : l'implémenteur de la tâche 6 a travaillé sur une clé de test corrigée entre-temps, rattrapé par sa vigilance seule).
 - `env -u VAR PATH=/usr/bin bun …` **ne s'exécute pas** : `env` résout la commande avec le `PATH` qu'il vient de poser, et `bun` n'y est pas. Pour retirer `gcloud` du `PATH` sans perdre `bun` : `PATH="$(dirname "$(command -v bun)")"`, les deux vivant dans des dossiers différents.
+
+**Catalogue de vérifications (30/08)**
+- **`parseChecks` rejette un chiffre dans le préfixe d'un identifiant, en silence.** Son motif est `^### ([A-Z]+-\d{2})`, donc `LVL1-03` ne matche pas : l'entrée n'est **pas créée** et ses champs sont absorbés comme lignes de continuation de la vérification précédente, qu'ils corrompent (`IDX-05` passait de niveau 0 à 1). Suite verte du début à la fin. Le même motif vit à **sept endroits** dans quatre fichiers (`lib/checks.ts`, `lib/report.ts` ×2, `lint-report.ts` ×3, `build/lib/recipes.ts`). D'où le nommage `IDX-06`, `IDX-07`, `STRAT-05`. Re-vérifiable : `parseChecks("### LVL1-03 : x\nNiveau : 1\n")` rend `[]`.
+- **Écrire une entrée ne prouve pas qu'elle est lue.** Compter les entrées rendues par `parseChecks` avant et après, l'écart doit être exact. Un fichier qui s'écrit sans erreur n'est pas un fichier qui se lit.
+- **Le champ `Effort` n'accepte que `rapide`, `moyen`, `lourd`** (`checks-format.test.ts`). `long` casse la suite. Vérifiable : `grep -h "^Effort" references/checks/*.md | sort -u`.
+
+**API Google et Bing (30/08)**
+- **Le champ `indexed` de `sitemaps.list` ment.** Il vaut `"0"` sur des propriétés dont les pages sont indexées et reçoivent des impressions. Mesuré sur deux propriétés le matin, puis reproduit dans un même audit l'après-midi : `"0"` côté `raw/gsc/sitemaps.json`, `1` côté `derived/console.json`, sur la même page. Le compte d'indexation vient de `urlInspection.index.inspect`, jamais de ce champ.
+- **La visibilité IA n'est dans aucune API.** `searchAnalytics.query` avec `type: "GENERATIVE_AI"` rend `HTTP 400, Invalid value at 'type'`. Le rapport Generative AI de l'interface n'est ouvert qu'à une partie des propriétés, et le filtre « Type de recherche » n'offre que Web, Image, Vidéo, Actualités là où il manque.
+- **Les données de `searchAnalytics` ont environ trois jours de retard.** Appel du 30/08, dernier jour rendu : le 27/08. `dataState: "final"` et `"all"` rendent le même dernier jour. Un rapport qui ne dit pas la date de fraîcheur fait croire à un trou dans le site.
+- **`lastDataDate` se prend sur le maximum des lignes à `impressions > 0`**, jamais sur la dernière ligne rendue : Google omet les jours sans donnée et ne garantit pas l'ordre. Une propriété sans trafic doit rendre `null`, pas une date.
+- **`searchAnalytics.query` trie par clics décroissants.** Au plafond de `rowLimit`, ce sont les pages à impressions **sans clic** qui tombent en premier, exactement celles qu'une vérification de stratégie doit signaler. D'où l'obligation de lire `truncated` avant de conclure « aucune impression ».
+- **Une propriété Search Console survit au site qu'elle décrit.** `healthincloud.app` rend `HTTP 000` (injoignable) et sa propriété répond toujours, avec son refus de sitemaps en rôle `siteUnverifiedUser`. Utile pour une agence : les données de console restent lisibles après une mise hors ligne.
+
+**Appariement des pages (30/08, le défaut le plus coûteux du chantier)**
+- **`strategy.md` impose un chemin nu, Google rend une URL absolue.** `lib/strategy.ts:136` valide la colonne Page par `/^\/\S*$/` (donc `/methode`), et `searchAnalytics` rend `keys[0]` en `https://…`. Apparier les deux par `pageKey` seul **échoue toujours** : `pageKey("/methode")` rend `"/methode"` (l'entrée n'étant pas une URL absolue, `new URL` lève et la fonction rend son argument), quand `pageKey("https://www.x/methode")` rend `"x/methode"`. Conséquence : le rapport écrit « aucune impression sur 90 jours » sur un site qui en a. Le remède est de résoudre la page sur l'origine avant de normaliser, **et de retirer la barre finale des deux côtés** (Google rend souvent l'URL indexée avec, WordPress et Next en `trailingSlash: true`).
+- **Un test qui utilise une forme de donnée que le parseur refuse ne prouve rien.** Les six fixtures de `keywordChecks` passaient des URL absolues là où `parseStrategy` n'accepte qu'un chemin : trois revues successives sont passées à côté du défaut ci-dessus pour cette seule raison.
+- **Les trois règles d'appariement du projet ne sont pas interchangeables**, mesuré : `normalizeUrl` (host tel quel) rate apex contre www ; `pathOf` (chemin seul) confond deux sous-domaines d'une propriété Domaine ; `pageKey` (host sans `www.`, plus chemin) traite les deux correctement. `strategy-eval.ts` peut utiliser `pathOf` sans risque parce que ses pages viennent toutes de la collecte du même site, déjà filtrée ; une source **externe** comme Google ne l'est pas.
+
+**Niveaux d'audit (30/08)**
+- **Les niveaux ne sont pas une échelle.** Le niveau 0 est le socle de tout audit URL ; le niveau 1 (consoles) et le niveau 2 (code en local) sont deux **extensions indépendantes**, jamais l'une dans l'autre. Un audit niveau 2 n'a jamais touché les consoles et ne peut pas évaluer leurs vérifications. Le code disait `c.niveau <= niveau`, bug latent depuis le chantier 1 et invisible tant qu'aucune vérification de niveau 1 n'existait.
+
+**Tests (30/08)**
+- **Une suite de tests peut lancer `gcloud` sans qu'on le voie.** `getAccessToken` lit `process.env` : dans un shell où `~/.zshenv` est sourcé, un test de `collect.ts` obtenait un vrai jeton par le binaire `gcloud` (719 ms sans les variables, 3240 ms avec, et un test qui passait ou échouait selon le shell). Le remède est une couture d'injection dans les options. **Toujours mesurer une suite dans les deux environnements** : même compte et même ordre de grandeur de temps.
+- **Une fixture symétrique ne peut pas distinguer une somme de son complément.** Un comptage `total - unknown.length` muté en `unknown.length` passait tous les tests parce que la fixture avait une page de chaque. Il faut une fixture **asymétrique** (3 contre 1) et un **invariant** (`total === a + b + c`), jamais un compte gelé.
+- **La casse d'une fixture peut vider un test de sa preuve.** Un test censé prouver qu'on compte sur le verdict et non sur l'état de couverture utilisait `"Indexed, though blocked…"` avec un I majuscule, quand la mutation cherchait `"indexed"` : il passait par pure coïncidence.
+
+**Exports des consoles, relevés le 30/08 pour le jour où l'IA sera dans l'API**
+- **Google exporte un `.zip` de sept CSV aux noms localisés** (`Requêtes.csv`, `Filtres.csv`…), UTF-8 **sans** BOM, fins de ligne LF. Les noms accentués font échouer `unzip` en ligne de commande (`write error`) là où `ditto -x -k` les extrait correctement. `Filtres.csv` porte l'état du rapport exporté : c'est le seul garde-fou contre un mauvais fichier.
+- **Bing exporte un CSV nu**, UTF-8 **avec** BOM, fins de ligne CRLF, toutes valeurs entre guillemets, en-tête `"Date","Citations","Cited Pages"`.
+

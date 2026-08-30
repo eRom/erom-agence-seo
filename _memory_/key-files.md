@@ -1,4 +1,4 @@
-# Fichiers clés (mis à jour le 2026-08-29, 22 h)
+# Fichiers clés (mis à jour le 2026-08-30, 15 h)
 
 **Contrats partagés (`plugin/lib/`)**
 - `lib/strategy.ts` : `parseStrategy`, `lintStrategy`, `normalizeText`, `keywordMatches`, `cadenceDays`, `INDEXNOW_KEY` ; le format strict de `seo/strategy.md`.
@@ -60,3 +60,14 @@
 - Corpus d'inspiration : `inspiration/` (hors git, MIT Corey Haines), matière première des références.
 - Remote : `git@github.com:eRom/erom-agence-seo.git`, premier push le 29/08 à 14 h 47, `main` synchronisé depuis (`9c0767a`).
 - Worktrees : plus aucun au 29/08 (chantier-3, menage, recette-fix, chantier-4 supprimés après fusion) ; branche `chantier-1-audit-n0` conservée.
+
+## Le commun et le niveau 1 (30/08)
+
+- `plugin/lib/url.ts` — primitives d'URL partagées : `sameSite`, `pageKey`, `rewriteToOrigin`, plus deux aides privées. Extraites de `audit/lib/sitemap.ts` pour que le commun ne dépende d'aucune skill.
+- `plugin/lib/auth-google.ts` — un jeton, deux fournisseurs (`gcloud` aujourd'hui, compte de service prêt). Ne journalise jamais sa sortie.
+- `plugin/lib/gsc.ts` — les quatre lectures Search Console : `listProperties`, `listSitemaps`, `inspectUrl`, `searchAnalytics`. Aucune écriture, et il n'y en aura pas.
+- `plugin/lib/bing.ts` — **seul** endroit où vit `BING_API_BASE` et la table des codes d'erreur. Porte `parseDotNetDate` et la sentinelle `DATE_JAMAIS`.
+- `plugin/lib/resolve.ts` — résout une URL vers la propriété Search Console qui la couvre, en choisissant dans ce que `sites.list` a rendu, jamais en fabriquant un `siteUrl`.
+- `plugin/skills/audit/scripts/lib/level1.ts` — la collecte du niveau 1 et ses dérivés. Module **pur** (rien du réseau ni du disque n'y entre sans passer par un paramètre). Porte `collectLevel1`, `bingKnows`, `indexSummary`, `canonicalFindings`, `keywordChecks`, `deriveConsole`.
+- `plugin/skills/audit/references/checks/` — `indexability.md` porte `IDX-06` et `IDX-07`, `strategy.md` porte `STRAT-05`, `ai-presence.md` porte `AI-03`. C'est le texte que le modèle lit pour écrire le rapport d'un client : sa justesse compte autant que celle du code.
+

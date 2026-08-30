@@ -1,6 +1,6 @@
-# Architecture (mis à jour le 2026-08-29, 22 h)
+# Architecture (mis à jour le 2026-08-30, 15 h)
 
-**Type.** Plugin Claude Code `erom-seo` (dossier `plugin/`) pour l'agence : audit, stratégie, build, checklist de déploiement et consultation des consoles, sans abonnement tiers, sites propres et clients. **Cinq verbes livrés au 29/08.** Le chantier 5 se livre en deux étapes : étape 1 le verbe `console` (fusionné et poussé le 29/08 au soir), étape 2 l'audit niveau 1 (`collect.ts --level 1`), à faire. Le repo héberge aussi les dossiers clients (`clients/<domaine>/seo/`, non suivis) et la documentation de conception.
+**Type.** Plugin Claude Code `erom-seo` (dossier `plugin/`) pour l'agence : audit, stratégie, build, checklist de déploiement et consultation des consoles, sans abonnement tiers, sites propres et clients. **Cinq verbes plus l'audit niveau 1, tout fusionné dans `main` au 30/08 ; le chantier 5 est terminé.** 434 tests, 119 citations officielles vérifiées, 35 entrées de catalogue. Le repo héberge aussi les dossiers clients (`clients/<domaine>/seo/`, non suivis) et la documentation de conception.
 
 **Stack.** Bun 1.4, TypeScript, `bun:test`, `node-html-parser`, `robots-parser`. Aucune autre dépendance. Une skill = `SKILL.md` (procédure en prose pour Claude) + `scripts/` bun + `references/` Markdown strict lus par des parseurs.
 
@@ -35,3 +35,12 @@ docs/recherches/                  mots-clés gratuits (Bing, Wikimedia), API SEO
 **Flux checklist.** `checklist.ts` lit `strategy.md`, le dernier n2 et le dernier n0 (`latestAuditDir`), git (branche, dernier commit `seo(`), l'ancien `seo/checklist.md`, l'hôte réellement servi (home de `raw/manifest.json` du n0, sinon `derived/pages.json`, sinon la stratégie) ; calcule les quinze lignes (`computeChecklist`, pur) ; avec `--agir`, POST IndexNow (URL du sitemap collecté ramenées sur l'hôte servi) et `SubmitFeed` Bing si le site est dans le compte et vérifié. La skill (`SKILL.md`) lance d'abord `/erom-seo:audit https://<site>` quand la mise en ligne est posée, puis le script, puis demande le OK avant `--agir`.
 
 **Dépendances externes.** PageSpeed Insights (`PSI_API_KEY`), Bing Webmaster JSON `GetKeywordStats`, `GetUserSites`, `SubmitFeed`, `GetFeeds`, `GetUrlInfo`, `GetCrawlStats`, `GetCrawlIssues` (`BING_WMT_API_KEY`), Search Console `sites.list`, `sitemaps.list` et `urlInspection.index.inspect` (jeton gcloud plus `GSC_QUOTA_PROJECT`, ou `GSC_SA_KEY_FILE`), Wikimedia Pageviews, IndexNow (`POST https://api.indexnow.org/indexnow`, clé publique servie en `/<clé>.txt`) ; documentation officielle des moteurs, de Next.js, de Vercel et de Microsoft Learn pour les citations, vérifiées par `check-sources.ts` (115 au 29/08 au soir, dont 24 de `consoles.md` et 8 de `acces.md`).
+
+## Le niveau 1 (chantier 5 étape 2, fusionné le 30/08)
+
+`audit --level 1` fait tout le niveau 0 puis interroge Search Console et Bing, et en tire quatre vérifications : `IDX-06` (pages réellement indexées, Critique), `IDX-07` (canonical retenu par Google, Important), `STRAT-05` (requêtes réelles contre le mot-clé visé, Important, couche stratégique), `AI-03` (présence dans l'index Bing, Mineur). Il ne s'allume **jamais** tout seul : les accès étant posés en permanence sur la machine, une détection automatique enverrait des requêtes à des tiers sans demande.
+
+**Le dossier commun `plugin/lib/` est passé de 2 modules à 7** : `url.ts` (primitives d'URL), `auth-google.ts` (jeton, deux fournisseurs), `gsc.ts` (les quatre lectures Search Console), `bing.ts` (transport et lectures Bing), `resolve.ts` (résolution de propriété), plus `report.ts` et `strategy.ts` déjà là. Règle qui décide du découpage : **`plugin/lib/` ne dépend d'aucune skill**. Le transport Bing n'existe plus qu'en un exemplaire, partagé par les cinq verbes.
+
+**Flux du niveau 1** : `collect.ts` monte le jeton et la clé, appelle `skills/audit/scripts/lib/level1.ts` (module **pur** : `Fetcher`, jeton et clé en paramètre, aucune écriture), écrit les réponses brutes dans `raw/gsc/` et `raw/bing/`, et le dérivé dans `derived/console.json`, seul fichier que les quatre vérifications du catalogue lisent. Toute la branche est sous `try` : une panne du niveau 1 ne fait jamais échouer l'audit.
+
