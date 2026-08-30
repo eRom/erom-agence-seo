@@ -29,7 +29,7 @@
 
 | Fichier | Responsabilité |
 |---|---|
-| `plugin/lib/url.ts` | primitives d'URL partagées : `sameSite`, `pageKey`, `rewriteToOrigin` |
+| `plugin/lib/url.ts` | primitives d'URL partagées : `sameSite`, `pageKey`, `rewriteToOrigin`, plus `bareHost` et `comparableHost` qui restent privés |
 | `plugin/lib/tests/url.test.ts` | leurs tests, repris de `sitemap.test.ts` |
 | `plugin/skills/audit/scripts/lib/level1.ts` | collecte et dérivés du niveau 1, pur |
 | `plugin/skills/audit/scripts/tests/level1.test.ts` | ses tests |
@@ -49,8 +49,8 @@
 | `plugin/skills/strategy/scripts/keywords.ts` | transport Bing commun |
 | `plugin/skills/checklist/scripts/lib/actions.ts` | transport Bing commun |
 | `plugin/skills/checklist/scripts/lib/ancien-sitemap.ts`, `checklist.ts` | imports recâblés |
-| `plugin/skills/audit/references/checks/indexability.md` | LVL1-03, LVL1-04 |
-| `plugin/skills/audit/references/checks/strategy.md` | LVL1-05 |
+| `plugin/skills/audit/references/checks/indexability.md` | IDX-06, IDX-07 |
+| `plugin/skills/audit/references/checks/strategy.md` | STRAT-05 |
 | `plugin/skills/audit/references/checks/ai-presence.md` | AI-03 |
 | `plugin/skills/audit/references/levels.md` | niveau 1 livré |
 | `plugin/skills/audit/SKILL.md` | `--level 1`, lecture de `derived/console.json` |
@@ -73,15 +73,19 @@ Sans cette tâche, `resolve.ts` monté dans `plugin/lib/` importerait une skill,
 
 **Interfaces:**
 - Consumes: rien.
-- Produces: `sameSite(u: string, origin: string): boolean`, `pageKey(u: string): string`, `rewriteToOrigin(u: string, origin: string): string | null`, exportées par `plugin/lib/url.ts`. Signatures identiques à celles d'aujourd'hui : c'est un déménagement, pas une réécriture.
+- Produces: `sameSite(u: string, origin: string): boolean`, `pageKey(u: string): string`, `rewriteToOrigin(u: string, origin: string): string | null`, exportées par `plugin/lib/url.ts`. Signatures identiques à celles d'aujourd'hui : c'est un déménagement, pas une réécriture. `bareHost` et `comparableHost` descendent avec elles et restent non exportés.
 
-- [ ] **Step 1: lire les trois fonctions à déplacer**
+- [ ] **Step 1: lire les CINQ fonctions à déplacer**
 
 ```bash
-cd plugin && sed -n '38,60p' skills/audit/scripts/lib/sitemap.ts
+cd plugin && sed -n '26,60p' skills/audit/scripts/lib/sitemap.ts
 ```
 
+**Cinq, pas trois.** `sameSite` appelle `comparableHost`, et `pageKey` appelle `bareHost` : ces deux helpers sont privés à `sitemap.ts` (non exportés) et ne servent qu'à ces deux fonctions. Déplacer les trois publiques sans eux ne compile pas. Ils descendent dans `url.ts` et **y restent privés** : rien d'autre dans le repo ne les utilise (vérifié le 30/08 par grep sur `skills` et `lib`).
+
 Les recopier **à l'octet près**, commentaires compris. Toute reformulation ici est une régression silencieuse : ces fonctions décident quelles URL entrent dans une collecte.
+
+`sitemap.ts` garde `collectSitemapUrls`, qui appelle les trois publiques aux lignes 90, 101 et 102 : d'où l'import de l'étape 4.
 
 - [ ] **Step 2: créer `plugin/lib/url.ts`**
 
@@ -452,7 +456,7 @@ export async function searchAnalytics(f: Fetcher, auth: GoogleAuth, siteUrl: str
 cd plugin && bun test lib/tests/gsc.test.ts && bun test
 ```
 
-Attendu : les trois nouveaux tests passent, le total monte à **378**, aucun échec.
+Attendu : les trois nouveaux tests passent, **aucun échec**, et le total a augmenté de trois exactement par rapport au relevé d'avant la tâche. Ne pas figer un total absolu : il bouge à chaque chantier, et un plan qui l'écrit en dur devient faux au suivant.
 
 - [ ] **Step 5: vérifier sur le compte réel**
 
@@ -510,7 +514,10 @@ export type Level1Options = {
   delayMs?: number;                          // défaut 250, comme la collecte de pages
 };
 export type Level1Raw = { path: string; body: string };   // à écrire sous raw/, chemin relatif à raw/
-export type Level1Result = { google: GoogleBlock | null; bing: BingBlock | null; raw: Level1Raw[] };
+/** Les deux blocs sont toujours présents : une panne se dit par leur champ `error`, jamais par leur
+ *  absence. Deux façons d'exprimer « pas de données » en est une de trop, et `deriveConsole` n'a
+ *  alors aucune décharge de nullité à faire. */
+export type Level1Result = { google: GoogleBlock; bing: BingBlock; raw: Level1Raw[] };
 export function collectLevel1(deps: Level1Deps, o: Level1Options): Promise<Level1Result>;
 ```
 
@@ -528,10 +535,19 @@ export type GoogleBlock = {
   error: string | null;
   pages: InspectedPage[];
   sitemaps: SitemapInfo[];
+  /** Un refus de lecture des sitemaps a son propre emplacement : sans lui, « je n'ai pas le droit de
+   *  les lire » deviendrait « aucun sitemap déclaré », ce que le rapport n'a pas le droit de confondre.
+   *  Cas réel disponible : sc-domain:healthincloud.app, rôle siteUnverifiedUser (spec 11.5). */
+  sitemapsError: string | null;
   search: { lastDataDate: string | null; rows: SearchRow[]; truncated: boolean; error: string | null } | null;
 };
 export type BingPage = { url: string; slug: string; known: boolean; lastCrawled: string | null; error: string | null };
 export type BingBlock = { site: string | null; error: string | null; pages: BingPage[] };
+
+/** AI-03. Bing rend une sentinelle DateTime.MinValue pour « jamais crawlée » (capture du 29/08), pas null.
+ *  Vit ici et non en tâche 6 : c'est `collectBing` qui remplit `known`, et une règle définie ailleurs
+ *  laisserait passer un `known: info !== null` qui satisfait tous les tests en mentant. */
+export function bingKnows(info: Record<string, unknown> | null): boolean;
 ```
 
 - [ ] **Step 1: écrire les tests de dégradation d'abord**
@@ -553,23 +569,27 @@ test("sans jeton Google, la moitié Google est non vue et Bing continue", async 
     throw new Error(`appel inattendu : ${url}`);
   };
   const r = await collectLevel1({ fetcher, auth: null, authError: "aucun jeton Google", bingKey: "k" }, OPT);
-  expect(r.google!.error).toBe("aucun jeton Google");
-  expect(r.google!.pages).toEqual([]);
-  expect(r.bing!.pages[0].known).toBe(true);
+  expect(r.google.error).toBe("aucun jeton Google");
+  expect(r.google.pages).toEqual([]);
+  expect(r.bing.pages[0].known).toBe(true);
 });
 
 test("sans clé Bing, aucune requête Bing ne part", async () => {
   const fetcher: any = async (url: string) => {
     if (url.includes("bing.com")) throw new Error("la clé est absente, rien ne doit partir vers Bing");
-    if (url.includes("/sites/")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
-    if (url.includes("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    // searchAnalytics AVANT /sites/ : son URL est .../sites/<propriété>/searchAnalytics/query et
+    // matcherait la branche sitemaps, qui rendrait un corps sans `rows`. Le test passerait quand même,
+    // en n'exerçant pas ce qu'il prétend exercer.
+    if (url.includes("searchAnalytics")) return { status: 200, text: JSON.stringify({ rows: [] }) };
+    if (url.includes("/sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
     if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
-    return { status: 200, text: JSON.stringify({ rows: [] }) };
+    throw new Error(`appel inattendu : ${url}`);
   };
   const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
-  expect(r.bing!.error).toBe("clé Bing absente");
-  expect(r.bing!.pages).toEqual([]);
-  expect(r.google!.pages).toHaveLength(1);
+  expect(r.bing.error).toBe("clé Bing absente");
+  expect(r.bing.pages).toEqual([]);
+  expect(r.google.pages).toHaveLength(1);
 });
 
 test("aucune propriété ne couvre l'URL : Google non vu, sans requête d'inspection", async () => {
@@ -579,8 +599,8 @@ test("aucune propriété ne couvre l'URL : Google non vu, sans requête d'inspec
     return { status: 200, text: JSON.stringify({}) };
   };
   const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
-  expect(r.google!.property).toBeNull();
-  expect(r.google!.error).toContain("aucune propriété");
+  expect(r.google.property).toBeNull();
+  expect(r.google.error).toContain("aucune propriété");
 });
 
 test("une page en échec n'empêche pas les autres", async () => {
@@ -598,16 +618,63 @@ test("une page en échec n'empêche pas les autres", async () => {
   const deux = [{ url: "https://x.test/", slug: "index" }, { url: "https://x.test/b", slug: "b" }];
   const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null },
     { ...OPT, pages: deux, delayMs: 0 });
-  expect(r.google!.pages).toHaveLength(2);
-  expect(r.google!.pages[0].error).not.toBeNull();
-  expect(r.google!.pages[1].verdict).toBe("PASS");
+  expect(r.google.pages).toHaveLength(2);
+  expect(r.google.pages[0].error).not.toBeNull();
+  expect(r.google.pages[1].verdict).toBe("PASS");
 });
 
 test("sans jeton ni clé, aucune requête ne part du tout", async () => {
   const r = await collectLevel1({ fetcher: NOFETCH, auth: null, authError: "aucun jeton Google", bingKey: null }, OPT);
-  expect(r.google!.error).toBe("aucun jeton Google");
-  expect(r.bing!.error).toBe("clé Bing absente");
+  expect(r.google.error).toBe("aucun jeton Google");
+  expect(r.bing.error).toBe("clé Bing absente");
   expect(r.raw).toEqual([]);
+});
+
+// Ces deux-là ferment les deux trous que la revue du plan a démontrés le 30/08.
+
+test("une page que Bing n'a jamais crawlée est rapportée inconnue, à travers collectBing", async () => {
+  // Sans ce test, un `known: info !== null` satisfait tous les autres tout en mentant : la sentinelle
+  // DateTime.MinValue est un objet non nul. Reproduit par la revue du plan, 10 tests verts et AC-6 faux.
+  const fetcher: any = async (url: string) => {
+    if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://x.test/", IsVerified: true }] }) };
+    if (url.includes("GetUrlInfo")) return { status: 200, text: JSON.stringify({ d: { Url: "https://x.test/", LastCrawledDate: "/Date(-62135568000000)/" } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: null, authError: "aucun jeton Google", bingKey: "k" }, OPT);
+  expect(r.bing.pages[0].known).toBe(false);
+});
+
+test("un refus de lecture des sitemaps est dit, jamais confondu avec « aucun sitemap »", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.includes("searchAnalytics")) return { status: 200, text: JSON.stringify({ rows: [] }) };
+    if (url.includes("/sitemaps")) return { status: 403, text: JSON.stringify({ error: { message: "insufficient permission" } }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteUnverifiedUser" }] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
+  expect(r.google.sitemaps).toEqual([]);
+  expect(r.google.sitemapsError).not.toBeNull();
+  expect(r.google.pages).toHaveLength(1);   // le refus sur les sitemaps n'empêche pas l'inspection
+});
+
+// Les quatre cas unitaires de bingKnows, exécutés le 30/08 et verts. Ils vivent ici, avec leur appelant.
+
+test("AI-03 reconnaît une page connue de Bing, capture du 30/08", () => {
+  expect(bingKnows({ LastCrawledDate: "/Date(1785610378000)/" })).toBe(true);
+});
+
+test("AI-03 lit la sentinelle DateTime.MinValue comme jamais crawlée", () => {
+  expect(bingKnows({ LastCrawledDate: "/Date(-62135568000000)/" })).toBe(false);
+});
+
+test("AI-03 accepte un décalage horaire dans la date .NET", () => {
+  expect(bingKnows({ LastCrawledDate: "/Date(1760511600000-0700)/" })).toBe(true);
+});
+
+test("AI-03 sur une réponse nulle ou sans date", () => {
+  expect(bingKnows(null)).toBe(false);
+  expect(bingKnows({ Url: "https://x/" })).toBe(false);
 });
 ```
 
@@ -639,9 +706,16 @@ const AUCUNE_PROPRIETE = "aucune propriété Search Console ne couvre cette URL"
 const CLE_BING_ABSENTE = "clé Bing absente";
 const SITE_HORS_COMPTE = "ce site n'est pas dans le compte Bing";
 
-/** Un refus devient une phrase. Jamais une trace, jamais un corps de réponse brut. */
+/**
+ * Un refus devient une phrase. Jamais une trace, jamais un corps de réponse brut.
+ * Le `hint` est joint quand il existe : GscError, BingError et AuthError portent toutes deux champs, et
+ * c'est le hint qui dit quoi faire (« active l'API sur ce projet », « la clé n'est plus acceptée »).
+ * Le jeter laisserait dans le rapport un « droits insuffisants » sans la moindre issue.
+ */
 function why(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
+  const hint = (e as { hint?: string })?.hint;
+  const msg = e instanceof Error ? e.message : String(e);
+  return hint ? `${msg} : ${hint}` : msg;
 }
 
 export async function collectLevel1(deps: Level1Deps, o: Level1Options): Promise<Level1Result> {
@@ -656,12 +730,47 @@ export async function collectLevel1(deps: Level1Deps, o: Level1Options): Promise
 
 1. si `deps.auth` est `null`, rendre `{ property: null, error: deps.authError, pages: [], sitemaps: [], search: null }` **sans aucun appel** ;
 2. `listProperties` puis `resolveProperty(o.origin + "/", props)` ; si `null`, rendre l'erreur `AUCUNE_PROPRIETE` sans inspecter ;
-3. `listSitemaps` ; un échec ici ne bloque pas la suite (`sitemaps: []` et l'erreur au niveau de la page, pas du bloc) ;
+3. `listSitemaps` ; un échec ici ne bloque pas la suite : `sitemaps: []` **et le message dans `sitemapsError`**. Ne jamais l'avaler : sur une propriété en lecture restreinte, un tableau vide sans message ferait écrire « aucun sitemap déclaré » là où la vérité est « je n'ai pas le droit de les lire ». Le décodage du 403 est déjà écrit et recetté dans `gsc.ts` ;
 4. `inspectUrl` par page de `o.pages`, dans l'ordre, avec `await Bun.sleep(o.delayMs ?? 250)` entre deux appels ; chaque échec devient le champ `error` de **cette** page, les autres continuent ;
-5. deux `searchAnalytics` : `dimensions: ["date"]` puis `["page","query"]`, `rowLimit: 1000`, `type: "web"`, sur `o.days ?? 90` jours finissant à `o.today` ; `lastDataDate` est la dernière clé du premier appel dont `impressions > 0` **ou**, à défaut, la dernière clé tout court ;
+5. deux `searchAnalytics` : `dimensions: ["date"]` puis `["page","query"]`, `rowLimit: 1000`, `type: "web"`, sur `o.days ?? 90` jours finissant à `o.today`.
+
+   **`lastDataDate` est la plus grande date parmi les lignes à `impressions > 0`**, et `null` s'il n'y en a aucune. Ne jamais prendre « la dernière ligne rendue » : Google documente que les jours sans donnée sont omis, l'ordre des lignes n'est pas garanti par contrat, et une propriété sans trafic rendrait une date fausse plutôt qu'un honnête `null`. C'est l'unique contenu d'AC-9, il lui faut son test :
+
+   ```typescript
+   test("lastDataDate est le dernier jour AVEC des impressions, quel que soit l'ordre des lignes", async () => {
+     const rows = [
+       { keys: ["2026-08-27"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
+       { keys: ["2026-08-29"], clicks: 0, impressions: 0, ctr: 0, position: 0 },
+       { keys: ["2026-08-20"], clicks: 0, impressions: 3, ctr: 0, position: 9 },
+     ];
+     // rendu volontairement dans le désordre, avec un jour à zéro impression après le dernier jour utile
+     const r = await collectLevel1(depsAvec(rows), OPT);
+     expect(r.google.search!.lastDataDate).toBe("2026-08-27");
+   });
+
+   test("aucune impression sur la période rend null, pas une date inventée", async () => {
+     const r = await collectLevel1(depsAvec([{ keys: ["2026-08-29"], clicks: 0, impressions: 0, ctr: 0, position: 0 }]), OPT);
+     expect(r.google.search!.lastDataDate).toBeNull();
+   });
+   ```
 6. pousser dans `raw` : `gsc/sites.json`, `gsc/sitemaps.json`, `gsc/inspect/<slug>.json` par page, `gsc/searchanalytics-date.json`, `gsc/searchanalytics-page-query.json`. Chaque entrée porte la **requête et la réponse** ; jamais l'en-tête d'autorisation.
 
 `collectBing` suit la même forme : sans clé, `{ site: null, error: CLE_BING_ABSENTE, pages: [] }` sans appel ; sinon `bingUserSites` puis `resolveBingSite(new URL(o.origin).hostname, sites)`, `SITE_HORS_COMPTE` si absent, puis `bingUrlInfo` par page. `raw` reçoit `bing/usersites.json` et `bing/urlinfo/<slug>.json`.
+
+`known` de chaque `BingPage` vaut `bingKnows(info)` et **rien d'autre** : ni `info !== null`, ni un test sur `HttpStatus`, qui vaut 0 même sur une page indexée. Le corps de `bingKnows` :
+
+```typescript
+import { parseDotNetDate, DATE_JAMAIS } from "../../../../lib/bing";
+
+/** AI-03. Bing rend une sentinelle DateTime.MinValue pour « jamais crawlée » (capture du 29/08), pas null. */
+export function bingKnows(info: Record<string, unknown> | null): boolean {
+  if (!info) return false;
+  const ms = parseDotNetDate(info.LastCrawledDate);
+  return ms !== null && ms !== DATE_JAMAIS;
+}
+```
+
+Ce bloc a été exécuté le 30/08 : quatre cas verts (page connue, sentinelle, date avec décalage horaire, réponse nulle ou sans date).
 
 **L'URL appelée n'entre jamais dans `raw`** : elle porte `apikey`. On y met le nom de la méthode et le corps de la réponse.
 
@@ -704,13 +813,22 @@ export type CanonicalFinding = { url: string; googleCanonical: string; userCanon
 export type KeywordCheck = { page: string; keyword: string; hasImpressions: boolean; keywordFound: boolean | null; topQueries: string[] };
 export type ConsoleDerived = {
   level: 1;
-  google: { property: string | null; error: string | null; index: IndexSummary; canonical: CanonicalFinding[]; lastDataDate: string | null; truncated: boolean };
+  google: {
+    property: string | null;
+    /** Le rôle est conservé : c'est lui qui explique un refus (AC-7), le perdre rendrait le rapport muet sur la cause. */
+    permissionLevel: string | null;
+    error: string | null;
+    sitemapsError: string | null;
+    index: IndexSummary;
+    canonical: CanonicalFinding[];
+    lastDataDate: string | null;
+    truncated: boolean;
+  };
   bing: { site: string | null; error: string | null; known: number; total: number; unknown: string[] };
   strategy: KeywordCheck[] | null;
 };
 export function indexSummary(pages: InspectedPage[]): IndexSummary;
 export function canonicalFindings(pages: InspectedPage[]): CanonicalFinding[];
-export function bingKnows(info: Record<string, unknown> | null): boolean;
 export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle: string }[]): KeywordCheck[];
 export function deriveConsole(r: Level1Result, planned: { page: string; motCle: string }[] | null): ConsoleDerived;
 ```
@@ -725,7 +843,7 @@ import { indexSummary, canonicalFindings, bingKnows, keywordChecks } from "../li
 const page = (url: string, verdict: string, coverageState: string, g: string | null = null, u: string | null = null) =>
   ({ url, slug: "s", verdict, coverageState, googleCanonical: g, userCanonical: u, lastCrawlTime: null, error: null });
 
-test("LVL1-03 compte les pages indexées et nomme les autres", () => {
+test("IDX-06 compte les pages indexées et nomme les autres", () => {
   const r = indexSummary([
     page("https://www.romain-ecarnot.com/", "PASS", "Submitted and indexed"),
     page("https://www.romain-ecarnot.com/absente", "FAIL", "Crawled - currently not indexed"),
@@ -735,42 +853,28 @@ test("LVL1-03 compte les pages indexées et nomme les autres", () => {
   expect(r.notIndexed).toEqual([{ url: "https://www.romain-ecarnot.com/absente", coverageState: "Crawled - currently not indexed" }]);
 });
 
-test("LVL1-03 sur zéro page inspectée", () => {
+test("IDX-06 sur zéro page inspectée", () => {
   expect(indexSummary([])).toEqual({ total: 0, indexed: 0, notIndexed: [] });
 });
 
-test("LVL1-04 signale une divergence de canonical", () => {
+test("IDX-07 signale une divergence de canonical", () => {
   const r = canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/b", "https://x/a")]);
   expect(r).toEqual([{ url: "https://x/a", googleCanonical: "https://x/b", userCanonical: "https://x/a" }]);
 });
 
-test("LVL1-04 ne dit rien quand les deux canonicals sont égaux, capture du 30/08", () => {
+test("IDX-07 ne dit rien quand les deux canonicals sont égaux, capture du 30/08", () => {
   expect(canonicalFindings([page("https://www.romain-ecarnot.com/", "PASS", "Submitted and indexed",
     "https://www.romain-ecarnot.com/", "https://www.romain-ecarnot.com/")])).toEqual([]);
 });
 
-test("LVL1-04 laisse le canonical absent à TAG-03", () => {
+test("IDX-07 laisse le canonical absent à TAG-03", () => {
   expect(canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/a", null)])).toEqual([]);
 });
 
-test("AI-03 reconnaît une page connue de Bing, capture du 30/08", () => {
-  expect(bingKnows({ LastCrawledDate: "/Date(1785610378000)/" })).toBe(true);
-});
+// AI-03 n'est pas ici : `bingKnows` et ses quatre cas vivent en tâche 5, avec `collectBing` qui les
+// consomme. Une règle testée loin de son seul appelant laisse passer une implémentation qui ment.
 
-test("AI-03 lit la sentinelle DateTime.MinValue comme jamais crawlée", () => {
-  expect(bingKnows({ LastCrawledDate: "/Date(-62135568000000)/" })).toBe(false);
-});
-
-test("AI-03 accepte un décalage horaire dans la date .NET", () => {
-  expect(bingKnows({ LastCrawledDate: "/Date(1760511600000-0700)/" })).toBe(true);
-});
-
-test("AI-03 sur une réponse nulle ou sans date", () => {
-  expect(bingKnows(null)).toBe(false);
-  expect(bingKnows({ Url: "https://x/" })).toBe(false);
-});
-
-test("LVL1-05 retrouve le mot visé dans une requête plus longue, requêtes réelles du 30/08", () => {
+test("STRAT-05 retrouve le mot visé dans une requête plus longue, requêtes réelles du 30/08", () => {
   const rows = [
     { keys: ["https://lebonpote.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
   ];
@@ -780,7 +884,7 @@ test("LVL1-05 retrouve le mot visé dans une requête plus longue, requêtes ré
   expect(r[0].topQueries).toEqual(["bon pote nantes"]);
 });
 
-test("LVL1-05 distingue le mot raté de la page sans impression", () => {
+test("STRAT-05 distingue le mot raté de la page sans impression", () => {
   const rows = [{ keys: ["https://x/a", "autre chose"], clicks: 0, impressions: 3, ctr: 0, position: 9 }];
   const r = keywordChecks(rows, [{ page: "https://x/a", motCle: "agence seo" }, { page: "https://x/b", motCle: "quoi que ce soit" }]);
   expect(r[0]).toMatchObject({ hasImpressions: true, keywordFound: false, topQueries: ["autre chose"] });
@@ -802,9 +906,9 @@ Code exécuté le 30/08, à recopier :
 
 ```typescript
 import { keywordMatches } from "../../../../lib/strategy";
-import { normalizeUrl } from "./strategy-eval";
+import { pageKey } from "../../../../lib/url";
 
-/** LVL1-03. Le verdict fait foi, pas coverageState : PASS est la seule valeur qui dise « indexée ». */
+/** IDX-06. Le verdict fait foi, pas coverageState : PASS est la seule valeur qui dise « indexée ». */
 export function indexSummary(pages: InspectedPage[]): IndexSummary {
   const ok = pages.filter((p) => p.verdict === "PASS");
   return {
@@ -814,22 +918,15 @@ export function indexSummary(pages: InspectedPage[]): IndexSummary {
   };
 }
 
-/** LVL1-04. Un userCanonical absent n'est pas une divergence : c'est le domaine de TAG-03 au niveau 0. */
+/** IDX-07. Un userCanonical absent n'est pas une divergence : c'est le domaine de TAG-03 au niveau 0. */
 export function canonicalFindings(pages: InspectedPage[]): CanonicalFinding[] {
   return pages
     .filter((p) => p.googleCanonical && p.userCanonical && p.googleCanonical !== p.userCanonical)
     .map((p) => ({ url: p.url, googleCanonical: p.googleCanonical!, userCanonical: p.userCanonical! }));
 }
 
-/** AI-03. Bing rend une sentinelle DateTime.MinValue pour « jamais crawlée » (capture du 29/08), pas null. */
-export function bingKnows(info: Record<string, unknown> | null): boolean {
-  if (!info) return false;
-  const ms = parseDotNetDate(info.LastCrawledDate);
-  return ms !== null && ms !== DATE_JAMAIS;
-}
-
 /**
- * LVL1-05. Trois états et non deux : le mot visé est trouvé, il est raté, ou la page n'a aucune
+ * STRAT-05. Trois états et non deux : le mot visé est trouvé, il est raté, ou la page n'a aucune
  * impression sur la période (keywordFound null), ce qui n'est pas un échec de stratégie.
  * Les lignes viennent de dimensions ["page","query"] : keys[0] est la page, keys[1] la requête.
  */
@@ -837,11 +934,11 @@ export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle
   const byPage = new Map<string, SearchRow[]>();
   for (const r of rows) {
     if (r.keys.length < 2) continue;
-    const k = normalizeUrl(r.keys[0]);
+    const k = pageKey(r.keys[0]);
     byPage.set(k, [...(byPage.get(k) ?? []), r]);
   }
   return planned.map((p) => {
-    const found = (byPage.get(normalizeUrl(p.page)) ?? []).slice().sort((a, b) => b.impressions - a.impressions);
+    const found = (byPage.get(pageKey(p.page)) ?? []).slice().sort((a, b) => b.impressions - a.impressions);
     const queries = found.map((r) => r.keys[1]);
     return {
       page: p.page, keyword: p.motCle,
@@ -853,7 +950,78 @@ export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle
 }
 ```
 
-Puis `deriveConsole`, qui assemble les quatre en un `ConsoleDerived` et recopie les erreurs de bloc telles quelles.
+Puis `deriveConsole`, la seule fonction que `collect.ts` appelle et la seule productrice de `derived/console.json`, c'est-à-dire du fichier que les quatre entrées du catalogue lisent. Code exécuté le 30/08, 15 assertions vertes :
+
+```typescript
+/**
+ * Assemble le dérivé que le rapport lit. Ne juge rien et n'invente rien : les raisons de panne sont
+ * recopiées telles quelles, et une absence de donnée reste une absence.
+ * `permissionLevel` est conservé parce que c'est lui qui explique un refus (AC-7) ; le perdre rendrait
+ * le rapport muet sur la cause.
+ */
+export function deriveConsole(r: Level1Result, planned: { page: string; motCle: string }[] | null): ConsoleDerived {
+  const g = r.google;
+  const b = r.bing;
+  const unknown = b.pages.filter((p) => !p.known).map((p) => p.url);
+  return {
+    level: 1,
+    google: {
+      property: g.property?.siteUrl ?? null,
+      permissionLevel: g.property?.permissionLevel ?? null,
+      error: g.error,
+      sitemapsError: g.sitemapsError,
+      index: indexSummary(g.pages),
+      canonical: canonicalFindings(g.pages),
+      lastDataDate: g.search?.lastDataDate ?? null,
+      truncated: g.search?.truncated ?? false,
+    },
+    bing: { site: b.site, error: b.error, known: b.pages.length - unknown.length, total: b.pages.length, unknown },
+    strategy: planned === null ? null : keywordChecks(g.search?.rows ?? [], planned),
+  };
+}
+```
+
+Trois tests obligatoires, qui ferment la moitié d'AC-5 et la lisibilité d'AC-7 :
+
+```typescript
+const bloc = (over: any = {}) => ({
+  google: { property: { siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }, error: null,
+    pages: [page("https://x.test/", "PASS", "ok"), page("https://x.test/b", "FAIL", "Crawled - currently not indexed")],
+    sitemaps: [], sitemapsError: null,
+    search: { lastDataDate: "2026-08-27", rows: [], truncated: false, error: null }, ...over.google },
+  bing: { site: "https://x.test/", error: null, pages: [
+    { url: "https://x.test/", slug: "index", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x.test/b", slug: "b", known: false, lastCrawled: null, error: null }], ...over.bing },
+  raw: [],
+});
+
+test("deriveConsole projette un bloc complet", () => {
+  const d = deriveConsole(bloc() as any, null);
+  expect(d.google.property).toBe("sc-domain:x.test");
+  expect(d.google.permissionLevel).toBe("siteOwner");
+  expect(d.google.index).toMatchObject({ total: 2, indexed: 1 });
+  expect(d.google.lastDataDate).toBe("2026-08-27");
+  expect(d.bing).toMatchObject({ known: 1, total: 2, unknown: ["https://x.test/b"] });
+});
+
+test("deriveConsole recopie les raisons de panne sans rien inventer", () => {
+  const vide = { google: { property: null, error: "aucun jeton Google", pages: [], sitemaps: [], sitemapsError: null, search: null },
+                 bing: { site: null, error: "clé Bing absente", pages: [] }, raw: [] };
+  const d = deriveConsole(vide as any, null);
+  expect(d.google.error).toBe("aucun jeton Google");
+  expect(d.bing.error).toBe("clé Bing absente");
+  expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [] });
+  expect(d.google.lastDataDate).toBeNull();       // search null ne doit pas lever
+  expect(d.google.truncated).toBe(false);
+});
+
+test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () => {
+  expect(deriveConsole(bloc() as any, null).strategy).toBeNull();
+  expect(deriveConsole(bloc() as any, [{ page: "https://x.test/", motCle: "x" }]).strategy).toHaveLength(1);
+});
+```
+
+Le deuxième test porte une garantie que rien d'autre ne porte : `search` vaut `null` dès que `searchAnalytics` a échoué, et une déréférence directe ferait mourir la collecte au moment précis où elle doit se dégrader proprement.
 
 - [ ] **Step 4: poser le filet anti-tiret cadratin sur les nouvelles sorties**
 
@@ -885,7 +1053,7 @@ Le second cas est indispensable : il est le seul à produire `AUCUNE_PROPRIETE` 
 cd plugin && bun test
 ```
 
-Attendu : les douze nouveaux passent, total **395**, aucun échec.
+Attendu : les onze nouveaux de cette tâche passent (huit fonctions pures, le filet anti-tiret, trois pour `deriveConsole`), **aucun échec**, et aucun test existant n'a disparu.
 
 - [ ] **Step 6: commit**
 
@@ -893,8 +1061,8 @@ Attendu : les douze nouveaux passent, total **395**, aucun échec.
 git add plugin/skills/audit/scripts
 git commit -m "feat(audit): les dérivés des quatre vérifications du niveau 1
 
-LVL1-03 compte sur le verdict et non sur coverageState. LVL1-04 laisse le
-canonical absent à TAG-03. AI-03 lit la sentinelle .NET. LVL1-05 distingue
+IDX-06 compte sur le verdict et non sur coverageState. IDX-07 laisse le
+canonical absent à TAG-03. AI-03 lit la sentinelle .NET. STRAT-05 distingue
 le mot raté de la page sans impression, et réutilise keywordMatches plutôt
 que d'ouvrir une seconde normalisation."
 ```
@@ -910,26 +1078,67 @@ que d'ouvrir une seconde normalisation."
 
 **Interfaces:**
 - Consumes: `collectLevel1`, `deriveConsole`, `Level1Result`, `ConsoleDerived` de `./lib/level1` ; `getAccessToken`, `defaultGcloud`, `serviceAccountToken`, `AuthError` de `../../../lib/auth-google`.
-- Produces: `Manifest.level1: { attempted: boolean; googleError: string | null; bingError: string | null } | null`, et les fichiers de la section « Ce qui est écrit ».
+- Produces: `Manifest.level1: { attempted: boolean; googleError: string | null; bingError: string | null } | null` ; `CollectOptions.consoleFetcher?: Fetcher`, la couture qui rend D37 observable ; et les fichiers de la section « Ce qui est écrit ».
 
-- [ ] **Step 1: écrire le test qui garde D37**
+- [ ] **Step 1: créer la couture qui rend D37 observable, puis écrire les deux tests**
 
-C'est le test le plus important de la tâche : il empêche qu'un audit ordinaire parte interroger des tiers.
+C'est le cœur de la tâche. Sans couture, aucun test ne peut prouver qu'aucune requête ne part : `runCollect` construit son `Fetcher` sur le `fetch` global, et `collect.test.ts` n'a **aucune** simulation réseau (il démarre un vrai serveur local, `startFixtureSite`). Un test qui se contente d'observer une variable qu'il déclare lui-même passerait quel que soit le comportement de `collect.ts`.
+
+`CollectOptions` gagne donc :
 
 ```typescript
-test("sans --level 1, aucune requête ne part vers Google ni vers Bing", async () => {
-  const vus: string[] = [];
-  // le fetcher de la collecte niveau 0 est déjà simulé par le harnais du fichier ;
-  // ici on espionne les hôtes appelés sur une collecte niveau 0 complète.
-  const m = await runCollect({ url: "https://x.test/", out: tmp, noPsi: true, strategyPath: null });
-  expect(m.level).toBe(0);
-  expect(m.level1).toBeNull();
-  expect(vus.filter((u) => u.includes("googleapis") || u.includes("bing.com"))).toEqual([]);
-  expect(await Bun.file(`${tmp}/derived/console.json`).exists()).toBe(false);
+  /** Injecté par les tests pour observer, ou ne pas observer, les appels aux consoles. En usage réel,
+   *  absent : la branche niveau 1 construit son fetcher sur le fetch global. C'est le même motif que
+   *  console.ts, où toutes les dépendances entrent en paramètre pour rendre « aucune requête ne part » testable. */
+  consoleFetcher?: Fetcher;
+```
+
+Les deux tests, à ajouter dans `collect.test.ts` (le harnais du fichier fournit `base` et `out` ; créer un dossier de sortie propre par test avec `mkdtemp`, comme le `beforeAll`) :
+
+```typescript
+describe("niveau 1", () => {
+  test("sans --level 1, aucune requête ne part vers les consoles", async () => {
+    // Le fetcher lève à tout appel : si la branche niveau 1 s'exécutait, runCollect rejetterait.
+    const espion: any = async (url: string) => { throw new Error(`requête interdite : ${url}`); };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n0-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: null, consoleFetcher: espion });
+    expect(m.level).toBe(0);
+    expect(m.level1).toBeNull();
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+  });
+
+  test("avec --level 1, la branche s'exécute et écrit son dérivé", async () => {
+    // Le pendant du test précédent : sans lui, un `if (false)` passerait aussi le premier.
+    const vus: string[] = [];
+    const espion: any = async (url: string) => {
+      vus.push(url);
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null, consoleFetcher: espion });
+    expect(m.level).toBe(1);
+    expect(m.level1?.attempted).toBe(true);
+    expect(vus.some((u) => u.includes("googleapis"))).toBe(true);
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(true);
+  });
+
+  test("une panne du niveau 1 ne fait pas échouer l'audit", async () => {
+    // AC-7 : code de sortie 0 et rapport complet. assertNoSecret lève par conception, deriveConsole,
+    // mkdir et Bun.write aussi : une seule exception non rattrapée tuerait l'audit APRÈS avoir écrit
+    // raw/ et AVANT le manifeste, laissant un dossier inexploitable.
+    const espion: any = async () => { throw new Error("panne simulée du niveau 1"); };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-ko-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null, consoleFetcher: espion });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).not.toBeNull();
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);   // le manifeste existe quand même
+    expect(m.pages.length).toBeGreaterThan(0);                                    // le niveau 0 est intact
+  });
 });
 ```
 
-Suivre le harnais déjà en place dans `collect.test.ts` pour simuler le réseau : ne pas en inventer un second.
+Le troisième test est celui qui ferme AC-8 côté code (le critère a changé de numéro le 30/08, voir la spec). Le rejouer sur un site en ligne hors des deux consoles en tâche 9 le confirme sur du réel, mais un test qui ne dépend d'aucun compte doit garder la propriété.
 
 - [ ] **Step 2: lancer, vérifier l'échec**
 
@@ -959,33 +1168,43 @@ Après les sondes et PageSpeed, avant le manifeste :
   // sont permanents, une détection automatique enverrait des requêtes à des tiers sans demande.
   let level1: Manifest["level1"] = null;
   if (level === 1) {
-    const fetcher: Fetcher = async (url, init) => {
-      const r = await fetch(url, init);
-      return { status: r.status, text: await r.text() };
-    };
-    let auth: GoogleAuth | null = null;
-    let authError: string | null = null;
-    try {
-      auth = await getAccessToken(process.env, {
-        gcloud: () => defaultGcloud(),
-        serviceAccount: (p) => serviceAccountToken(p, fetcher),
-      });
-    } catch (e) {
-      authError = e instanceof AuthError ? `${e.message} : ${e.hint}` : String(e);
-    }
     const bingKey = process.env.BING_WMT_API_KEY ?? null;
-    const r = await collectLevel1({ fetcher, auth, authError, bingKey },
-      { origin, pages: facts.map((f) => ({ url: f.url, slug: f.slug })), today: new Date().toISOString().slice(0, 10), delayMs: delay });
-    for (const f of r.raw) {
-      await mkdir(join(raw, dirname(f.path)), { recursive: true });
-      await save(f.path, f.body);
+    let auth: GoogleAuth | null = null;
+    // TOUTE la branche est sous try. La spec ouvre sa section 6 par « le niveau 1 ne fait jamais
+    // échouer l'audit », et AC-7 exige un code de sortie 0. Or assertNoSecret lève par conception, et
+    // deriveConsole, mkdir et Bun.write peuvent lever : une seule exception qui remonte tuerait la
+    // collecte APRÈS l'écriture de raw/gsc/ et AVANT celle du manifeste, laissant un dossier sans
+    // manifest.json, donc inexploitable par la skill.
+    try {
+      const fetcher: Fetcher = o.consoleFetcher ?? (async (url, init) => {
+        const r = await fetch(url, init);
+        return { status: r.status, text: await r.text() };
+      });
+      let authError: string | null = null;
+      try {
+        auth = await getAccessToken(process.env, {
+          gcloud: () => defaultGcloud(),
+          serviceAccount: (p) => serviceAccountToken(p, fetcher),
+        });
+      } catch (e) {
+        authError = e instanceof AuthError ? `${e.message} : ${e.hint}` : String(e);
+      }
+      const r = await collectLevel1({ fetcher, auth, authError, bingKey },
+        { origin, pages: facts.map((f) => ({ url: f.url, slug: f.slug })), today: new Date().toISOString().slice(0, 10), delayMs: delay });
+      for (const f of r.raw) {
+        await mkdir(join(raw, dirname(f.path)), { recursive: true });
+        await save(f.path, f.body);
+      }
+      const derivedConsole = deriveConsole(r, strat?.strategy?.pages.map((p) => ({ page: p.page, motCle: p.motCle })) ?? null);
+      const text = JSON.stringify(derivedConsole, null, 2);
+      assertNoSecret(text, bingKey);
+      assertNoSecret(text, auth?.token ?? null);
+      await Bun.write(join(derived, "console.json"), text);
+      level1 = { attempted: true, googleError: r.google.error, bingError: r.bing.error };
+    } catch (e) {
+      // Le message d'assertNoSecret ne contient jamais le secret lui-même (il le nomme, sans le citer).
+      level1 = { attempted: true, googleError: e instanceof Error ? e.message : String(e), bingError: null };
     }
-    const derivedConsole = deriveConsole(r, strat?.strategy?.pages.map((p) => ({ page: p.page, motCle: p.motCle })) ?? null);
-    const text = JSON.stringify(derivedConsole, null, 2);
-    assertNoSecret(text, bingKey);
-    assertNoSecret(text, auth?.token ?? null);
-    await Bun.write(join(derived, "console.json"), text);
-    level1 = { attempted: true, googleError: r.google?.error ?? null, bingError: r.bing?.error ?? null };
   }
 ```
 
@@ -1021,7 +1240,7 @@ Ajouter une ligne à la sortie finale, seulement au niveau 1 :
 cd plugin && bun test
 ```
 
-Attendu : total **396** (375 au départ, plus 3 en tâche 4, 5 en tâche 5, 12 en tâche 6, 1 ici), aucun échec. Puis, sur le compte réel, la première collecte de niveau 1 :
+Attendu : les trois nouveaux de cette tâche passent, **aucun échec**, et le total n'a jamais baissé depuis la baseline de 375 relevée avant la tâche 1. Puis, sur le compte réel, la première collecte de niveau 1 :
 
 ```bash
 source ~/.zshenv && cd /tmp && mkdir -p n1-essai && cd n1-essai
@@ -1060,8 +1279,8 @@ derived/console.json, tous deux passés à assertNoSecret."
 Sans cette tâche, la collecte existe et le rapport n'en parle pas.
 
 **Files:**
-- Modify: `plugin/skills/audit/references/checks/indexability.md` (LVL1-03, LVL1-04)
-- Modify: `plugin/skills/audit/references/checks/strategy.md` (LVL1-05)
+- Modify: `plugin/skills/audit/references/checks/indexability.md` (IDX-06, IDX-07)
+- Modify: `plugin/skills/audit/references/checks/strategy.md` (STRAT-05)
 - Modify: `plugin/skills/audit/references/checks/ai-presence.md` (AI-03)
 - Modify: `plugin/skills/audit/references/levels.md`
 - Modify: `plugin/skills/audit/SKILL.md`
@@ -1097,12 +1316,12 @@ Effort     : rapide
 
 Les quatre citations de cette tâche ont été passées au normaliseur du repo le 30/08 et sont retrouvées sur leur page : les recopier **à l'octet près**. Si l'une échoue plus tard, c'est que la page a changé : relever la nouvelle phrase sur la page, jamais retirer la source pour faire passer le contrôle.
 
-- [ ] **Step 3: écrire LVL1-03 et LVL1-04**
+- [ ] **Step 3: écrire IDX-06 et IDX-07**
 
 Dans `indexability.md`, avec les mêmes exigences de citation :
 
 ```markdown
-### LVL1-03 : pages indexées par Google
+### IDX-06 : pages indexées par Google
 Couche     : absolue
 Niveau     : 1
 Sévérité   : Critique
@@ -1112,7 +1331,7 @@ Source     : https://support.google.com/webmasters/answer/9012289 « The URL Ins
 Correctif  : vérifier robots.txt et la balise robots, soumettre la page dans Search Console, et s'assurer qu'elle est atteignable depuis le sitemap et un lien interne.
 Effort     : moyen
 
-### LVL1-04 : Google a choisi un autre canonical que celui déclaré
+### IDX-07 : Google a choisi un autre canonical que celui déclaré
 Couche     : absolue
 Niveau     : 1
 Sévérité   : Important
@@ -1123,12 +1342,12 @@ Correctif  : rapprocher la balise canonique de l'URL réellement servie, vérifi
 Effort     : moyen
 ```
 
-- [ ] **Step 4: écrire LVL1-05**
+- [ ] **Step 4: écrire STRAT-05**
 
 Dans `strategy.md` :
 
 ```markdown
-### LVL1-05 : les requêtes réelles contre le mot-clé visé
+### STRAT-05 : les requêtes réelles contre le mot-clé visé
 Couche     : stratégique
 Niveau     : 1
 Sévérité   : Important
@@ -1141,7 +1360,7 @@ Effort     : long
 
 - [ ] **Step 5: mettre `levels.md` à jour**
 
-Remplacer le bloc « Niveau 1, à livrer au chantier 5 » par la liste livrée : LVL1-03, LVL1-04, AI-03, et LVL1-05 sous la couche stratégique. Ajouter, sous le tableau, la phrase qui explique l'absence :
+Remplacer le bloc « Niveau 1, à livrer au chantier 5 » par la liste livrée : IDX-06, IDX-07, AI-03, et STRAT-05 sous la couche stratégique. Ajouter, sous le tableau, la phrase qui explique l'absence :
 
 ```markdown
 LVL1-01 (impressions dans les fonctionnalités IA) et LVL1-02 (citations Copilot) ne sont pas livrés : ces deux rapports ne sont dans aucune API (l'API Search Console refuse le type `GENERATIVE_AI`, mesuré le 30/08) et leur export n'est ouvert qu'à une partie des propriétés. Ils reviendront en import de fichier quand une propriété cliente les aura. Voir la spec du 30/08, section 11.7.
@@ -1159,7 +1378,9 @@ Trois endroits : l'étape 0.2 (le niveau ne se devine pas, `--level 1` est expli
 cd plugin && bun test skills/audit/scripts/tests/checks-format.test.ts && bun skills/audit/scripts/check-sources.ts
 ```
 
-Attendu : format valide, et **119 citations retrouvées** (115 aujourd'hui, plus quatre). Une citation non retrouvée est une citation inventée : la corriger sur la page réelle, ne jamais la retirer du fichier pour faire passer le contrôle.
+Attendu : format valide, **0 citation en échec**, et un compte de citations retrouvées supérieur de quatre à celui d'avant la tâche. Relever le compte de départ AVANT de toucher aux références (`bun skills/audit/scripts/check-sources.ts | tail -1`) plutôt que de le prédire : le nombre bouge à chaque ajout, et un plan qui fige « 119 » devient faux au prochain chantier. Ce qui fait foi est le **0 en échec**.
+
+Une citation non retrouvée est une citation inventée : la corriger sur la page réelle, ne jamais la retirer du fichier pour faire passer le contrôle.
 
 - [ ] **Step 8: commit**
 
@@ -1167,7 +1388,7 @@ Attendu : format valide, et **119 citations retrouvées** (115 aujourd'hui, plus
 git add plugin/skills/audit/references plugin/skills/audit/SKILL.md
 git commit -m "docs(audit): les quatre vérifications du niveau 1 au catalogue
 
-LVL1-03 et LVL1-04 dans indexability, LVL1-05 dans strategy, AI-03 dans
+IDX-06 et IDX-07 dans indexability, STRAT-05 dans strategy, AI-03 dans
 ai-presence. levels.md dit ce que le niveau 1 voit désormais et pourquoi
 les deux vérifications IA n'y sont pas."
 ```
@@ -1194,17 +1415,27 @@ Ne jamais afficher la valeur d'une des deux variables.
 
 Une collecte niveau 1 sur `https://www.romain-ecarnot.com/`, puis lecture du dossier et de `derived/console.json`. Noter le compte de pages indexées, la liste des divergences de canonical (attendu : aucune, les deux canonicals sont égaux au 30/08), les pages connues de Bing, et `lastDataDate` (attendu : environ trois jours avant le jour de la recette).
 
-- [ ] **Step 3: AC-7, l'accès refusé**
+- [ ] **Step 3: AC-7, l'accès refusé est nommé**
+
+Le critère a été révisé le 30/08 : `healthincloud.app` est **hors ligne** par décision de Romain (mesuré : `curl` rend HTTP 000), donc aucun audit ne peut plus s'y dérouler. La **propriété** Search Console, elle, existe toujours et refuse toujours ses sitemaps. Le refus de droits s'observe donc par la lentille de consultation, pas par un audit :
 
 ```bash
-bun <plugin>/skills/audit/scripts/collect.ts https://healthincloud.app/ --level 1 --max-pages 3 --no-psi ; echo "code de sortie : $?"
+source ~/.zshenv && cd <plugin> && bun skills/console/scripts/console.ts sites
 ```
 
-Attendu : code **0**, collecte niveau 0 complète, et l'erreur de droits dans `level1.googleError`. Un code non nul est un échec du critère, à consigner tel quel.
+Attendu : la ligne `sc-domain:healthincloud.app (siteUnverifiedUser)` suivie de « sitemaps non lisibles pour cette propriété ». Consigner la sortie réelle.
 
-- [ ] **Step 4: AC-8, le site hors compte Bing**
+La partie « le refus n'est jamais confondu avec une absence » est portée par le test unitaire de `level1.ts` qui force `listSitemaps` à rendre 403 et exige le message dans `sitemapsError` : le nommer dans la recette et donner son résultat.
 
-Même commande sur `https://commentchercherbonheur.org/`, qui n'est dans aucun des deux comptes. Attendu : les deux moitiés non vues, avec leurs deux raisons distinctes, et l'audit qui se termine normalement.
+- [ ] **Step 4: AC-8, un site en ligne hors des deux consoles**
+
+C'est ce critère qui porte désormais la garantie « le niveau 1 ne fait jamais échouer l'audit », reprise d'AC-7 après sa révision. `commentchercherbonheur.org` est le seul site à la fois **en ligne** et absent des deux comptes.
+
+```bash
+bun <plugin>/skills/audit/scripts/collect.ts https://commentchercherbonheur.org/ --level 1 --max-pages 5 --no-psi ; echo "code de sortie : $?"
+```
+
+Attendu : code **0**, collecte niveau 0 complète avec ses pages, et les deux moitiés du niveau 1 non vues avec leurs **deux raisons distinctes** (« aucune propriété Search Console ne couvre cette URL » et « ce site n'est pas dans le compte Bing »). Un code non nul est un échec du critère, à consigner tel quel plutôt qu'à corriger.
 
 - [ ] **Step 5: AC-5, avec et sans stratégie**
 

@@ -1,6 +1,6 @@
 # Couche stratégique
 
-Contexte pour Claude : `derived/strategy-eval.json`, écrit par `strategy-eval.ts` quand `seo/strategy.md` existe et s'analyse. Sans ce fichier, les cinq vérifications de cette couche (STRAT-01 à STRAT-04, AI-02) vont dans « Ce que je n'ai pas pu voir » avec la raison « pas de seo/strategy.md » ou « seo/strategy.md inanalysable : <défauts> ». La stratégie est un engagement pris avec le client ; ces vérifications disent si le site le tient.
+Contexte pour Claude : `derived/strategy-eval.json`, écrit par `strategy-eval.ts` quand `seo/strategy.md` existe et s'analyse. Sans ce fichier, les six vérifications de cette couche (STRAT-01 à STRAT-05, AI-02) vont dans « Ce que je n'ai pas pu voir » avec la raison « pas de seo/strategy.md » ou « seo/strategy.md inanalysable : <défauts> ». La stratégie est un engagement pris avec le client ; ces vérifications disent si le site le tient.
 
 ### STRAT-01 : chaque page prévue existe et vise son mot-clé
 Couche     : stratégique
@@ -44,3 +44,13 @@ Source     : https://developers.google.com/search/docs/appearance/publication-da
 Source     : https://developers.google.com/search/docs/appearance/publication-dates « We recommend that you add a subtype of CreativeWork (such as Article, BlogPosting, or VideoObject), and specify the datePublished and/or dateModified fields. »
 Correctif  : mettre à jour le contenu à la cadence promise et propager la date : visible, dateModified en JSON-LD, en-tête Last-Modified.
 Effort     : moyen
+
+### STRAT-05 : les requêtes réelles contre le mot-clé visé
+Couche     : stratégique
+Niveau     : 1
+Sévérité   : Important
+Vérifie    : chaque page de strategy.md ressort sur le mot-clé qu'elle vise, d'après les requêtes réelles des 90 derniers jours.
+Comment    : derived/console.json → google : error ou searchError non nul = non vue, avec la raison (searchError couvre un échec propre à searchAnalytics, quota ou 5xx transitoire, quand la propriété reste par ailleurs accessible). Sinon strategy : par page, hasImpressions, keywordFound et topQueries. keywordFound true = passée. keywordFound false avec hasImpressions true = trouvaille, citer les topQueries. keywordFound null = la page n'a aucune impression sur la période : ce n'est pas un échec de stratégie, le dire comme une information distincte. Toujours donner la date de dernier jour de données (google.lastDataDate) : elle a environ trois jours de retard. Un lastDataDate nul avec searchError renseigné veut dire « données non récupérées », jamais « site sans trafic » : c'est déjà couvert par la garde ci-dessus, mais ne jamais l'écrire comme un lastDataDate normal. Si google.truncated est vrai, Google a coupé ses lignes au plafond de 1000 après tri par clics décroissants : les pages à impressions sans clic tombent en premier, exactement celles que cette vérification doit repérer. Dans ce cas, ne jamais conclure « aucune impression » (keywordFound null) pour une page de la stratégie absente des lignes reçues : la dire non vue, pas passée sans preuve ni trouvaille inventée.
+Source     : https://developers.google.com/webmaster-tools/v1/searchanalytics/query « The method returns zero or more rows grouped by the row keys (dimensions) that you define. »
+Correctif  : soit la page est réécrite vers le mot visé (title, h1, ouverture, voir STRAT-01), soit la stratégie adopte le mot sur lequel la page ressort déjà, si l'intention correspond.
+Effort     : lourd

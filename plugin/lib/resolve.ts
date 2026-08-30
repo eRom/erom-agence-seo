@@ -1,7 +1,7 @@
-// plugin/skills/console/scripts/lib/resolve.ts
+// plugin/lib/resolve.ts
 // Search Console a deux sortes de propriété et l'API exige le nom exact (D33) : on choisit dans ce que
 // sites.list a rendu, on ne fabrique jamais un siteUrl à partir d'un hôte.
-import { sameSite } from "../../../audit/scripts/lib/sitemap";
+import { sameSite } from "./url";
 
 export type Property = { siteUrl: string; permissionLevel: string };
 export type BingSite = { Url: string; IsVerified: boolean };

@@ -1,24 +1,37 @@
 #!/usr/bin/env bun
 import { mkdir } from "node:fs/promises";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { fetchChain, text } from "./lib/fetch";
 import { evaluateRobots } from "./lib/robots";
-import { collectSitemapUrls, formatSkippedWarning, pageKey, rewriteToOrigin, sameSite, sitemapCandidates } from "./lib/sitemap";
+import { collectSitemapUrls, formatSkippedWarning, sitemapCandidates } from "./lib/sitemap";
+import { pageKey, rewriteToOrigin, sameSite } from "../../../lib/url";
 import { extractPageFacts, slugFor } from "./lib/page";
 import { fetchPsi } from "./lib/psi";
+import { collectLevel1, deriveConsole } from "./lib/level1";
 import { ALL_BOTS, USER_AGENT, type FetchRecord, type FetchResult, type Manifest, type PageFacts, type StrategyRef } from "./lib/types";
 import { parseStrategy, StrategyError, type Strategy } from "../../../lib/strategy";
+import { getAccessToken, defaultGcloud, serviceAccountToken, AuthError, type GoogleAuth } from "../../../lib/auth-google";
+import type { Fetcher } from "../../../lib/gsc";
+import { assertNoSecret } from "../../strategy/scripts/lib/keywords";
 
 export type CollectOptions = {
   url: string;
   out?: string;
   maxPages?: number;
   pages?: string[];
-  level?: 0 | 2;
+  level?: 0 | 1 | 2;
   psiKey?: string | null;
   delayMs?: number;
   noPsi?: boolean;
   strategyPath?: string | null;
+  /** Injecté par les tests pour observer, ou ne pas observer, les appels aux consoles. En usage réel,
+   *  absent : la branche niveau 1 construit son fetcher sur le fetch global. C'est le même motif que
+   *  console.ts, où toutes les dépendances entrent en paramètre pour rendre « aucune requête ne part » testable. */
+  consoleFetcher?: Fetcher;
+  /** Injecté par les tests pour fournir, ou refuser, un accès Google sans jamais appeler `getAccessToken`
+   *  ni le vrai binaire gcloud (round 1 de revue : un test qui passe par le vrai gcloud dépend du poste qui
+   *  le lance et n'est plus déterministe). En usage réel, absent : la branche niveau 1 résout l'accès elle-même. */
+  consoleAuth?: { auth: GoogleAuth | null; authError: string | null };
 };
 
 function toRecord(r: FetchResult, file?: string): FetchRecord {
@@ -32,7 +45,7 @@ function toRecord(r: FetchResult, file?: string): FetchRecord {
  * concurrence, aucun contenu n'y est jamais écrit directement, une création concurrente du même parent réussit des
  * deux côtés.
  */
-async function reserveOutDir(level: 0 | 2): Promise<string> {
+async function reserveOutDir(level: 0 | 1 | 2): Promise<string> {
   const date = new Date().toISOString().slice(0, 10);
   const parent = "seo/audits";
   await mkdir(parent, { recursive: true });
@@ -65,7 +78,9 @@ export function wantedPages(origin: string, explicit: string[], fromSitemap: str
   return wanted;
 }
 
-/** Niveau 2 si l'hôte est local. `--level` reste disponible pour forcer. */
+/** Niveau 2 si l'hôte est local. `--level` reste disponible pour forcer. Le niveau 1 ne se détecte
+ *  jamais tout seul (D37) : les accès de la machine sont permanents, une détection automatique
+ *  enverrait des requêtes à des tiers sans qu'on l'ait demandé. */
 export function detectLevel(url: string): 0 | 2 {
   const h = new URL(url).hostname;
   return h === "localhost" || h === "127.0.0.1" ? 2 : 0;
@@ -181,6 +196,69 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
     await Bun.write(join(derived, "psi.json"), JSON.stringify({ ok: false, strategy: "MOBILE", error: psi.error }, null, 2));
   }
 
+  // 7b. niveau 1 : les consoles. Jamais atteint sans --level 1 (D37) : les accès de cette machine
+  // sont posés en permanence, une détection automatique enverrait des requêtes à des tiers sans qu'on l'ait demandé.
+  // bingKey et auth sont déclarés hors du bloc pour rester visibles au moment d'écrire le manifeste :
+  // c'est sur cette même paire de secrets qu'il est aussi passé à assertNoSecret.
+  let level1: Manifest["level1"] = null;
+  const bingKey = level === 1 ? process.env.BING_WMT_API_KEY ?? null : null;
+  let auth: GoogleAuth | null = null;
+  if (level === 1) {
+    // TOUTE la branche est sous try. La spec ouvre sa section 6 par « le niveau 1 ne fait jamais
+    // échouer l'audit », et AC-7 exige un code de sortie 0. Or assertNoSecret lève par conception, et
+    // deriveConsole, mkdir et Bun.write peuvent lever : une seule exception qui remonte tuerait la
+    // collecte APRÈS l'écriture de raw/gsc/ et AVANT celle du manifeste, laissant un dossier sans
+    // manifest.json, donc inexploitable par la skill.
+    try {
+      const fetcher: Fetcher = o.consoleFetcher ?? (async (url, init) => {
+        const r = await fetch(url, init);
+        return { status: r.status, text: await r.text() };
+      });
+      let authError: string | null = null;
+      if (o.consoleAuth) {
+        // Couture de test (round 1 de revue) : évite tout appel au vrai gcloud, déterministe quel que
+        // soit l'environnement qui lance la suite (GSC_QUOTA_PROJECT posé ou non).
+        auth = o.consoleAuth.auth;
+        authError = o.consoleAuth.authError;
+      } else {
+        try {
+          auth = await getAccessToken(process.env, {
+            gcloud: () => defaultGcloud(),
+            serviceAccount: (p) => serviceAccountToken(p, fetcher),
+          });
+        } catch (e) {
+          authError = e instanceof AuthError ? `${e.message} : ${e.hint}` : String(e);
+        }
+      }
+      const r = await collectLevel1({ fetcher, auth, authError, bingKey },
+        { origin, pages: facts.map((f) => ({ url: f.url, slug: f.slug })), today: new Date().toISOString().slice(0, 10), delayMs: delay });
+      for (const f of r.raw) {
+        // Round 2 de revue : raw/ reçoit des réponses brutes d'API, la même garde que le dérivé et le
+        // manifeste s'applique ici, avant l'écriture — un secret qui fuit dans une réponse ne doit pas
+        // survivre plus longtemps parce que le fichier qui le porte est un raw/ plutôt qu'un derived/.
+        // I-1 : GSC_SA_KEY_FILE en troisième secret, même garde que bingKey et le jeton. Le chemin d'une
+        // clé de compte de service nomme souvent le client (dossier, sous-domaine) : la retirer du seul
+        // message qui la citait (auth-google.ts) ne suffit pas si un autre appel venait un jour à la
+        // recopier (siteUrl, erreur réseau qui échoue une URL complète, etc).
+        assertNoSecret(f.body, bingKey);
+        assertNoSecret(f.body, auth?.token ?? null);
+        assertNoSecret(f.body, process.env.GSC_SA_KEY_FILE ?? null);
+        await mkdir(join(raw, dirname(f.path)), { recursive: true });
+        await save(f.path, f.body);
+      }
+      const derivedConsole = deriveConsole(r, strat?.strategy?.pages.map((p) => ({ page: p.page, motCle: p.motCle })) ?? null, origin);
+      const text = JSON.stringify(derivedConsole, null, 2);
+      assertNoSecret(text, bingKey);
+      assertNoSecret(text, auth?.token ?? null);
+      assertNoSecret(text, process.env.GSC_SA_KEY_FILE ?? null);
+      await Bun.write(join(derived, "console.json"), text);
+      level1 = { attempted: true, googleError: r.google.error, bingError: r.bing.error };
+    } catch (e) {
+      // Le message d'assertNoSecret ne contient jamais le secret lui-même (il le nomme, sans le citer).
+      level1 = { attempted: true, googleError: e instanceof Error ? e.message : String(e), bingError: null };
+    }
+  }
+
   // 8. manifeste
   const home = facts.find((f) => f.slug === "index");
   const manifest: Manifest = {
@@ -200,8 +278,13 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
     psi,
     strategy: strat?.ref ?? null,
     indexnow,
+    level1,
   };
-  await Bun.write(join(raw, "manifest.json"), JSON.stringify(manifest, null, 2));
+  const manifestText = JSON.stringify(manifest, null, 2);
+  assertNoSecret(manifestText, bingKey);
+  assertNoSecret(manifestText, auth?.token ?? null);
+  assertNoSecret(manifestText, process.env.GSC_SA_KEY_FILE ?? null);
+  await Bun.write(join(raw, "manifest.json"), manifestText);
   return { ...manifest, out };
 }
 
@@ -213,7 +296,7 @@ if (import.meta.main) {
   const out = opt("--out");
   const strategyPathOpt = opt("--strategy-path");
   if (!url || url.startsWith("--")) {
-    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|2] [--no-psi] [--strategy-path <chemin|none>]");
+    console.error("usage : bun collect.ts <url> [--out <dossier>] [--max-pages 10] [--page <url>]... [--level 0|1|2] [--no-psi] [--strategy-path <chemin|none>]");
     process.exit(2);
   }
   const m = await runCollect({
@@ -221,7 +304,7 @@ if (import.meta.main) {
     out,
     maxPages: Number(opt("--max-pages") ?? 10),
     pages,
-    level: args.includes("--level") ? (Number(opt("--level")) === 2 ? 2 : 0) : undefined,
+    level: args.includes("--level") ? (([0, 1, 2] as const).find((n) => n === Number(opt("--level"))) ?? 0) : undefined,
     psiKey: process.env.PSI_API_KEY ?? null,
     noPsi: args.includes("--no-psi"),
     // --strategy-path none désactive la lecture de toute stratégie (strategyPath: null) ; toute autre valeur
@@ -230,6 +313,9 @@ if (import.meta.main) {
   });
   console.log(`dossier : ${m.out}`);
   console.log(`collecte terminée : ${m.pages.length} pages, robots.txt ${m.robots.status}, ${m.sitemaps.filter((s) => s.status === 200).length} sitemap(s), llms.txt ${m.llms.status}, PageSpeed ${m.psi.ok ? "ok" : m.psi.error}`);
+  if (m.level1?.attempted) {
+    console.log(`consoles : Google ${m.level1.googleError ?? "ok"}, Bing ${m.level1.bingError ?? "ok"}`);
+  }
   if (m.strategy?.error) console.error(`attention : ${m.strategy.path} inanalysable, couche stratégique non évaluée : ${m.strategy.error}`);
   if (m.level === 2 && m.sitemapUrls.rewrittenFrom?.length) console.error(`info : sitemap sur l'hôte de production ${m.sitemapUrls.rewrittenFrom.join(", ")}, URLs ramenées sur ${m.site}`);
   const warning = formatSkippedWarning(m.sitemapUrls);

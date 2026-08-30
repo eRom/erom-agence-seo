@@ -121,3 +121,26 @@ export async function inspectUrl(f: Fetcher, auth: GoogleAuth, siteUrl: string, 
 export function canonicalMismatch(s: IndexStatus | null): boolean {
   return Boolean(s?.googleCanonical && s.userCanonical && s.googleCanonical !== s.userCanonical);
 }
+
+export type SearchRow = { keys: string[]; clicks: number; impressions: number; ctr: number; position: number };
+/** La requête est conservée telle quelle dans raw/ : sans elle, la réponse n'est pas rejouable. */
+export type SearchQuery = { startDate: string; endDate: string; dimensions: string[]; rowLimit: number; type: string };
+export type SearchResult = { query: SearchQuery; rows: SearchRow[]; truncated: boolean };
+
+const num = (v: unknown): number => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+
+/**
+ * searchAnalytics.query. `ctr` est une fraction (0 à 1), pas un pourcentage : capture du 30/08.
+ * Pas de pagination : au plafond, `truncated` le dit et le rapport ne conclut pas sur l'exhaustivité.
+ */
+export async function searchAnalytics(f: Fetcher, auth: GoogleAuth, siteUrl: string, q: SearchQuery): Promise<SearchResult> {
+  const d = (await call(f, `${WMX_BASE}/sites/${encodeURIComponent(siteUrl)}/searchAnalytics/query`, auth, {
+    method: "POST",
+    body: JSON.stringify(q),
+  })) as { rows?: Record<string, unknown>[] };
+  const rows = (d.rows ?? []).map((r) => ({
+    keys: Array.isArray(r.keys) ? r.keys.map(String) : [],
+    clicks: num(r.clicks), impressions: num(r.impressions), ctr: num(r.ctr), position: num(r.position),
+  }));
+  return { query: q, rows, truncated: rows.length >= q.rowLimit };
+}

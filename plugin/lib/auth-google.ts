@@ -88,7 +88,10 @@ export async function serviceAccountToken(keyFilePath: string, fetcher: Fetcher,
     if (!j.client_email || !j.private_key) throw new Error("champs manquants");
     email = j.client_email; privateKey = j.private_key;
   } catch {
-    throw new AuthError(`clé de compte de service illisible (${keyFilePath})`, SA_HINT);
+    // I-1 : jamais keyFilePath dans le message. Un chemin de clé réel nomme souvent le client (dossier,
+    // sous-domaine) et remonte jusqu'à derived/console.json et au manifeste (spec section 7) ; SA_HINT
+    // nomme déjà GSC_SA_KEY_FILE, ça suffit à corriger sans rien perdre en exploitabilité.
+    throw new AuthError("clé de compte de service illisible", SA_HINT);
   }
   const iat = Math.floor(now() / 1000);
   const header = b64urlText(JSON.stringify({ alg: "RS256", typ: "JWT" }));

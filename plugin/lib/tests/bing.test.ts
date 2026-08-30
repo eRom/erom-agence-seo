@@ -1,9 +1,9 @@
-// plugin/skills/console/scripts/tests/bing.test.ts
+// plugin/lib/tests/bing.test.ts
 import { describe, test, expect } from "bun:test";
 import {
   bingUserSites, bingUrlInfo, bingFeeds, bingCrawlStats, bingCrawlIssues,
   parseDotNetDate, DATE_JAMAIS, redact, BingError, BING_API_BASE, type Fetcher,
-} from "../lib/bing";
+} from "../bing";
 
 // Clé de test volontairement non hexadécimale : sur cette machine, l'outil de lecture masque toute
 // chaîne de 32 caractères hexadécimaux (la forme d'une vraie clé Bing), et le masque finissait recopié

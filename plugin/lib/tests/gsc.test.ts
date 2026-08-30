@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, GscError, type Fetcher } from "../lib/gsc";
-import type { GoogleAuth } from "../lib/auth-google";
+import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, searchAnalytics, GscError, type Fetcher } from "../gsc";
+import type { GoogleAuth } from "../auth-google";
 
 const AUTH: GoogleAuth = { token: "ya29.FAUX", quotaProject: "p-123", provider: "gcloud" };
 const SA: GoogleAuth = { token: "sa.FAUX", quotaProject: null, provider: "service-account" };
@@ -176,6 +176,47 @@ describe("inspectUrl", () => {
     expect(canonicalMismatch({ ...base, googleCanonical: "https://a/", userCanonical: "https://b/" })).toBe(true);
     expect(canonicalMismatch({ ...base, googleCanonical: "https://a/", userCanonical: null })).toBe(false);
     expect(canonicalMismatch(null)).toBe(false);
+  });
+});
+
+describe("searchAnalytics", () => {
+  test("searchAnalytics rend les lignes et recopie la requête", async () => {
+    let seen: { url: string; body: string } | null = null;
+    const f: Fetcher = async (url, init) => {
+      seen = { url, body: init?.body ?? "" };
+      return { status: 200, text: JSON.stringify({
+        rows: [
+          { keys: ["https://www.romain-ecarnot.com/", "ecarnot"], clicks: 0, impressions: 2, ctr: 0, position: 10 },
+          { keys: ["https://lebonpote.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
+        ],
+        responseAggregationType: "byPage",
+      }) };
+    };
+    const q = { startDate: "2026-06-01", endDate: "2026-08-30", dimensions: ["page", "query"], rowLimit: 1000, type: "web" };
+    const r = await searchAnalytics(f, { token: "t", quotaProject: "p", provider: "gcloud" }, "sc-domain:romain-ecarnot.com", q);
+
+    expect(r.rows).toHaveLength(2);
+    expect(r.rows[0].keys).toEqual(["https://www.romain-ecarnot.com/", "ecarnot"]);
+    expect(r.rows[0].impressions).toBe(2);
+    expect(r.truncated).toBe(false);
+    expect(r.query).toEqual(q);
+    expect(seen!.url).toContain("/searchAnalytics/query");
+    expect(seen!.url).toContain(encodeURIComponent("sc-domain:romain-ecarnot.com"));
+    expect(JSON.parse(seen!.body)).toEqual(q);
+  });
+
+  test("searchAnalytics signale une réponse au plafond", async () => {
+    const rows = Array.from({ length: 5 }, (_, i) => ({ keys: [`q${i}`], clicks: 0, impressions: 1, ctr: 0, position: 1 }));
+    const f: Fetcher = async () => ({ status: 200, text: JSON.stringify({ rows }) });
+    const r = await searchAnalytics(f, { token: "t", quotaProject: null, provider: "gcloud" }, "s", { startDate: "a", endDate: "b", dimensions: ["query"], rowLimit: 5, type: "web" });
+    expect(r.truncated).toBe(true);
+  });
+
+  test("searchAnalytics rend zéro ligne quand la propriété n'a pas de données", async () => {
+    const f: Fetcher = async () => ({ status: 200, text: JSON.stringify({ responseAggregationType: "byProperty" }) });
+    const r = await searchAnalytics(f, { token: "t", quotaProject: null, provider: "gcloud" }, "s", { startDate: "a", endDate: "b", dimensions: ["date"], rowLimit: 1000, type: "web" });
+    expect(r.rows).toEqual([]);
+    expect(r.truncated).toBe(false);
   });
 });
 

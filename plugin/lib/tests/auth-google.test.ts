@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { chooseProvider, getAccessToken, serviceAccountToken, defaultGcloud, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../lib/auth-google";
+import { chooseProvider, getAccessToken, serviceAccountToken, defaultGcloud, AuthError, SCOPE, TOKEN_ENDPOINT, type Fetcher } from "../auth-google";
 
 const gcloudOk = async () => "ya29.FAUX-JETON";
 const gcloudKo = async () => null;
@@ -135,6 +135,20 @@ describe("serviceAccountToken", () => {
     const f: Fetcher = async () => ({ status: 200, text: '{"access_token":"x"}' });
     await expect(serviceAccountToken(`${dir}/casse.json`, f)).rejects.toBeInstanceOf(AuthError);
     await expect(serviceAccountToken(`${dir}/absent.json`, f)).rejects.toBeInstanceOf(AuthError);
+  });
+
+  test("I-1 : le chemin de la clé n'apparaît jamais dans le message d'erreur, même illisible", async () => {
+    // Un chemin de clé réel nomme le client (dossier, sous-domaine) : il n'a rien à faire dans un fichier
+    // écrit sur le disque de l'agence ni, in fine, dans le manifeste de l'audit (spec section 7).
+    const chemin = `${import.meta.dir}/tmp-sa/clients-acme-corp-sa-search-console.json`;
+    const f: Fetcher = async () => ({ status: 200, text: "{}" });
+    const p = serviceAccountToken(chemin, f);
+    await expect(p).rejects.toBeInstanceOf(AuthError);
+    await p.catch((e: AuthError) => {
+      expect(e.message).not.toContain(chemin);
+      expect(e.hint).not.toContain(chemin);
+      expect(e.hint).toContain("GSC_SA_KEY_FILE"); // le hint doit rester exploitable sans le chemin
+    });
   });
 
   test("I-3 : réponse HTTP 200 au corps non-JSON (portail captif) : AuthError, pas une trace SyntaxError brute", async () => {

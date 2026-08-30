@@ -1,0 +1,611 @@
+// plugin/skills/audit/scripts/tests/level1.test.ts
+import { test, expect, describe } from "bun:test";
+import { collectLevel1, bingKnows, indexSummary, bingKnownSummary, canonicalFindings, keywordChecks, deriveConsole, type Level1Deps } from "../lib/level1";
+import type { SearchRow, Fetcher } from "../../../../lib/gsc";
+import { parseStrategy } from "../../../../lib/strategy";
+import { VALID } from "../../../../lib/tests/fixtures/strategy-valide";
+
+const NOFETCH: any = async () => { throw new Error("aucune requête ne doit partir"); };
+const PAGES = [{ url: "https://x.test/", slug: "index" }];
+const OPT = { origin: "https://x.test", pages: PAGES, today: "2026-08-30" };
+
+test("sans jeton Google, la moitié Google est non vue et Bing continue", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://x.test/", IsVerified: true }] }) };
+    if (url.includes("GetUrlInfo")) return { status: 200, text: JSON.stringify({ d: { LastCrawledDate: "/Date(1785610378000)/" } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: null, authError: "aucun jeton Google", bingKey: "k" }, OPT);
+  expect(r.google.error).toBe("aucun jeton Google");
+  expect(r.google.pages).toEqual([]);
+  expect(r.bing.pages[0].known).toBe(true);
+});
+
+test("sans clé Bing, aucune requête Bing ne part", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.includes("bing.com")) throw new Error("la clé est absente, rien ne doit partir vers Bing");
+    // searchAnalytics AVANT /sites/ : son URL est .../sites/<propriété>/searchAnalytics/query et
+    // matcherait la branche sitemaps, qui rendrait un corps sans `rows`. Le test passerait quand même,
+    // en n'exerçant pas ce qu'il prétend exercer.
+    if (url.includes("searchAnalytics")) return { status: 200, text: JSON.stringify({ rows: [] }) };
+    if (url.includes("/sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
+  expect(r.bing.error).toBe("clé Bing absente");
+  expect(r.bing.pages).toEqual([]);
+  expect(r.google.pages).toHaveLength(1);
+});
+
+test("aucune propriété ne couvre l'URL : Google non vu, sans requête d'inspection", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:autre.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("inspect")) throw new Error("aucune inspection ne doit partir sans propriété");
+    return { status: 200, text: JSON.stringify({}) };
+  };
+  const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
+  expect(r.google.property).toBeNull();
+  expect(r.google.error).toContain("aucune propriété");
+});
+
+test("une page en échec n'empêche pas les autres", async () => {
+  let n = 0;
+  const fetcher: any = async (url: string) => {
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.includes("inspect")) {
+      n++;
+      if (n === 1) return { status: 500, text: "{}" };
+      return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    }
+    return { status: 200, text: JSON.stringify({ rows: [] }) };
+  };
+  const deux = [{ url: "https://x.test/", slug: "index" }, { url: "https://x.test/b", slug: "b" }];
+  const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null },
+    { ...OPT, pages: deux, delayMs: 0 });
+  expect(r.google.pages).toHaveLength(2);
+  expect(r.google.pages[0].error).not.toBeNull();
+  expect(r.google.pages[1].verdict).toBe("PASS");
+});
+
+test("sans jeton ni clé, aucune requête ne part du tout", async () => {
+  const r = await collectLevel1({ fetcher: NOFETCH, auth: null, authError: "aucun jeton Google", bingKey: null }, OPT);
+  expect(r.google.error).toBe("aucun jeton Google");
+  expect(r.bing.error).toBe("clé Bing absente");
+  expect(r.raw).toEqual([]);
+});
+
+// Ces deux-là ferment les deux trous que la revue du plan a démontrés le 30/08.
+
+test("une page que Bing n'a jamais crawlée est rapportée inconnue, à travers collectBing", async () => {
+  // Sans ce test, un `known: info !== null` satisfait tous les autres tout en mentant : la sentinelle
+  // DateTime.MinValue est un objet non nul. Reproduit par la revue du plan, 10 tests verts et AC-6 faux.
+  const fetcher: any = async (url: string) => {
+    if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://x.test/", IsVerified: true }] }) };
+    if (url.includes("GetUrlInfo")) return { status: 200, text: JSON.stringify({ d: { Url: "https://x.test/", LastCrawledDate: "/Date(-62135568000000)/" } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: null, authError: "aucun jeton Google", bingKey: "k" }, OPT);
+  expect(r.bing.pages[0].known).toBe(false);
+});
+
+test("un refus de lecture des sitemaps est dit, jamais confondu avec « aucun sitemap »", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.includes("searchAnalytics")) return { status: 200, text: JSON.stringify({ rows: [] }) };
+    if (url.includes("/sitemaps")) return { status: 403, text: JSON.stringify({ error: { message: "insufficient permission" } }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteUnverifiedUser" }] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, OPT);
+  expect(r.google.sitemaps).toEqual([]);
+  expect(r.google.sitemapsError).not.toBeNull();
+  expect(r.google.pages).toHaveLength(1); // le refus sur les sitemaps n'empêche pas l'inspection
+});
+
+// Les quatre cas unitaires de bingKnows, exécutés le 30/08 et verts. Ils vivent ici, avec leur appelant.
+
+test("AI-03 reconnaît une page connue de Bing, capture du 30/08", () => {
+  expect(bingKnows({ LastCrawledDate: "/Date(1785610378000)/" })).toBe(true);
+});
+
+test("AI-03 lit la sentinelle DateTime.MinValue comme jamais crawlée", () => {
+  expect(bingKnows({ LastCrawledDate: "/Date(-62135568000000)/" })).toBe(false);
+});
+
+test("AI-03 accepte un décalage horaire dans la date .NET", () => {
+  expect(bingKnows({ LastCrawledDate: "/Date(1760511600000-0700)/" })).toBe(true);
+});
+
+test("AI-03 sur une réponse nulle ou sans date", () => {
+  expect(bingKnows(null)).toBe(false);
+  expect(bingKnows({ Url: "https://x/" })).toBe(false);
+});
+
+// AC-9 : la fraîcheur des données ne doit jamais se lire sur « la dernière ligne rendue ». Les deux
+// searchAnalytics.query (dimensions ["date"] puis ["page","query"]) DOIVENT rendre des corps de nature
+// différente : servir les mêmes `rows` aux deux ferait passer une implémentation qui lirait lastDataDate
+// sur la mauvaise requête (celle par page et requête) sans que rien ne le voie (fix round 1, MUTATION A).
+function depsAvec(rows: SearchRow[]): Level1Deps {
+  const fetcher: any = async (url: string, init?: { body?: string }) => {
+    if (url.includes("searchAnalytics")) {
+      const q = init?.body ? JSON.parse(init.body) : {};
+      const parJour = Array.isArray(q.dimensions) && q.dimensions.length === 1 && q.dimensions[0] === "date";
+      // la requête par page et requête rend une ligne hors sujet pour lastDataDate (pas de date en keys[0]) :
+      // si l'implémentation lit dessus par erreur, lastDateWithImpressions ne trouve rien d'exploitable.
+      return { status: 200, text: JSON.stringify({ rows: parJour ? rows : [{ keys: ["https://x.test/", "mot-clé"], clicks: 0, impressions: 9, ctr: 0, position: 1 }] }) };
+    }
+    if (url.includes("/sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  return { fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null };
+}
+
+test("lastDataDate est le dernier jour AVEC des impressions, quel que soit l'ordre des lignes", async () => {
+  const rows: SearchRow[] = [
+    { keys: ["2026-08-27"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
+    { keys: ["2026-08-29"], clicks: 0, impressions: 0, ctr: 0, position: 0 },
+    { keys: ["2026-08-20"], clicks: 0, impressions: 3, ctr: 0, position: 9 },
+  ];
+  // rendu volontairement dans le désordre, avec un jour à zéro impression après le dernier jour utile
+  const r = await collectLevel1(depsAvec(rows), OPT);
+  expect(r.google.search!.lastDataDate).toBe("2026-08-27");
+});
+
+test("aucune impression sur la période rend null, pas une date inventée", async () => {
+  const r = await collectLevel1(depsAvec([{ keys: ["2026-08-29"], clicks: 0, impressions: 0, ctr: 0, position: 0 }]), OPT);
+  expect(r.google.search!.lastDataDate).toBeNull();
+});
+
+// Fix round 1, MUTATION B : `dates.sort().at(-1)` prend un maximum ; une implémentation qui lirait
+// `dates[0]` (la première ligne survivante) passerait les deux tests ci-dessus, où le maximum est
+// justement en tête par accident de rédaction. Ici les lignes sont rendues en ordre chronologique
+// croissant : `dates[0]` donnerait le plus VIEUX jour utile, pas le plus récent.
+test("lastDataDate est un maximum, pas la première ligne du tableau (ordre croissant)", async () => {
+  const rows: SearchRow[] = [
+    { keys: ["2026-08-20"], clicks: 0, impressions: 3, ctr: 0, position: 9 },
+    { keys: ["2026-08-27"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
+    { keys: ["2026-08-29"], clicks: 0, impressions: 0, ctr: 0, position: 0 },
+  ];
+  const r = await collectLevel1(depsAvec(rows), OPT);
+  expect(r.google.search!.lastDataDate).toBe("2026-08-27");
+});
+
+// Fix round 1, MUTATION E : rien ne vérifiait le contenu des deux requêtes searchAnalytics elles-mêmes.
+// Une fenêtre, un rowLimit ou un type faux (ou les deux appels sur la même dimension) passaient les 13
+// tests d'origine sans être vus. La spec 4.3 exige `type: "web"` nommément, pour que raw/ soit rejouable.
+test("les deux requêtes searchAnalytics portent la bonne fenêtre, dimensions, rowLimit et type", async () => {
+  const calls: { dimensions: string[]; rowLimit: number; type: string; startDate: string; endDate: string }[] = [];
+  const fetcher: any = async (url: string, init?: { body?: string }) => {
+    if (url.includes("searchAnalytics")) {
+      calls.push(JSON.parse(init?.body ?? "{}"));
+      return { status: 200, text: JSON.stringify({ rows: [] }) };
+    }
+    if (url.includes("/sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null }, { ...OPT, days: 3 });
+  expect(calls).toHaveLength(2);
+  expect(calls[0]).toMatchObject({ dimensions: ["date"], rowLimit: 1000, type: "web", startDate: "2026-08-28", endDate: "2026-08-30" });
+  expect(calls[1]).toMatchObject({ dimensions: ["page", "query"], rowLimit: 1000, type: "web", startDate: "2026-08-28", endDate: "2026-08-30" });
+});
+
+// Fix round 1, finding « ce site n'est pas dans le compte Bing » : six des sept pannes de la spec section 6
+// avaient leur test, pas celle-ci. Une garde supprimée passait les 13 tests d'origine sans être vue.
+test("un site hors du compte Bing est dit, sans aucun appel GetUrlInfo", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://autre.test/", IsVerified: true }] }) };
+    if (url.includes("GetUrlInfo")) throw new Error("aucun GetUrlInfo ne doit partir sur un site hors compte");
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1({ fetcher, auth: null, authError: "aucun jeton Google", bingKey: "k" }, OPT);
+  expect(r.bing.error).toBe("ce site n'est pas dans le compte Bing");
+  expect(r.bing.pages).toEqual([]);
+});
+
+// Fix round 1, MUTATION I : les deux `Bun.sleep(delayMs)` (Google et Bing) n'avaient aucun témoin ; le
+// seul test à deux pages passait delayMs: 0 et ne mesurait rien. Le quota Google est de 600/minute
+// (spec 4.2), le délai entre deux inspections est la seule protection.
+test("le délai entre deux appels est respecté (rythme des requêtes)", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    return { status: 200, text: JSON.stringify({ rows: [] }) };
+  };
+  const deux = [{ url: "https://x.test/", slug: "index" }, { url: "https://x.test/b", slug: "b" }];
+  const debut = Date.now();
+  await collectLevel1(
+    { fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null },
+    { ...OPT, pages: deux, delayMs: 40 },
+  );
+  expect(Date.now() - debut).toBeGreaterThan(35);
+});
+
+// Fix round 1, finding critique : `raw` n'avait aucun test, il pouvait être vidé (MUTATION J) ou porter le
+// jeton et l'URL Bing complète, apikey comprise (MUTATION F), sans qu'un seul des 13 tests d'origine ne
+// bronche. Un même faux serveur pour les deux tests qui suivent : réponses distinctes selon la dimension
+// searchAnalytics demandée, pour que MUTATION H (permuter les deux fichiers raw) soit aussi visible.
+function fullFetcher(): Fetcher {
+  return async (url, init) => {
+    if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://x.test/", IsVerified: true }] }) };
+    if (url.includes("GetUrlInfo")) return { status: 200, text: JSON.stringify({ d: { LastCrawledDate: "/Date(1785610378000)/" } }) };
+    if (url.includes("searchAnalytics")) {
+      const q = init?.body ? JSON.parse(init.body) : {};
+      const parJour = Array.isArray(q.dimensions) && q.dimensions.length === 1 && q.dimensions[0] === "date";
+      return {
+        status: 200,
+        text: JSON.stringify({
+          rows: parJour
+            ? [{ keys: ["2026-08-27"], clicks: 1, impressions: 1, ctr: 1, position: 1 }]
+            : [{ keys: ["https://x.test/", "marque-page-query"], clicks: 2, impressions: 2, ctr: 1, position: 2 }],
+        }),
+      };
+    }
+    if (url.includes("/sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [{ path: "https://x.test/sitemap.xml" }] }) };
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+}
+const DEPS_SECRETS: Level1Deps = {
+  fetcher: fullFetcher(),
+  auth: { token: "SECRET-TOKEN-JAMAIS-VU", quotaProject: "p", provider: "gcloud" },
+  authError: null,
+  bingKey: "SECRET-KEY-JAMAIS-VU",
+};
+
+test("raw porte les sept chemins attendus, chacun avec le contenu qui lui correspond", async () => {
+  const r = await collectLevel1(DEPS_SECRETS, OPT);
+  const chemins = r.raw.map((x) => x.path).sort();
+  expect(chemins).toEqual([
+    "bing/urlinfo/index.json", "bing/usersites.json",
+    "gsc/inspect/index.json", "gsc/searchanalytics-date.json", "gsc/searchanalytics-page-query.json",
+    "gsc/sitemaps.json", "gsc/sites.json",
+  ].sort());
+  // le contenu de chaque fichier doit correspondre à SON chemin, pas à celui du voisin (MUTATION H) :
+  // body est du JSON pretty-printé, on le reparse plutôt que de chercher une sous-chaîne fragile au format.
+  const corpsPar = Object.fromEntries(r.raw.map((x) => [x.path, JSON.parse(x.body)]));
+  expect(corpsPar["gsc/searchanalytics-date.json"].request.dimensions).toEqual(["date"]);
+  expect(corpsPar["gsc/searchanalytics-date.json"].response).toEqual([{ keys: ["2026-08-27"], clicks: 1, impressions: 1, ctr: 1, position: 1 }]);
+  expect(corpsPar["gsc/searchanalytics-page-query.json"].request.dimensions).toEqual(["page", "query"]);
+  expect(JSON.stringify(corpsPar["gsc/searchanalytics-page-query.json"].response)).toContain("marque-page-query");
+  expect(JSON.stringify(corpsPar["bing/urlinfo/index.json"])).toContain("1785610378000");
+});
+
+test("aucun secret (jeton Google, clé Bing) ne se retrouve dans le résultat, raw compris", async () => {
+  const r = await collectLevel1(DEPS_SECRETS, OPT);
+  const dump = JSON.stringify(r);
+  expect(dump).not.toContain("SECRET-TOKEN-JAMAIS-VU");
+  expect(dump).not.toContain("SECRET-KEY-JAMAIS-VU");
+});
+
+// Fix round 1, point mineur : shiftDate() et new URL(o.origin) sortaient de tout `try`. Une entrée
+// malformée devait rester à l'intérieur de la garantie « le niveau 1 ne casse jamais l'audit », pas
+// dépendre de la prudence de l'appelant (tâche 7).
+test("un `today` malformé ne fait jamais remonter d'exception hors du module", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }] }) };
+    if (url.includes("sitemaps")) return { status: 200, text: JSON.stringify({ sitemap: [] }) };
+    if (url.includes("inspect")) return { status: 200, text: JSON.stringify({ inspectionResult: { indexStatusResult: { verdict: "PASS", coverageState: "Submitted and indexed" } } }) };
+    return { status: 200, text: JSON.stringify({ rows: [] }) };
+  };
+  const r = await collectLevel1(
+    { fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: null },
+    { ...OPT, today: "pas-une-date" },
+  );
+  expect(r.google.search!.error).not.toBeNull();
+});
+
+test("une origine malformée ne fait jamais remonter d'exception hors de collectBing", async () => {
+  const fetcher: any = async (url: string) => {
+    if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://x.test/", IsVerified: true }] }) };
+    throw new Error(`appel inattendu : ${url}`);
+  };
+  const r = await collectLevel1(
+    { fetcher, auth: null, authError: "aucun jeton Google", bingKey: "k" },
+    { ...OPT, origin: "pas-une-url", pages: [] },
+  );
+  expect(r.bing.error).not.toBeNull();
+});
+
+// --- Tâche 6 : les dérivés des quatre vérifications -----------------------------------------
+// Les onze cas ci-dessous ont été exécutés le 30/08 et passent tels quels.
+
+const page = (url: string, verdict: string, coverageState: string, g: string | null = null, u: string | null = null) =>
+  ({ url, slug: "s", verdict, coverageState, googleCanonical: g, userCanonical: u, lastCrawlTime: null, error: null });
+
+test("IDX-06 compte les pages indexées et nomme les autres", () => {
+  const r = indexSummary([
+    page("https://www.romain-ecarnot.com/", "PASS", "Submitted and indexed"),
+    page("https://www.romain-ecarnot.com/absente", "FAIL", "Crawled - currently not indexed"),
+  ]);
+  expect(r.total).toBe(2);
+  expect(r.indexed).toBe(1);
+  expect(r.notIndexed).toEqual([{ url: "https://www.romain-ecarnot.com/absente", coverageState: "Crawled - currently not indexed" }]);
+});
+
+test("IDX-06 sur zéro page inspectée", () => {
+  expect(indexSummary([])).toEqual({ total: 0, indexed: 0, notIndexed: [], notInspected: [] });
+});
+
+// C-2 : une page dont l'inspection a échoué (error non nul) n'est ni indexée ni notIndexed, elle n'a
+// pas été jugée. Fixture volontairement asymétrique (2 indexées, 2 non indexées, 1 en échec) : une
+// fixture symétrique laisserait passer une implémentation qui confond les trois compteurs par coïncidence.
+test("IDX-06 range une page en échec dans notInspected, jamais dans indexed ni notIndexed", () => {
+  const pages = [
+    page("https://x/1", "PASS", "Submitted and indexed"),
+    page("https://x/2", "PASS", "Submitted and indexed"),
+    page("https://x/3", "FAIL", "Crawled - currently not indexed"),
+    page("https://x/4", "FAIL", "Crawled - currently not indexed"),
+    { ...page("https://x/5", "VERDICT_UNSPECIFIED", "inconnu"), error: "HTTP 429" },
+  ];
+  const r = indexSummary(pages);
+  expect(r.indexed).toBe(2);
+  expect(r.notIndexed).toEqual([
+    { url: "https://x/3", coverageState: "Crawled - currently not indexed" },
+    { url: "https://x/4", coverageState: "Crawled - currently not indexed" },
+  ]);
+  expect(r.notInspected).toEqual([{ url: "https://x/5", error: "HTTP 429" }]);
+  // L'invariant à tenir en toute circonstance : jamais un compte gelé, toujours la somme des trois.
+  expect(r.total).toBe(r.indexed + r.notIndexed.length + r.notInspected.length);
+});
+
+// AI-03 : même invariant côté Bing, via bingKnownSummary (le pendant d'indexSummary pour BingPage).
+test("AI-03 range une page en échec dans notChecked, jamais dans known ni unknown", () => {
+  const pages = [
+    { url: "https://x/1", slug: "1", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x/2", slug: "2", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x/3", slug: "3", known: false, lastCrawled: null, error: null },
+    { url: "https://x/4", slug: "4", known: false, lastCrawled: null, error: "ThrottleUser" },
+    { url: "https://x/5", slug: "5", known: false, lastCrawled: null, error: "ThrottleUser" },
+  ];
+  const r = bingKnownSummary(pages);
+  expect(r.known).toBe(2);
+  expect(r.unknown).toEqual(["https://x/3"]);
+  expect(r.notChecked).toEqual([
+    { url: "https://x/4", error: "ThrottleUser" },
+    { url: "https://x/5", error: "ThrottleUser" },
+  ]);
+  expect(r.total).toBe(r.known + r.unknown.length + r.notChecked.length);
+});
+
+// Fix round 1 : la fixture précédente fait toujours coïncider PASS et un coverageState qui contient
+// « indexed », donc rien ne distingue « je compte sur le verdict » de « je compte sur coverageState ».
+// Ici les deux divergent délibérément : le verdict dit FAIL, le texte contient quand même « indexed ».
+// Fix round 2 : la casse compte. « Indexed » avec un I majuscule laissait passer une mutation
+// `coverageState.includes("indexed")` en minuscule par pure coïncidence de fixture (elle rend false sur
+// ce texte, ce qui coïncide avec le résultat attendu sans que le comptage sur le verdict soit exercé).
+// Le texte est ici la vraie casse de coverageState telle que Google la rend (« Submitted and indexed »),
+// ce qui tue à la fois `includes("indexed")` et une égalité stricte sur ce même texte : les deux
+// compteraient cette page FAIL comme indexée à tort.
+test("IDX-06 compte sur le verdict même quand coverageState contient « indexed »", () => {
+  const r = indexSummary([page("https://x/a", "FAIL", "Submitted and indexed")]);
+  expect(r.indexed).toBe(0);
+  expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Submitted and indexed" }]);
+});
+
+// Fix round 3 : tous les cas précédents n'opposent que PASS et FAIL, où `verdict === "PASS"` et
+// `verdict !== "FAIL"` donnent la même réponse. L'API d'inspection Google rend aussi NEUTRAL (pages
+// auxiliaires ou paginées, entre autres) : `!== "FAIL"` la compterait indexée à tort. Seule l'égalité
+// positive à PASS est correcte.
+test("IDX-06 ne compte pas une page NEUTRAL comme indexée", () => {
+  const r = indexSummary([page("https://x/a", "NEUTRAL", "Page is not indexed")]);
+  expect(r.indexed).toBe(0);
+  expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Page is not indexed" }]);
+});
+
+test("IDX-07 signale une divergence de canonical", () => {
+  const r = canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/b", "https://x/a")]);
+  expect(r).toEqual([{ url: "https://x/a", googleCanonical: "https://x/b", userCanonical: "https://x/a" }]);
+});
+
+test("IDX-07 ne dit rien quand les deux canonicals sont égaux, capture du 30/08", () => {
+  expect(canonicalFindings([page("https://www.romain-ecarnot.com/", "PASS", "Submitted and indexed",
+    "https://www.romain-ecarnot.com/", "https://www.romain-ecarnot.com/")])).toEqual([]);
+});
+
+test("IDX-07 laisse le canonical absent à TAG-03", () => {
+  expect(canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/a", null)])).toEqual([]);
+});
+
+// AI-03 n'est pas ici : `bingKnows` et ses quatre cas vivent en tâche 5, avec `collectBing` qui les
+// consomme. Une règle testée loin de son seul appelant laisse passer une implémentation qui ment.
+
+// C-1 : `planned.page` est toujours un chemin nu (`/^\/\S*$/`, imposé par `parseStrategy`), jamais une
+// URL absolue. Les fixtures ci-dessous l'écrivent ainsi et passent `origin` séparément : la forme
+// absolue qu'écrivaient les tests d'origine est une forme que `parseStrategy` refuse, donc impossible
+// sur une vraie stratégie ; C-1 est exactement le bug que cette forme impossible cachait.
+
+test("STRAT-05 retrouve le mot visé dans une requête plus longue, requêtes réelles du 30/08", () => {
+  const rows = [
+    { keys: ["https://lebonpote.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
+  ];
+  const r = keywordChecks(rows, [{ page: "/", motCle: "bon pote" }], "https://lebonpote.romain-ecarnot.com");
+  expect(r[0].hasImpressions).toBe(true);
+  expect(r[0].keywordFound).toBe(true);
+  expect(r[0].topQueries).toEqual(["bon pote nantes"]);
+});
+
+test("STRAT-05 distingue le mot raté de la page sans impression", () => {
+  const rows = [{ keys: ["https://x/a", "autre chose"], clicks: 0, impressions: 3, ctr: 0, position: 9 }];
+  const r = keywordChecks(rows, [{ page: "/a", motCle: "agence seo" }, { page: "/b", motCle: "quoi que ce soit" }], "https://x");
+  expect(r[0]).toMatchObject({ hasImpressions: true, keywordFound: false, topQueries: ["autre chose"] });
+  expect(r[1]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+// Fix round 1 : les deux tests STRAT-05 ci-dessus écrivent la même URL des deux côtés (ligne Google et
+// page planifiée), donc l'appariement n'y est jamais mis à l'épreuve : un appariement par chemin seul ou
+// par URL brute les satisfait tout autant que `pageKey`. Les deux cas suivants sont le couple que `pageKey`
+// sait résoudre et que chacune des deux règles dégradées rate d'un côté différent.
+
+test("STRAT-05 apparie l'apex déclaré à la stratégie et le www rendu par Google, capture réelle du montage", () => {
+  // Une propriété Search Console de type Domaine restitue ses lignes en www ; strategy.md déclare la page
+  // en apex (chemin nu « / », résolu sur l'origine avant comparaison). Une comparaison d'URL brute, sans
+  // résolution ni normalisation `pageKey`, les traiterait comme deux pages distinctes et rendrait un faux
+  // « aucune impression » sur une page qui en a bel et bien : c'est exactement C-1.
+  const rows = [
+    { keys: ["https://www.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 5, ctr: 0, position: 3 },
+  ];
+  const r = keywordChecks(rows, [{ page: "/", motCle: "bon pote" }], "https://romain-ecarnot.com");
+  expect(r[0].hasImpressions).toBe(true);
+  expect(r[0].keywordFound).toBe(true);
+  expect(r[0].topQueries).toEqual(["bon pote nantes"]);
+});
+
+test("STRAT-05 apparie une vraie page de stratégie (chemin nu) à une ligne Google absolue", () => {
+  // La stratégie valide de référence (plugin/lib/tests/fixtures/strategy-valide.ts), pas une fixture
+  // ad hoc : c'est elle que `parseStrategy` accepte réellement, avec des chemins nus « / » et « /methode ».
+  const planned = parseStrategy(VALID).pages.map((p) => ({ page: p.page, motCle: p.motCle }));
+  const rows = [
+    { keys: ["https://www.commentchercherbonheur.org/methode", "methode bonheur institut"], clicks: 0, impressions: 4, ctr: 0, position: 2 },
+  ];
+  const r = keywordChecks(rows, planned, "https://commentchercherbonheur.org");
+  const methode = r.find((x) => x.page === "/methode")!;
+  expect(methode.hasImpressions).toBe(true);
+  expect(methode.keywordFound).toBe(true);
+  const home = r.find((x) => x.page === "/")!;
+  expect(home).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+test("STRAT-05 apparie malgré la barre finale que Google ajoute et que la stratégie n'écrit jamais", () => {
+  // WordPress, Next en trailingSlash: true : Google rend souvent l'URL indexée avec une barre finale que
+  // strategy.md ne porte jamais (parseStrategy interdit même l'espace après le chemin). Sans la gommer
+  // des deux côtés, cette page se lirait « aucune impression » alors qu'elle en a, le même mensonge que
+  // C-1 par une autre porte.
+  const rows = [{ keys: ["https://x.test/methode/", "methode bonheur"], clicks: 0, impressions: 2, ctr: 0, position: 4 }];
+  const r = keywordChecks(rows, [{ page: "/methode", motCle: "methode" }], "https://x.test");
+  expect(r[0].hasImpressions).toBe(true);
+  expect(r[0].keywordFound).toBe(true);
+});
+
+test("STRAT-05 ne confond pas deux sous-domaines qui partagent le même chemin", () => {
+  // boutique.example.com/ et blog.example.com/ ont tous deux le chemin « / ». Un appariement par le
+  // chemin seul ferait fuiter la requête de la boutique dans les topQueries du blog.
+  const rows = [{ keys: ["https://boutique.example.com/", "achat en ligne"], clicks: 0, impressions: 5, ctr: 0, position: 3 }];
+  const r = keywordChecks(rows, [{ page: "/", motCle: "quoi que ce soit" }], "https://blog.example.com");
+  expect(r[0]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+test("STRAT-05 garde un sous-domaine distinct du www du même domaine", () => {
+  // Le cas que www ne doit PAS neutraliser : bareHost() retire un seul « www. » de tête, jamais un
+  // sous-domaine quelconque. blog.acme.test et www.acme.test ne sont pas le même site.
+  const rows = [{ keys: ["https://blog.acme.test/", "actualites"], clicks: 0, impressions: 5, ctr: 0, position: 3 }];
+  const r = keywordChecks(rows, [{ page: "/", motCle: "peu importe" }], "https://www.acme.test");
+  expect(r[0]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+const bloc = (over: any = {}) => ({
+  google: { property: { siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }, error: null,
+    pages: [page("https://x.test/", "PASS", "ok"), page("https://x.test/b", "FAIL", "Crawled - currently not indexed")],
+    sitemaps: [], sitemapsError: null,
+    search: { lastDataDate: "2026-08-27", rows: [], truncated: false, error: null }, ...over.google },
+  bing: { site: "https://x.test/", error: null, pages: [
+    { url: "https://x.test/", slug: "index", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x.test/b", slug: "b", known: false, lastCrawled: null, error: null }], ...over.bing },
+  raw: [],
+});
+
+test("deriveConsole projette un bloc complet", () => {
+  const d = deriveConsole(bloc() as any, null, "https://x.test");
+  expect(d.google.property).toBe("sc-domain:x.test");
+  expect(d.google.permissionLevel).toBe("siteOwner");
+  expect(d.google.index).toMatchObject({ total: 2, indexed: 1 });
+  expect(d.google.lastDataDate).toBe("2026-08-27");
+  expect(d.bing).toMatchObject({ known: 1, total: 2, unknown: ["https://x.test/b"] });
+});
+
+test("deriveConsole recopie les raisons de panne sans rien inventer", () => {
+  const vide = { google: { property: null, error: "aucun jeton Google", pages: [], sitemaps: [], sitemapsError: null, search: null },
+                 bing: { site: null, error: "clé Bing absente", pages: [] }, raw: [] };
+  const d = deriveConsole(vide as any, null, "https://x.test");
+  expect(d.google.error).toBe("aucun jeton Google");
+  expect(d.bing.error).toBe("clé Bing absente");
+  expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [], notInspected: [] });
+  expect(d.google.lastDataDate).toBeNull();       // search null ne doit pas lever
+  expect(d.google.truncated).toBe(false);
+});
+
+// C-2 : le trou exact que la revue a démontré. Sans `notInspected`/`notChecked`, une page en échec
+// d'inspection se comptait « non indexée » (IDX-06) ou « inconnue » (AI-03) alors que l'API n'a jamais
+// répondu. Ici une page réussie et une page en échec, des deux côtés Google et Bing : le résultat doit
+// distinguer proprement les trois catégories, jamais confondre l'échec avec un verdict négatif.
+test("deriveConsole porte les pages en échec dans notInspected et notChecked, jamais dans notIndexed ou unknown", () => {
+  const b = bloc({
+    google: { pages: [
+      page("https://x.test/", "PASS", "Submitted and indexed"),
+      { ...page("https://x.test/b", "VERDICT_UNSPECIFIED", "inconnu"), error: "HTTP 429" },
+    ] },
+    bing: { pages: [
+      { url: "https://x.test/", slug: "index", known: true, lastCrawled: "2026-08-29", error: null },
+      { url: "https://x.test/b", slug: "b", known: false, lastCrawled: null, error: "ThrottleUser" },
+    ] },
+  });
+  const d = deriveConsole(b as any, null, "https://x.test");
+  expect(d.google.index).toEqual({ total: 2, indexed: 1, notIndexed: [], notInspected: [{ url: "https://x.test/b", error: "HTTP 429" }] });
+  expect(d.bing).toMatchObject({ known: 1, total: 2, unknown: [], notChecked: [{ url: "https://x.test/b", error: "ThrottleUser" }] });
+});
+
+// Fix round 1 : `bloc()` a une page connue et une inconnue, parfaitement symétrique. Inverser
+// `known: total - unknown.length` en `known: unknown.length` donne le même chiffre par coïncidence.
+// Ce cas à trois connues et une inconnue distingue la somme de son complément.
+test("deriveConsole compte known et unknown sans les inverser, fixture asymétrique", () => {
+  const b = bloc({
+    bing: {
+      pages: [
+        { url: "https://x.test/a", slug: "a", known: true, lastCrawled: "2026-08-29", error: null },
+        { url: "https://x.test/b", slug: "b", known: true, lastCrawled: "2026-08-29", error: null },
+        { url: "https://x.test/c", slug: "c", known: true, lastCrawled: "2026-08-29", error: null },
+        { url: "https://x.test/d", slug: "d", known: false, lastCrawled: null, error: null },
+      ],
+    },
+  });
+  const d = deriveConsole(b as any, null, "https://x.test");
+  expect(d.bing).toMatchObject({ known: 3, total: 4, unknown: ["https://x.test/d"] });
+});
+
+test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () => {
+  expect(deriveConsole(bloc() as any, null, "https://x.test").strategy).toBeNull();
+  expect(deriveConsole(bloc() as any, [{ page: "/", motCle: "x" }], "https://x.test").strategy).toHaveLength(1);
+});
+
+// Fix round 2 : la propriété est accessible (google.error null), mais searchAnalytics.query a échoué seul
+// (quota propre à cette API, 5xx transitoire, ligne 301 ci-dessus pour la collecte réelle). Sans
+// `searchError`, ce cas était indiscernable d'une page sans trafic : `google.error` reste nul, et
+// `lastDataDate` vaut null sans qu'aucun champ ne dise pourquoi.
+test("deriveConsole porte l'échec de searchAnalytics dans searchError, sans le confondre avec google.error", () => {
+  const b = bloc({ google: { search: { lastDataDate: null, rows: [], truncated: false, error: "quota Search Console dépassé" } } });
+  const d = deriveConsole(b as any, [{ page: "/", motCle: "x" }], "https://x.test");
+  expect(d.google.error).toBeNull();
+  expect(d.google.searchError).toBe("quota Search Console dépassé");
+  expect(d.google.lastDataDate).toBeNull();
+  // strategy dérive quand même (rows vide), keywordFound null : c'est searchError qui doit empêcher de le
+  // lire comme « aucune impression », pas une valeur inventée ici.
+  expect(d.strategy).toEqual([{ page: "/", keyword: "x", hasImpressions: false, keywordFound: null, topQueries: [] }]);
+});
+
+// Le filet du repo est une liste explicite de sorties à exercer, par skill (voir
+// skills/console/scripts/tests/render.test.ts, bloc « pas de tiret cadratin »). Il ne couvre pas ce
+// nouveau module : sans ce test, un tiret injecté dans une des trois constantes de message
+// (AUCUNE_PROPRIETE, CLE_BING_ABSENTE, SITE_HORS_COMPTE) passerait la suite sans être vu.
+describe("pas de tiret cadratin", () => {
+  // Chaque chaîne littérale destinée à l'écran doit être vue au moins une fois par le filet.
+  test("aucun message de dégradation n'en contient", async () => {
+    const NOFETCH: any = async () => { throw new Error("aucune requête"); };
+    const sansRien = await collectLevel1({ fetcher: NOFETCH, auth: null, authError: "aucun jeton Google", bingKey: null }, OPT);
+    const fetcher: any = async (url: string) => {
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:autre.test", permissionLevel: "siteOwner" }] }) };
+      if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://autre.test/", IsVerified: true }] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const horsCompte = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: "k" }, OPT);
+    const tout = JSON.stringify([sansRien, horsCompte]);
+    expect(tout).not.toContain("—");
+  });
+});

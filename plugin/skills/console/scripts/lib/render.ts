@@ -1,9 +1,9 @@
 // plugin/skills/console/scripts/lib/render.ts
 // Une ligne par fait, jamais un tableau (lecture sur mobile), jamais un tiret cadratin.
 // Un moteur qui n'a pas répondu écrit sa raison ; il ne laisse jamais un blanc.
-import type { Property, BingSite } from "./resolve";
-import { canonicalMismatch, type Inspection, type SitemapInfo } from "./gsc";
-import { parseDotNetDate, DATE_JAMAIS } from "./bing";
+import type { Property, BingSite } from "../../../../lib/resolve";
+import { canonicalMismatch, type Inspection, type SitemapInfo } from "../../../../lib/gsc";
+import { parseDotNetDate, DATE_JAMAIS } from "../../../../lib/bing";
 
 export type SitesView = {
   google: { property: Property; sitemaps: SitemapInfo[] | null }[] | null; googleError: string | null;

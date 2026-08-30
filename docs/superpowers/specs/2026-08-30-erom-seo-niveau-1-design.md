@@ -9,7 +9,7 @@ notes_liees:
   - docs/recherches/2026-08-29-niveau-1-apis.md
   - docs/superpowers/plans/2026-08-29-erom-seo-chantier-5-recette.md
   - .claude/notes/2026-08-27-reprise-2120.md
-cobaye: sc-domain:romain-ecarnot.com (rôle siteOwner), https://lebonpote.romain-ecarnot.com/ (préfixe, siteOwner), sc-domain:healthincloud.app (siteUnverifiedUser, cas de dégradation). Bing : les deux mêmes sites vérifiés. Chico n'a de propriété chez aucun des deux.
+cobaye: sc-domain:romain-ecarnot.com (rôle siteOwner), https://lebonpote.romain-ecarnot.com/ (préfixe, siteOwner), sc-domain:healthincloud.app (siteUnverifiedUser, propriété conservée mais SITE HORS LIGNE depuis le 30/08 par décision de Romain : sert le cas du refus de droits, plus celui de l'audit complet). Bing : les deux premiers sites vérifiés. Chico n'a de propriété chez aucun des deux et reste le seul site en ligne hors des deux consoles.
 ---
 
 # erom-seo, chantier 5 étape 2 : l'audit niveau 1
@@ -57,28 +57,42 @@ Battu : un second script `collect-console.ts` rejouable seul. Perd contre D4 (`c
 
 Raison : les accès de Romain sont posés en permanence dans `~/.zshenv` et par `gcloud`. Une détection automatique ferait partir des requêtes vers Google et Bing à chaque audit, sur des propriétés qui ne sont pas forcément les siennes, sans qu'il l'ait demandé. Un audit qui contacte un tiers doit être un acte volontaire.
 
-### D38. LVL1-04 et LVL1-05 entrent au catalogue
+### D38. IDX-07 et STRAT-05 entrent au catalogue
 
 Les deux candidats de la note d'idéation (section 6.5) sont retenus, décision de Romain le 30/08.
 
-- **LVL1-04**, canonical choisi par Google différent du canonical déclaré. Coût marginal nul : le champ arrive dans la réponse d'inspection déjà demandée par LVL1-03, et `canonicalMismatch()` existe déjà dans `gsc.ts`.
-- **LVL1-05**, requêtes réelles de la page contre le mot-clé visé par `strategy.md`. Un appel `searchanalytics` supplémentaire. Couche stratégique : ne s'évalue que si `seo/strategy.md` existe et s'analyse (D9).
+- **IDX-07**, canonical choisi par Google différent du canonical déclaré. Coût marginal nul : le champ arrive dans la réponse d'inspection déjà demandée par IDX-06, et `canonicalMismatch()` existe déjà dans `gsc.ts`.
+- **STRAT-05**, requêtes réelles de la page contre le mot-clé visé par `strategy.md`. Un appel `searchanalytics` supplémentaire. Couche stratégique : ne s'évalue que si `seo/strategy.md` existe et s'analyse (D9).
 
-### D39. LVL1-03 se fonde sur l'inspection d'URL, jamais sur `sitemaps.list`
+### D39. IDX-06 se fonde sur l'inspection d'URL, jamais sur `sitemaps.list`
 
 Le champ `contents[].indexed` de `sitemaps.list` n'est pas alimenté : il vaut `"0"` sur deux propriétés de Romain dont les pages sont indexées et reçoivent des impressions (section 11.3). S'y fier ferait écrire « 0 page indexée » sur un site qui l'est.
 
-LVL1-03 compte donc les verdicts d'`urlInspection.index.inspect`, une requête par page collectée, plafonnée par `--max-pages`. Les chiffres de `sitemaps.list` restent collectés dans `raw/` (soumission, dernière lecture, erreurs, avertissements : ceux-là sont justes) mais `indexed` n'est jamais présenté comme un compte d'indexation.
+IDX-06 compte donc les verdicts d'`urlInspection.index.inspect`, une requête par page collectée, plafonnée par `--max-pages`. Les chiffres de `sitemaps.list` restent collectés dans `raw/` (soumission, dernière lecture, erreurs, avertissements : ceux-là sont justes) mais `indexed` n'est jamais présenté comme un compte d'indexation.
 
 Ceci lève l'incertitude 4 de la note d'idéation.
 
 ### D40. Les briques Google et Bing montent dans `plugin/lib/`
 
-D34 avait recopié le transport Bing dans `console` et daté la mise en commun « après un inventaire de ce qui se répète vraiment ». L'inventaire est fait le 30/08 : `BING_API_BASE` et la table `BING_ERROR_CODES` existent en trois exemplaires (`strategy/scripts/keywords.ts`, `checklist/scripts/lib/actions.ts`, `console/scripts/lib/bing.ts`). Le niveau 1 en ferait un quatrième, deux jours avant l'échéance Bing du 31 août.
+D34 avait recopié le transport Bing dans `console` et daté la mise en commun « après un inventaire de ce qui se répète vraiment ». L'inventaire est fait le 30/08 : `BING_API_BASE` existe en **trois** exemplaires (`strategy/scripts/keywords.ts`, `checklist/scripts/lib/actions.ts`, `console/scripts/lib/bing.ts`) et la table `BING_ERROR_CODES` en **deux** (`actions.ts` et `bing.ts` ; `keywords.ts` n'en a pas, il teste `/InvalidApiKey/` sur le texte de la réponse). Le niveau 1 ajouterait une copie de plus, deux jours avant l'échéance Bing du 31 août.
+
+Correction du 30/08 : cette section annonçait d'abord trois copies de la table. C'était faux, relevé par la revue du plan et confirmé à l'exécution de la tâche 3, dont le diff sur `keywords.ts` ne fait que trois lignes. La décision ne change pas pour autant : une adresse d'API en trois exemplaires suffit à la justifier, et c'est elle que l'échéance Bing menace.
 
 Décision de Romain le 30/08 : on solde. Le détail du déplacement est en section 3.
 
 Ce qui monte : le transport et les primitives partagées. Ce qui reste chez chaque skill : les méthodes métier qui lui sont propres (les écritures `SubmitFeed` et le ping IndexNow restent dans `checklist`, D26 et D30 inchangées).
+
+### D41. Les trois vérifications prennent un identifiant que le catalogue sait lire
+
+`IDX-06` (pages indexées), `IDX-07` (canonical retenu par Google) et `STRAT-05` (requêtes réelles contre mot-clé visé), au lieu de `LVL1-03`, `LVL1-04` et `LVL1-05`.
+
+Cause, trouvée par la revue du plan le 30/08 et reproduite : le lecteur de catalogue accepte les identifiants de la forme `[A-Z]+-\d{2}`. Le chiffre de `LVL1` casse le motif. `parseChecks` sur un bloc `### LVL1-03 : …` rend **zéro** entrée, et pire, absorbe ses champs comme lignes de continuation de la vérification précédente, qu'il corrompt. Trois vérifications sur quatre n'auraient pas existé, une existante aurait été faussée, et la suite serait restée verte.
+
+Le même motif vit à sept endroits, dans quatre fichiers : `lib/checks.ts`, `lib/report.ts` (deux fois), `skills/audit/scripts/lint-report.ts` (trois fois) et `skills/build/scripts/lib/recipes.ts`. Le renommage ne touche aucun d'eux.
+
+Battu : élargir le motif en `[A-Z][A-Z0-9]*-\d{2}` pour garder la nomenclature `LVL1-*`. Perd parce qu'il faudrait modifier sept expressions dans quatre fichiers, dont le lecteur de rapport partagé par `build` et `checklist`, deux chantiers déjà recettés, pour ne gagner qu'un nom. Le nouveau nommage est de surcroît plus cohérent avec le catalogue, qui range par thème et non par niveau : le niveau est déjà porté par le champ `Niveau`.
+
+`LVL1-01` et `LVL1-02` gardent leur nom : hors périmètre (D35), ils ne sont cités qu'en prose dans `levels.md` et dans la section « Ce que je n'ai pas pu voir » des rapports, jamais comme entrée de catalogue. Le jour où ils y entreront, ils devront être renommés de la même façon.
 
 ## 3. Composants
 
@@ -117,9 +131,9 @@ Pas de nouveau fichier de références : chaque vérification rejoint son thème
 
 | Id | Fichier | Niveau | Couche | Sévérité |
 |---|---|---|---|---|
-| LVL1-03 | `checks/indexability.md` | 1 | absolue | Critique |
-| LVL1-04 | `checks/indexability.md` | 1 | absolue | Important |
-| LVL1-05 | `checks/strategy.md` | 1 | stratégique | Important |
+| IDX-06 | `checks/indexability.md` | 1 | absolue | Critique |
+| IDX-07 | `checks/indexability.md` | 1 | absolue | Important |
+| STRAT-05 | `checks/strategy.md` | 1 | stratégique | Important |
 | AI-03 | `checks/ai-presence.md` | 1 | absolue | Mineur |
 
 Justification des sévérités, à contester à la relecture si elle ne va pas : une page absente de l'index ne peut recevoir aucun trafic, rien n'est plus grave (Critique) ; un canonical divergent et une stratégie qui vise à côté coûtent des positions sans rien casser (Important) ; l'absence de l'index Bing prive de Copilot, ce qui compte pour le GEO mais pèse peu en France, et reste cohérent avec AI-01 (Info) et AI-02 (Mineur).
@@ -134,7 +148,7 @@ La propriété Search Console est résolue par `resolveProperty()` depuis `sites
 
 ### 4.2 Inspection d'URL
 
-Une requête `urlInspection.index.inspect` par page de la collecte, dans l'ordre où `collect.ts` les a déjà retenues (home, pages de la stratégie, `--page`, sitemap), plafonnée par `--max-pages`. Sert LVL1-03 et LVL1-04.
+Une requête `urlInspection.index.inspect` par page de la collecte, dans l'ordre où `collect.ts` les a déjà retenues (home, pages de la stratégie, `--page`, sitemap), plafonnée par `--max-pages`. Sert IDX-06 et IDX-07.
 
 Quota documenté par Google : 2000 par jour et par propriété, 600 par minute. À 10 pages par défaut, la marge est de deux ordres de grandeur. Le délai de 250 ms déjà appliqué entre pages est conservé.
 
@@ -145,7 +159,7 @@ Réponse brute dans `raw/gsc/inspect/<slug>.json`, avec le même `slugFor()` que
 Deux appels `searchAnalytics.query` sur 90 jours, `type: "web"` explicite pour que `raw/` soit rejouable :
 
 1. `dimensions: ["date"]` : donne le dernier jour avec données, donc la fraîcheur réelle (section 5.3), et le volume de la période.
-2. `dimensions: ["page", "query"]`, `rowLimit: 1000` : sert LVL1-05. Si la réponse atteint 1000 lignes, le rapport le dit et ne conclut pas sur l'exhaustivité. Pas de pagination : au-delà, le constat ne change pas.
+2. `dimensions: ["page", "query"]`, `rowLimit: 1000` : sert STRAT-05. Si la réponse atteint 1000 lignes, le rapport le dit et ne conclut pas sur l'exhaustivité. Pas de pagination : au-delà, le constat ne change pas.
 
 Requête et réponse dans `raw/gsc/searchanalytics-<dimensions>.json`, la requête comprise : sans elle, la réponse n'est pas rejouable.
 
@@ -153,7 +167,9 @@ Requête et réponse dans `raw/gsc/searchanalytics-<dimensions>.json`, la requê
 
 `GetUrlInfo` par page, même plafond et même nommage (`raw/bing/urlinfo/<slug>.json`). Sert AI-03.
 
-`GetUserSites` et `GetFeeds` sont déjà appelés pour résoudre le site : leurs réponses sont gardées dans `raw/bing/`.
+`GetUserSites` est appelé pour résoudre le site ; sa réponse est gardée dans `raw/bing/`.
+
+`GetFeeds` n'est **pas** appelé. Corrigé le 30/08 après la revue du plan, qui a relevé qu'aucune tâche ne l'appelait alors que cette section l'exigeait : il n'est pas nécessaire à la résolution du site, et les sitemaps sont déjà collectés côté Google et côté site. Le verbe `console crawl` couvre ce besoin quand il se présente.
 
 ### 4.5 Ce qui n'est pas demandé
 
@@ -161,19 +177,19 @@ Ni `sitemaps.submit`, ni `SubmitFeed`, ni `SubmitUrlBatch`, ni le ping IndexNow.
 
 ## 5. Les quatre vérifications
 
-### 5.1 LVL1-03, pages indexées
+### 5.1 IDX-06, pages indexées
 
 Compte les verdicts d'inspection sur les pages collectées, et nomme celles qui ne sont pas indexées avec leur `coverageState` traduit. Trouvaille dès qu'une page du sitemap ou de `strategy.md` n'est pas indexée ; passée si toutes le sont ; non vue si l'accès manque.
 
 Le rapport dit toujours sur combien de pages porte le compte, et que ce n'est pas le total du site : `--max-pages` plafonne.
 
-### 5.2 LVL1-04, canonical choisi par Google
+### 5.2 IDX-07, canonical choisi par Google
 
 Trouvaille si `googleCanonical` et `userCanonical` sont tous deux renseignés et diffèrent, avec les deux adresses. `canonicalMismatch()` est déjà écrit et testé.
 
 Cas particulier à traiter explicitement : `userCanonical` absent (aucune balise canonique déclarée) n'est pas une divergence, c'est le domaine de TAG-03 au niveau 0. Ne pas doubler la trouvaille.
 
-### 5.3 LVL1-05, mots réels contre mots visés
+### 5.3 STRAT-05, mots réels contre mots visés
 
 Pour chaque page de `strategy.md` présente dans la réponse `page × query` : le mot-clé visé apparaît-il dans les requêtes réelles de cette page ? Trouvaille si la page a des impressions et que le mot visé n'y figure pas, avec les trois premières requêtes réelles à la place. Passée s'il y figure. Non vue si la page n'a aucune impression sur la période, ce qui est une information distincte et doit être dit comme tel.
 
@@ -189,7 +205,7 @@ Le niveau 1 ne fait jamais échouer l'audit. Toute panne d'accès se traduit par
 
 | Panne | Effet | Message |
 |---|---|---|
-| Aucun jeton Google | LVL1-03, 04, 05 non vues | la consigne de `LOGIN_HINT` |
+| Aucun jeton Google | IDX-06, 04, 05 non vues | la consigne de `LOGIN_HINT` |
 | `GSC_QUOTA_PROJECT` absente | idem | la consigne de `QUOTA_HINT` |
 | Propriété introuvable dans `sites.list` | idem | « aucune propriété Search Console ne couvre cette URL » |
 | Rôle insuffisant (403) | idem | « le rôle de ce compte ne permet pas cette lecture » |
@@ -197,7 +213,7 @@ Le niveau 1 ne fait jamais échouer l'audit. Toute panne d'accès se traduit par
 | Site hors du compte Bing | AI-03 non vue | « ce site n'est pas dans le compte Bing » |
 | Une page en échec, les autres non | cette page seule est non vue | l'erreur, par page |
 
-Les trois premières lignes et les deux Bing sont exerçables sur les comptes réels de Romain aujourd'hui : `sc-domain:healthincloud.app` est en `siteUnverifiedUser` et refuse déjà ses sitemaps (section 11.5), et chico n'est dans aucun des deux comptes.
+Les deux lignes Bing et celle du rôle insuffisant sont exerçables sur les comptes réels : `sc-domain:healthincloud.app` est en `siteUnverifiedUser` et refuse ses sitemaps (section 11.5), et chico n'est dans aucun des deux comptes. Attention, `healthincloud.app` ne sert plus qu'à observer le refus par `console sites` : le site est hors ligne depuis le 30/08 et aucun audit ne peut plus s'y dérouler.
 
 Le décodage des refus est déjà écrit et recetté dans `gsc.ts` et `bing.ts` : cette spec n'en ajoute aucun, elle les fait remonter dans le manifeste.
 
@@ -233,29 +249,33 @@ Vérifié par : la commande, puis `ls -R seo/audits/<date>-n1/` et `jq .level se
 Quand un audit tourne sans le drapeau, alors aucun appel à Search Console ni à Bing n'est émis, et le rapport nomme les quatre vérifications parmi celles qu'il n'a pas pu voir.
 Vérifié par : le test unitaire de `collect.ts` (le `Fetcher` des consoles est un espion qui échoue s'il est appelé), plus l'absence de `raw/gsc/`, de `raw/bing/` et de `derived/console.json` dans le dossier d'un audit lancé sans le drapeau.
 
-**AC-3. LVL1-03 compte les pages réellement indexées.**
+**AC-3. IDX-06 compte les pages réellement indexées.**
 Quand la collecte porte sur une propriété accessible, alors le rapport donne le nombre de pages indexées sur le nombre inspecté, nomme celles qui ne le sont pas avec leur état, et ne présente jamais le champ `indexed` de `sitemaps.list` comme un compte.
 Vérifié par : le rapport, plus `jq '.[].status.coverageState' derived/console.json` confronté à `raw/gsc/inspect/*.json`.
 
-**AC-4. LVL1-04 voit une divergence de canonical, ou dit qu'il n'y en a pas.**
+**AC-4. IDX-07 voit une divergence de canonical, ou dit qu'il n'y en a pas.**
 Quand `googleCanonical` et `userCanonical` diffèrent sur une page, alors le rapport en fait une trouvaille citant les deux adresses ; quand ils sont égaux sur toutes les pages, la vérification est passée ; quand `userCanonical` est absent, la vérification ne produit rien et laisse le sujet à TAG-03.
 Vérifié par : le rapport sur romain-ecarnot.com (les deux sont égaux ce jour, donc « passée »), plus un test unitaire sur une réponse forgée divergente et une réponse sans `userCanonical`.
 
-**AC-5. LVL1-05 confronte les mots réels aux mots visés, et seulement avec une stratégie.**
-Quand `seo/strategy.md` existe, alors le rapport dit pour chaque page prévue si son mot-clé apparaît dans ses requêtes réelles, et cite les requêtes réelles sinon ; quand il n'existe pas, LVL1-05 figure dans « Ce que je n'ai pas pu voir ».
+**AC-5. STRAT-05 confronte les mots réels aux mots visés, et seulement avec une stratégie.**
+Quand `seo/strategy.md` existe, alors le rapport dit pour chaque page prévue si son mot-clé apparaît dans ses requêtes réelles, et cite les requêtes réelles sinon ; quand il n'existe pas, STRAT-05 figure dans « Ce que je n'ai pas pu voir ».
 Vérifié par : deux passages, l'un avec `--strategy-path none`, l'autre sans, et la lecture des deux rapports.
 
 **AC-6. AI-03 dit quelles pages Bing connaît.**
 Quand le site est dans le compte Bing, alors le rapport liste les pages inconnues de l'index Bing, en se fondant sur la sentinelle de date et jamais sur `HttpStatus`.
 Vérifié par : le rapport sur lebonpote.romain-ecarnot.com, plus `jq '.[].LastCrawledDate' raw/bing/urlinfo/*.json`.
 
-**AC-7. Un accès refusé dégrade proprement.**
-Quand la collecte porte sur `healthincloud.app` (rôle `siteUnverifiedUser`), alors l'audit se termine avec un code de sortie 0, le rapport complet du niveau 0 est produit, et les vérifications Google du niveau 1 sont non vues avec la raison du refus.
-Vérifié par : la commande sur cette propriété, `echo $?` qui rend 0, et la section « Ce que je n'ai pas pu voir » du rapport.
+**AC-7. Un accès refusé est nommé, jamais confondu avec une absence.**
+Quand la collecte porte sur une propriété dont le rôle ne permet pas la lecture, alors le refus est nommé dans `derived/console.json` avec sa raison, et il n'est jamais présenté comme « aucun sitemap déclaré ».
+Vérifié par : le test unitaire de `level1.ts` qui force `listSitemaps` à rendre 403 et exige le message dans `sitemapsError`, plus, sur le compte réel, `console sites` qui rend « sitemaps non lisibles pour cette propriété » sur `sc-domain:healthincloud.app` (rôle `siteUnverifiedUser`).
 
-**AC-8. Un site hors du compte Bing dégrade proprement.**
-Quand la collecte porte sur un site absent du compte Bing, alors AI-03 est non vue avec « ce site n'est pas dans le compte Bing », et les vérifications Google sont évaluées normalement.
-Vérifié par : la commande sur `commentchercherbonheur.org`, qui n'est dans aucun des deux comptes, et la lecture du rapport.
+Révisé le 30/08 : le critère exigeait d'abord « le rapport complet du niveau 0 » lors d'une collecte sur `healthincloud.app`. Romain a mis ce site hors ligne volontairement, et il ne répond plus (HTTP 000 mesuré le 30/08). La **propriété** Search Console, elle, existe toujours et refuse toujours ses sitemaps : le cas de refus de droits reste donc observable sur du réel, mais il ne peut plus être observé au travers d'un audit complet, faute de site à auditer. La garantie « l'audit ne meurt pas » est portée par AC-8, sur un site en ligne.
+
+**AC-8. Un site hors des deux comptes dégrade proprement, et l'audit se termine.**
+Quand la collecte porte sur un site en ligne absent des deux consoles, alors l'audit se termine avec un **code de sortie 0**, le **rapport complet du niveau 0 est produit**, et les vérifications du niveau 1 sont non vues avec deux raisons distinctes : « aucune propriété Search Console ne couvre cette URL » et « ce site n'est pas dans le compte Bing ».
+Vérifié par : la commande sur `commentchercherbonheur.org`, qui est en ligne et dans aucun des deux comptes, `echo $?` qui rend 0, et la lecture du rapport.
+
+Ce critère porte désormais la garantie « le niveau 1 ne fait jamais échouer l'audit » que portait AC-7 avant sa révision : c'est le seul cas réel restant où un site vivant rencontre un accès manquant. Un test unitaire de `collect.ts` la garde en plus, en simulant une panne de la branche elle-même.
 
 **AC-9. La fraîcheur des données est écrite.**
 Quand le rapport présente des chiffres de requêtes, alors il nomme le dernier jour couvert par les données, distinct de la date de l'audit.
@@ -274,7 +294,7 @@ Vérifié par : `bun test` (au moins les 375 tests actuels, aucun échec), puis 
 - **LVL1-01 et LVL1-02**, les deux rapports IA (D35). Format relevé en section 11.7 pour la reprise.
 - **Le compte de service.** Le fournisseur `gcloud` reste celui de l'usage courant ; `GSC_SA_KEY_FILE` est déjà codé et testé mais n'est pas recetté ici. La permission minimale pour l'inspection reste l'incertitude 1 de la note d'idéation, non levée.
 - **La pagination de `searchanalytics`** au-delà de 1000 lignes.
-- **Les autres méthodes Bing** (`GetPageStats`, `GetPageQueryStats`, `GetQueryStats`) : elles doubleraient LVL1-05 côté Bing. À reprendre quand un site aura de l'historique.
+- **Les autres méthodes Bing** (`GetPageStats`, `GetPageQueryStats`, `GetQueryStats`) : elles doubleraient STRAT-05 côté Bing. À reprendre quand un site aura de l'historique.
 - **`GetCrawlStats` et `GetCrawlIssues` non vides** : incertitude 2 de l'étape 1, toujours ouverte, les deux sites étant trop récents.
 - **Un verbe de rapport comparatif Google contre Bing** (l'étalon de la note du 27/08).
 
@@ -300,7 +320,7 @@ Sur `https://www.romain-ecarnot.com/`, propriété `sc-domain:romain-ecarnot.com
 }
 ```
 
-Les deux canonicals sont égaux : LVL1-04 sera « passée » sur ce site, et la divergence devra être testée sur une réponse forgée.
+Les deux canonicals sont égaux : IDX-07 sera « passée » sur ce site, et la divergence devra être testée sur une réponse forgée.
 
 ### 11.2 `searchAnalytics.query`, page × query, HTTP 200
 
@@ -340,6 +360,8 @@ Fonde D35, avec le constat d'interface (menu, filtre « Type de recherche » lim
 ### 11.5 Rôle insuffisant, cas de dégradation réel
 
 `console sites` sur `sc-domain:healthincloud.app`, rôle `siteUnverifiedUser` : « sitemaps non lisibles pour cette propriété ». Sert AC-7 sans rien avoir à fabriquer.
+
+Mesuré à nouveau le 30/08 à 13 h 21, après que Romain a mis le site hors ligne : la **propriété** répond toujours et refuse toujours ses sitemaps, alors que `curl https://healthincloud.app/` rend **HTTP 000**, injoignable. Une propriété Search Console survit donc au site qu'elle décrit, ce qui est utile à savoir pour un audit d'agence : les données de la console restent lisibles après la mise hors ligne d'un site.
 
 ### 11.6 Fraîcheur et rétention
 

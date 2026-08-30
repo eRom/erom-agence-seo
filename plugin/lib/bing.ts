@@ -1,7 +1,8 @@
-// plugin/skills/console/scripts/lib/bing.ts
-// Lectures Bing Webmaster Tools. Aucune écriture (D30) : SubmitFeed et SubmitUrlBatch ne sont pas ici.
-// BING_API_BASE et le décodage d'erreur sont recopiés depuis skills/checklist/scripts/lib/actions.ts (D34,
-// décision de Romain le 29/08) : la mise en commun se fera après un inventaire de ce qui se répète vraiment.
+// plugin/lib/bing.ts
+// Lectures Bing Webmaster Tools. Aucune écriture (D30) : SubmitFeed et SubmitUrlBatch ne sont pas ici,
+// elles restent dans skills/checklist/scripts/lib/actions.ts, seul endroit du plugin qui écrit vers l'extérieur.
+// BING_API_BASE, BING_ERROR_CODES et redact sont le seul transport commun (D40) : strategy/keywords.ts et
+// checklist/actions.ts les importent d'ici plutôt que de les redéfinir chacun de leur côté.
 import type { BingSite } from "./resolve";
 
 export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };

@@ -1,7 +1,7 @@
 // Site repris (D28) : chaque URL de l'ancien sitemap doit finir en 200 sur le nouveau site après des 301 ou 308 seulement.
 // Google : « The 301 and 308 status codes mean that a page has permanently moved » ; 302, 303, 307 sont temporaires.
 import type { FetchResult } from "../../../../skills/audit/scripts/lib/types";
-import { sameSite } from "../../../../skills/audit/scripts/lib/sitemap";
+import { sameSite } from "../../../../lib/url";
 import type { RedirectCheck } from "./checklist";
 
 export type ChainFetcher = (url: string) => Promise<FetchResult>;

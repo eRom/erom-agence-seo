@@ -246,7 +246,7 @@ describe("stratégie présente", () => {
       await mkdir(join(cwd, "seo"), { recursive: true });
       await Bun.write(join(cwd, "seo/strategy.md"), VALID);
       const o = await mkdtemp(join(tmpdir(), "erom-seo-nostrat-out-"));
-      // Bun.spawn (async), pas spawnSync : le sous-processus appelle le site jouet servi dans CE process ;
+  // Bun.spawn (async), pas spawnSync : le sous-processus appelle le site jouet servi dans CE process ;
       // spawnSync bloquerait la boucle d'événements et empêcherait Bun.serve de répondre (deadlock observé).
       const proc = Bun.spawn(
         ["bun", `${import.meta.dir}/../collect.ts`, `http://localhost:${s.port}`, "--out", o, "--max-pages", "2", "--no-psi", "--strategy-path", "none"],
@@ -262,5 +262,140 @@ describe("stratégie présente", () => {
       expect(m.maxPages).toBe(2);
       expect(m.pages).toHaveLength(2);
     } finally { s.stop(true); }
+  });
+});
+
+describe("niveau 1", () => {
+  test("sans --level 1, aucune requête ne part vers les consoles", async () => {
+    // Le fetcher lève à tout appel : si la branche niveau 1 s'exécutait, runCollect rejetterait.
+    const espion: any = async (url: string) => { throw new Error(`requête interdite : ${url}`); };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n0-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: null, consoleFetcher: espion });
+    expect(m.level).toBe(0);
+    expect(m.level1).toBeNull();
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+  });
+
+  // Round 1 de revue (team-lead) : les trois tests suivants injectent `consoleAuth` pour ne jamais
+  // appeler le vrai gcloud. Sans cette couture, leur résultat dépendait de GSC_QUOTA_PROJECT dans
+  // l'environnement qui lance `bun test` — vert avec ~/.zshenv sourcé, faux ou pour la mauvaise raison
+  // sans. Un `auth` fictif rend les trois déterministes dans les deux cas, mesuré des deux côtés.
+  const fauxAuth = { token: "jeton-de-test-sans-danger", quotaProject: null, provider: "gcloud" as const };
+
+  test("avec --level 1 et un accès fourni, la branche s'exécute et écrit son dérivé", async () => {
+    // Le pendant du premier test : sans lui, un `if (false)` passerait aussi celui-là.
+    const vus: string[] = [];
+    const espion: any = async (url: string) => {
+      vus.push(url);
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+    });
+    expect(m.level).toBe(1);
+    expect(m.level1?.attempted).toBe(true);
+    expect(vus.some((u) => u.includes("googleapis"))).toBe(true);
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(true);
+  });
+
+  test("une fuite dans le dérivé ne fait pas échouer l'audit (AC-7)", async () => {
+    // La panne doit avoir lieu DANS la branche, avec un accès fourni : sans jeton, l'espion n'est jamais
+    // appelé et c'est l'absence d'accès qui renseignerait googleError, pas la panne qu'on prétend simuler
+    // (trouvaille de revue round 1). La propriété résout normalement ; l'appel sitemaps lève une erreur
+    // dont le message EST le jeton (un thrown brut, comme le ferait une erreur réseau qui recopie l'URL
+    // appelée) : sitemapsError l'embarque tel quel, assertNoSecret lève pour de vrai sur le dérivé
+    // sérialisé, APRÈS l'écriture de raw/gsc et AVANT celle du manifeste — exactement le risque interdit
+    // par la spec section 6. La fuite ne doit pas non plus avoir eu le temps d'atteindre raw/ : le seul
+    // appel qui embarque le jeton est celui qui échoue avant tout pushRaw.
+    const espion: any = async (url: string) => {
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: `${base}/`, permissionLevel: "siteOwner" }] }) };
+      if (url.includes("/sitemaps")) throw new Error(fauxAuth.token);
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-fuite-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+    });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).toContain("clé API");
+    expect(await Bun.file(join(dir, "raw/gsc/sites.json")).exists()).toBe(true);     // écrit avant la fuite
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);      // le manifeste existe quand même
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);  // jamais écrit : le refus a eu lieu avant
+    expect(m.pages.length).toBeGreaterThan(0);                                       // le niveau 0 est intact
+  });
+
+  test("une fuite dans un corps raw ne fait pas échouer l'audit non plus (round 2)", async () => {
+    // Round 2 de revue : raw/ n'avait pas la même garde que derived/ et le manifeste. sites.list rend une
+    // propriété dont le siteUrl embarque le jeton — un corps déjà poussé dans raw AVANT toute résolution
+    // de propriété (voir collectGoogle), donc le test le plus direct de la garde ajoutée sur la boucle
+    // d'écriture de raw/. Elle ne matchera aucune propriété réelle (domaine bidon), sans incidence : ce
+    // qui compte ici, c'est le contenu du corps poussé, pas la suite de la collecte.
+    const espion: any = async (url: string) => {
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: `sc-domain:leak-${fauxAuth.token}.example`, permissionLevel: "inconnu" }] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-fuiteraw-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+    });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).toContain("clé API");
+    expect(await Bun.file(join(dir, "raw/gsc/sites.json")).exists()).toBe(false);     // jamais écrit : la garde a agi avant
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);       // le manifeste existe quand même
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+    expect(m.pages.length).toBeGreaterThan(0);
+  });
+
+  test("le chemin de GSC_SA_KEY_FILE ne fuit jamais dans raw/, derived/ ni le manifeste (I-1)", async () => {
+    // Même mécanique que « fuite dans un corps raw » ci-dessus, mais avec GSC_SA_KEY_FILE au lieu du
+    // jeton : un chemin de clé nomme souvent le client (dossier, sous-domaine) et n'a rien à faire sur le
+    // disque de l'audit. sites.list embarque le chemin dans un siteUrl bidon, avant toute résolution de
+    // propriété : ce qui compte est le contenu du corps poussé dans raw/, pas la suite de la collecte.
+    const cheminSensible = "clients-acme-corp-secrets-sa-search-console";
+    const avant = process.env.GSC_SA_KEY_FILE;
+    process.env.GSC_SA_KEY_FILE = cheminSensible;
+    try {
+      const espion: any = async (url: string) => {
+        if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: `sc-domain:leak-${cheminSensible}.example`, permissionLevel: "inconnu" }] }) };
+        return { status: 200, text: JSON.stringify({}) };
+      };
+      const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-sakeyfile-"));
+      const m = await runCollect({
+        url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+        consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+      });
+      expect(m.level1?.attempted).toBe(true);
+      expect(m.level1?.googleError).toContain("clé API");
+      expect(await Bun.file(join(dir, "raw/gsc/sites.json")).exists()).toBe(false);    // jamais écrit : la garde a agi avant
+      expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+      const manifestText = await Bun.file(join(dir, "raw/manifest.json")).text();
+      expect(manifestText).not.toContain(cheminSensible);
+    } finally {
+      if (avant === undefined) delete process.env.GSC_SA_KEY_FILE; else process.env.GSC_SA_KEY_FILE = avant;
+    }
+  });
+
+  test("sans accès (jeton indisponible), le niveau 1 le dit sans appeler Google", async () => {
+    // Comportement légitime, distinct d'une panne : demandé en round 1 pour ne pas confondre les deux.
+    // L'espion rend toujours un succès inoffensif : s'il levait, un vrai BING_WMT_API_KEY dans
+    // l'environnement se retrouverait dans le message d'erreur (l'URL Bing porte la clé en requête),
+    // et assertNoSecret le rattraperait à la place de l'assertion qu'on veut vraiment vérifier ici —
+    // exactement le genre de dépendance à l'environnement que ce fix corrige.
+    const vus: string[] = [];
+    const espion: any = async (url: string) => { vus.push(url); return { status: 200, text: JSON.stringify({}) }; };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-sansacces-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: null, authError: "jeton indisponible : test" },
+    });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).toBe("jeton indisponible : test");
+    expect(vus.some((u) => u.includes("googleapis"))).toBe(false);
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);
   });
 });
