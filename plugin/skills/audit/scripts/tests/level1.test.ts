@@ -1,6 +1,6 @@
 // plugin/skills/audit/scripts/tests/level1.test.ts
-import { test, expect } from "bun:test";
-import { collectLevel1, bingKnows, type Level1Deps } from "../lib/level1";
+import { test, expect, describe } from "bun:test";
+import { collectLevel1, bingKnows, indexSummary, canonicalFindings, keywordChecks, deriveConsole, type Level1Deps } from "../lib/level1";
 import type { SearchRow, Fetcher } from "../../../../lib/gsc";
 
 const NOFETCH: any = async () => { throw new Error("aucune requête ne doit partir"); };
@@ -311,4 +311,114 @@ test("une origine malformée ne fait jamais remonter d'exception hors de collect
     { ...OPT, origin: "pas-une-url", pages: [] },
   );
   expect(r.bing.error).not.toBeNull();
+});
+
+// --- Tâche 6 : les dérivés des quatre vérifications -----------------------------------------
+// Les onze cas ci-dessous ont été exécutés le 30/08 et passent tels quels.
+
+const page = (url: string, verdict: string, coverageState: string, g: string | null = null, u: string | null = null) =>
+  ({ url, slug: "s", verdict, coverageState, googleCanonical: g, userCanonical: u, lastCrawlTime: null, error: null });
+
+test("IDX-06 compte les pages indexées et nomme les autres", () => {
+  const r = indexSummary([
+    page("https://www.romain-ecarnot.com/", "PASS", "Submitted and indexed"),
+    page("https://www.romain-ecarnot.com/absente", "FAIL", "Crawled - currently not indexed"),
+  ]);
+  expect(r.total).toBe(2);
+  expect(r.indexed).toBe(1);
+  expect(r.notIndexed).toEqual([{ url: "https://www.romain-ecarnot.com/absente", coverageState: "Crawled - currently not indexed" }]);
+});
+
+test("IDX-06 sur zéro page inspectée", () => {
+  expect(indexSummary([])).toEqual({ total: 0, indexed: 0, notIndexed: [] });
+});
+
+test("IDX-07 signale une divergence de canonical", () => {
+  const r = canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/b", "https://x/a")]);
+  expect(r).toEqual([{ url: "https://x/a", googleCanonical: "https://x/b", userCanonical: "https://x/a" }]);
+});
+
+test("IDX-07 ne dit rien quand les deux canonicals sont égaux, capture du 30/08", () => {
+  expect(canonicalFindings([page("https://www.romain-ecarnot.com/", "PASS", "Submitted and indexed",
+    "https://www.romain-ecarnot.com/", "https://www.romain-ecarnot.com/")])).toEqual([]);
+});
+
+test("IDX-07 laisse le canonical absent à TAG-03", () => {
+  expect(canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/a", null)])).toEqual([]);
+});
+
+// AI-03 n'est pas ici : `bingKnows` et ses quatre cas vivent en tâche 5, avec `collectBing` qui les
+// consomme. Une règle testée loin de son seul appelant laisse passer une implémentation qui ment.
+
+test("STRAT-05 retrouve le mot visé dans une requête plus longue, requêtes réelles du 30/08", () => {
+  const rows = [
+    { keys: ["https://lebonpote.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 1, ctr: 0, position: 7 },
+  ];
+  const r = keywordChecks(rows, [{ page: "https://lebonpote.romain-ecarnot.com/", motCle: "bon pote" }]);
+  expect(r[0].hasImpressions).toBe(true);
+  expect(r[0].keywordFound).toBe(true);
+  expect(r[0].topQueries).toEqual(["bon pote nantes"]);
+});
+
+test("STRAT-05 distingue le mot raté de la page sans impression", () => {
+  const rows = [{ keys: ["https://x/a", "autre chose"], clicks: 0, impressions: 3, ctr: 0, position: 9 }];
+  const r = keywordChecks(rows, [{ page: "https://x/a", motCle: "agence seo" }, { page: "https://x/b", motCle: "quoi que ce soit" }]);
+  expect(r[0]).toMatchObject({ hasImpressions: true, keywordFound: false, topQueries: ["autre chose"] });
+  expect(r[1]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
+const bloc = (over: any = {}) => ({
+  google: { property: { siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }, error: null,
+    pages: [page("https://x.test/", "PASS", "ok"), page("https://x.test/b", "FAIL", "Crawled - currently not indexed")],
+    sitemaps: [], sitemapsError: null,
+    search: { lastDataDate: "2026-08-27", rows: [], truncated: false, error: null }, ...over.google },
+  bing: { site: "https://x.test/", error: null, pages: [
+    { url: "https://x.test/", slug: "index", known: true, lastCrawled: "2026-08-29", error: null },
+    { url: "https://x.test/b", slug: "b", known: false, lastCrawled: null, error: null }], ...over.bing },
+  raw: [],
+});
+
+test("deriveConsole projette un bloc complet", () => {
+  const d = deriveConsole(bloc() as any, null);
+  expect(d.google.property).toBe("sc-domain:x.test");
+  expect(d.google.permissionLevel).toBe("siteOwner");
+  expect(d.google.index).toMatchObject({ total: 2, indexed: 1 });
+  expect(d.google.lastDataDate).toBe("2026-08-27");
+  expect(d.bing).toMatchObject({ known: 1, total: 2, unknown: ["https://x.test/b"] });
+});
+
+test("deriveConsole recopie les raisons de panne sans rien inventer", () => {
+  const vide = { google: { property: null, error: "aucun jeton Google", pages: [], sitemaps: [], sitemapsError: null, search: null },
+                 bing: { site: null, error: "clé Bing absente", pages: [] }, raw: [] };
+  const d = deriveConsole(vide as any, null);
+  expect(d.google.error).toBe("aucun jeton Google");
+  expect(d.bing.error).toBe("clé Bing absente");
+  expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [] });
+  expect(d.google.lastDataDate).toBeNull();       // search null ne doit pas lever
+  expect(d.google.truncated).toBe(false);
+});
+
+test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () => {
+  expect(deriveConsole(bloc() as any, null).strategy).toBeNull();
+  expect(deriveConsole(bloc() as any, [{ page: "https://x.test/", motCle: "x" }]).strategy).toHaveLength(1);
+});
+
+// Le filet du repo est une liste explicite de sorties à exercer, par skill (voir
+// skills/console/scripts/tests/render.test.ts, bloc « pas de tiret cadratin »). Il ne couvre pas ce
+// nouveau module : sans ce test, un tiret injecté dans une des trois constantes de message
+// (AUCUNE_PROPRIETE, CLE_BING_ABSENTE, SITE_HORS_COMPTE) passerait la suite sans être vu.
+describe("pas de tiret cadratin", () => {
+  // Chaque chaîne littérale destinée à l'écran doit être vue au moins une fois par le filet.
+  test("aucun message de dégradation n'en contient", async () => {
+    const NOFETCH: any = async () => { throw new Error("aucune requête"); };
+    const sansRien = await collectLevel1({ fetcher: NOFETCH, auth: null, authError: "aucun jeton Google", bingKey: null }, OPT);
+    const fetcher: any = async (url: string) => {
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "sc-domain:autre.test", permissionLevel: "siteOwner" }] }) };
+      if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://autre.test/", IsVerified: true }] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const horsCompte = await collectLevel1({ fetcher, auth: { token: "t", quotaProject: "p", provider: "gcloud" }, authError: null, bingKey: "k" }, OPT);
+    const tout = JSON.stringify([sansRien, horsCompte]);
+    expect(tout).not.toContain("—");
+  });
 });

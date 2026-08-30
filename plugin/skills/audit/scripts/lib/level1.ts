@@ -11,6 +11,8 @@ import {
 import { type GoogleAuth } from "../../../../lib/auth-google";
 import { resolveProperty, resolveBingSite, type Property, type BingSite } from "../../../../lib/resolve";
 import { bingUserSites, bingUrlInfo, parseDotNetDate, DATE_JAMAIS } from "../../../../lib/bing";
+import { keywordMatches } from "../../../../lib/strategy";
+import { pageKey } from "../../../../lib/url";
 
 export type Level1Deps = {
   fetcher: Fetcher;
@@ -235,4 +237,96 @@ export async function collectLevel1(deps: Level1Deps, o: Level1Options): Promise
   const google = await collectGoogle(deps, o, raw);
   const bing = await collectBing(deps, o, raw);
   return { google, bing, raw };
+}
+
+// --- Dérivés du niveau 1 (tâche 6) ----------------------------------------------------------
+// Les quatre vérifications transforment Level1Result en un seul fichier, derived/console.json,
+// que le rapport d'audit lit sans jamais retoucher les blocs Google et Bing bruts.
+
+export type IndexSummary = { total: number; indexed: number; notIndexed: { url: string; coverageState: string }[] };
+export type CanonicalFinding = { url: string; googleCanonical: string; userCanonical: string };
+export type KeywordCheck = { page: string; keyword: string; hasImpressions: boolean; keywordFound: boolean | null; topQueries: string[] };
+export type ConsoleDerived = {
+  level: 1;
+  google: {
+    property: string | null;
+    /** Le rôle est conservé : c'est lui qui explique un refus (AC-7), le perdre rendrait le rapport muet sur la cause. */
+    permissionLevel: string | null;
+    error: string | null;
+    sitemapsError: string | null;
+    index: IndexSummary;
+    canonical: CanonicalFinding[];
+    lastDataDate: string | null;
+    truncated: boolean;
+  };
+  bing: { site: string | null; error: string | null; known: number; total: number; unknown: string[] };
+  strategy: KeywordCheck[] | null;
+};
+
+/** IDX-06. Le verdict fait foi, pas coverageState : PASS est la seule valeur qui dise « indexée ». */
+export function indexSummary(pages: InspectedPage[]): IndexSummary {
+  const ok = pages.filter((p) => p.verdict === "PASS");
+  return {
+    total: pages.length,
+    indexed: ok.length,
+    notIndexed: pages.filter((p) => p.verdict !== "PASS").map((p) => ({ url: p.url, coverageState: p.coverageState })),
+  };
+}
+
+/** IDX-07. Un userCanonical absent n'est pas une divergence : c'est le domaine de TAG-03 au niveau 0. */
+export function canonicalFindings(pages: InspectedPage[]): CanonicalFinding[] {
+  return pages
+    .filter((p) => p.googleCanonical && p.userCanonical && p.googleCanonical !== p.userCanonical)
+    .map((p) => ({ url: p.url, googleCanonical: p.googleCanonical!, userCanonical: p.userCanonical! }));
+}
+
+/**
+ * STRAT-05. Trois états et non deux : le mot visé est trouvé, il est raté, ou la page n'a aucune
+ * impression sur la période (keywordFound null), ce qui n'est pas un échec de stratégie.
+ * Les lignes viennent de dimensions ["page","query"] : keys[0] est la page, keys[1] la requête.
+ */
+export function keywordChecks(rows: SearchRow[], planned: { page: string; motCle: string }[]): KeywordCheck[] {
+  const byPage = new Map<string, SearchRow[]>();
+  for (const r of rows) {
+    if (r.keys.length < 2) continue;
+    const k = pageKey(r.keys[0]);
+    byPage.set(k, [...(byPage.get(k) ?? []), r]);
+  }
+  return planned.map((p) => {
+    const found = (byPage.get(pageKey(p.page)) ?? []).slice().sort((a, b) => b.impressions - a.impressions);
+    const queries = found.map((r) => r.keys[1]);
+    return {
+      page: p.page, keyword: p.motCle,
+      hasImpressions: queries.length > 0,
+      keywordFound: queries.length > 0 ? queries.some((q) => keywordMatches(p.motCle, q)) : null,
+      topQueries: queries.slice(0, 3),
+    };
+  });
+}
+
+/**
+ * Assemble le dérivé que le rapport lit. Ne juge rien et n'invente rien : les raisons de panne sont
+ * recopiées telles quelles, et une absence de donnée reste une absence.
+ * `permissionLevel` est conservé parce que c'est lui qui explique un refus (AC-7) ; le perdre rendrait
+ * le rapport muet sur la cause.
+ */
+export function deriveConsole(r: Level1Result, planned: { page: string; motCle: string }[] | null): ConsoleDerived {
+  const g = r.google;
+  const b = r.bing;
+  const unknown = b.pages.filter((p) => !p.known).map((p) => p.url);
+  return {
+    level: 1,
+    google: {
+      property: g.property?.siteUrl ?? null,
+      permissionLevel: g.property?.permissionLevel ?? null,
+      error: g.error,
+      sitemapsError: g.sitemapsError,
+      index: indexSummary(g.pages),
+      canonical: canonicalFindings(g.pages),
+      lastDataDate: g.search?.lastDataDate ?? null,
+      truncated: g.search?.truncated ?? false,
+    },
+    bing: { site: b.site, error: b.error, known: b.pages.length - unknown.length, total: b.pages.length, unknown },
+    strategy: planned === null ? null : keywordChecks(g.search?.rows ?? [], planned),
+  };
 }
