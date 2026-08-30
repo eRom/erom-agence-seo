@@ -335,13 +335,17 @@ test("IDX-06 sur zéro page inspectée", () => {
 
 // Fix round 1 : la fixture précédente fait toujours coïncider PASS et un coverageState qui contient
 // « indexed », donc rien ne distingue « je compte sur le verdict » de « je compte sur coverageState ».
-// Ici les deux divergent délibérément : le verdict dit FAIL, le texte contient quand même « Indexed ».
-// Seul un comptage sur le verdict exclut cette page ; un comptage sur coverageState.includes("indexed")
-// la compterait indexée à tort.
+// Ici les deux divergent délibérément : le verdict dit FAIL, le texte contient quand même « indexed ».
+// Fix round 2 : la casse compte. « Indexed » avec un I majuscule laissait passer une mutation
+// `coverageState.includes("indexed")` en minuscule par pure coïncidence de fixture (elle rend false sur
+// ce texte, ce qui coïncide avec le résultat attendu sans que le comptage sur le verdict soit exercé).
+// Le texte est ici la vraie casse de coverageState telle que Google la rend (« Submitted and indexed »),
+// ce qui tue à la fois `includes("indexed")` et une égalité stricte sur ce même texte : les deux
+// compteraient cette page FAIL comme indexée à tort.
 test("IDX-06 compte sur le verdict même quand coverageState contient « indexed »", () => {
-  const r = indexSummary([page("https://x/a", "FAIL", "Indexed, though blocked by robots.txt")]);
+  const r = indexSummary([page("https://x/a", "FAIL", "Submitted and indexed")]);
   expect(r.indexed).toBe(0);
-  expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Indexed, though blocked by robots.txt" }]);
+  expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Submitted and indexed" }]);
 });
 
 test("IDX-07 signale une divergence de canonical", () => {
