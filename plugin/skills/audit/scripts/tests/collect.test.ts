@@ -276,8 +276,14 @@ describe("niveau 1", () => {
     expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
   });
 
-  test("avec --level 1, la branche s'exécute et écrit son dérivé", async () => {
-    // Le pendant du test précédent : sans lui, un `if (false)` passerait aussi le premier.
+  // Round 1 de revue (team-lead) : les trois tests suivants injectent `consoleAuth` pour ne jamais
+  // appeler le vrai gcloud. Sans cette couture, leur résultat dépendait de GSC_QUOTA_PROJECT dans
+  // l'environnement qui lance `bun test` — vert avec ~/.zshenv sourcé, faux ou pour la mauvaise raison
+  // sans. Un `auth` fictif rend les trois déterministes dans les deux cas, mesuré des deux côtés.
+  const fauxAuth = { token: "jeton-de-test-sans-danger", quotaProject: null, provider: "gcloud" as const };
+
+  test("avec --level 1 et un accès fourni, la branche s'exécute et écrit son dérivé", async () => {
+    // Le pendant du premier test : sans lui, un `if (false)` passerait aussi celui-là.
     const vus: string[] = [];
     const espion: any = async (url: string) => {
       vus.push(url);
@@ -285,23 +291,59 @@ describe("niveau 1", () => {
       return { status: 200, text: JSON.stringify({}) };
     };
     const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-"));
-    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null, consoleFetcher: espion });
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+    });
     expect(m.level).toBe(1);
     expect(m.level1?.attempted).toBe(true);
     expect(vus.some((u) => u.includes("googleapis"))).toBe(true);
     expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(true);
   });
 
-  test("une panne du niveau 1 ne fait pas échouer l'audit", async () => {
-    // AC-7 : code de sortie 0 et rapport complet. assertNoSecret lève par conception, deriveConsole,
-    // mkdir et Bun.write aussi : une seule exception non rattrapée tuerait l'audit APRÈS avoir écrit
-    // raw/ et AVANT le manifeste, laissant un dossier inexploitable.
-    const espion: any = async () => { throw new Error("panne simulée du niveau 1"); };
-    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-ko-"));
-    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null, consoleFetcher: espion });
+  test("une fuite dans le dérivé ne fait pas échouer l'audit (AC-7)", async () => {
+    // La panne doit avoir lieu DANS la branche, avec un accès fourni : sans jeton, l'espion n'est jamais
+    // appelé et c'est l'absence d'accès qui renseignerait googleError, pas la panne qu'on prétend simuler
+    // (trouvaille de revue round 1). La propriété résout normalement ; l'appel sitemaps lève une erreur
+    // dont le message EST le jeton (un thrown brut, comme le ferait une erreur réseau qui recopie l'URL
+    // appelée) : sitemapsError l'embarque tel quel, assertNoSecret lève pour de vrai sur le dérivé
+    // sérialisé, APRÈS l'écriture de raw/gsc et AVANT celle du manifeste — exactement le risque interdit
+    // par la spec section 6. La fuite ne doit pas non plus avoir eu le temps d'atteindre raw/ : le seul
+    // appel qui embarque le jeton est celui qui échoue avant tout pushRaw.
+    const espion: any = async (url: string) => {
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: `${base}/`, permissionLevel: "siteOwner" }] }) };
+      if (url.includes("/sitemaps")) throw new Error(fauxAuth.token);
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-fuite-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+    });
     expect(m.level1?.attempted).toBe(true);
-    expect(m.level1?.googleError).not.toBeNull();
-    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);   // le manifeste existe quand même
-    expect(m.pages.length).toBeGreaterThan(0);                                    // le niveau 0 est intact
+    expect(m.level1?.googleError).toContain("clé API");
+    expect(await Bun.file(join(dir, "raw/gsc/sites.json")).exists()).toBe(true);     // écrit avant la fuite
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);      // le manifeste existe quand même
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);  // jamais écrit : le refus a eu lieu avant
+    expect(m.pages.length).toBeGreaterThan(0);                                       // le niveau 0 est intact
+  });
+
+  test("sans accès (jeton indisponible), le niveau 1 le dit sans appeler Google", async () => {
+    // Comportement légitime, distinct d'une panne : demandé en round 1 pour ne pas confondre les deux.
+    // L'espion rend toujours un succès inoffensif : s'il levait, un vrai BING_WMT_API_KEY dans
+    // l'environnement se retrouverait dans le message d'erreur (l'URL Bing porte la clé en requête),
+    // et assertNoSecret le rattraperait à la place de l'assertion qu'on veut vraiment vérifier ici —
+    // exactement le genre de dépendance à l'environnement que ce fix corrige.
+    const vus: string[] = [];
+    const espion: any = async (url: string) => { vus.push(url); return { status: 200, text: JSON.stringify({}) }; };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-sansacces-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: null, authError: "jeton indisponible : test" },
+    });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).toBe("jeton indisponible : test");
+    expect(vus.some((u) => u.includes("googleapis"))).toBe(false);
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);
   });
 });

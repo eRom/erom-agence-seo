@@ -28,6 +28,10 @@ export type CollectOptions = {
    *  absent : la branche niveau 1 construit son fetcher sur le fetch global. C'est le même motif que
    *  console.ts, où toutes les dépendances entrent en paramètre pour rendre « aucune requête ne part » testable. */
   consoleFetcher?: Fetcher;
+  /** Injecté par les tests pour fournir, ou refuser, un accès Google sans jamais appeler `getAccessToken`
+   *  ni le vrai binaire gcloud (round 1 de revue : un test qui passe par le vrai gcloud dépend du poste qui
+   *  le lance et n'est plus déterministe). En usage réel, absent : la branche niveau 1 résout l'accès elle-même. */
+  consoleAuth?: { auth: GoogleAuth | null; authError: string | null };
 };
 
 function toRecord(r: FetchResult, file?: string): FetchRecord {
@@ -211,13 +215,20 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
         return { status: r.status, text: await r.text() };
       });
       let authError: string | null = null;
-      try {
-        auth = await getAccessToken(process.env, {
-          gcloud: () => defaultGcloud(),
-          serviceAccount: (p) => serviceAccountToken(p, fetcher),
-        });
-      } catch (e) {
-        authError = e instanceof AuthError ? `${e.message} : ${e.hint}` : String(e);
+      if (o.consoleAuth) {
+        // Couture de test (round 1 de revue) : évite tout appel au vrai gcloud, déterministe quel que
+        // soit l'environnement qui lance la suite (GSC_QUOTA_PROJECT posé ou non).
+        auth = o.consoleAuth.auth;
+        authError = o.consoleAuth.authError;
+      } else {
+        try {
+          auth = await getAccessToken(process.env, {
+            gcloud: () => defaultGcloud(),
+            serviceAccount: (p) => serviceAccountToken(p, fetcher),
+          });
+        } catch (e) {
+          authError = e instanceof AuthError ? `${e.message} : ${e.hint}` : String(e);
+        }
       }
       const r = await collectLevel1({ fetcher, auth, authError, bingKey },
         { origin, pages: facts.map((f) => ({ url: f.url, slug: f.slug })), today: new Date().toISOString().slice(0, 10), delayMs: delay });
