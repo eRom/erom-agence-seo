@@ -348,6 +348,16 @@ test("IDX-06 compte sur le verdict même quand coverageState contient « indexed
   expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Submitted and indexed" }]);
 });
 
+// Fix round 3 : tous les cas précédents n'opposent que PASS et FAIL, où `verdict === "PASS"` et
+// `verdict !== "FAIL"` donnent la même réponse. L'API d'inspection Google rend aussi NEUTRAL (pages
+// auxiliaires ou paginées, entre autres) : `!== "FAIL"` la compterait indexée à tort. Seule l'égalité
+// positive à PASS est correcte.
+test("IDX-06 ne compte pas une page NEUTRAL comme indexée", () => {
+  const r = indexSummary([page("https://x/a", "NEUTRAL", "Page is not indexed")]);
+  expect(r.indexed).toBe(0);
+  expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Page is not indexed" }]);
+});
+
 test("IDX-07 signale une divergence de canonical", () => {
   const r = canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/b", "https://x/a")]);
   expect(r).toEqual([{ url: "https://x/a", googleCanonical: "https://x/b", userCanonical: "https://x/a" }]);
