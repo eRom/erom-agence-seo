@@ -112,4 +112,6 @@ export type Manifest = {
   psi: { attempted: boolean; ok: boolean; error?: string };
   strategy: StrategyRef | null;
   indexnow: FetchRecord | null;
+  /** Niveau 1 seulement. `null` aux niveaux 0 et 2 : la collecte des consoles n'a pas été tentée. */
+  level1: { attempted: boolean; googleError: string | null; bingError: string | null } | null;
 };

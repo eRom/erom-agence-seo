@@ -246,7 +246,7 @@ describe("stratégie présente", () => {
       await mkdir(join(cwd, "seo"), { recursive: true });
       await Bun.write(join(cwd, "seo/strategy.md"), VALID);
       const o = await mkdtemp(join(tmpdir(), "erom-seo-nostrat-out-"));
-      // Bun.spawn (async), pas spawnSync : le sous-processus appelle le site jouet servi dans CE process ;
+  // Bun.spawn (async), pas spawnSync : le sous-processus appelle le site jouet servi dans CE process ;
       // spawnSync bloquerait la boucle d'événements et empêcherait Bun.serve de répondre (deadlock observé).
       const proc = Bun.spawn(
         ["bun", `${import.meta.dir}/../collect.ts`, `http://localhost:${s.port}`, "--out", o, "--max-pages", "2", "--no-psi", "--strategy-path", "none"],
@@ -262,5 +262,46 @@ describe("stratégie présente", () => {
       expect(m.maxPages).toBe(2);
       expect(m.pages).toHaveLength(2);
     } finally { s.stop(true); }
+  });
+});
+
+describe("niveau 1", () => {
+  test("sans --level 1, aucune requête ne part vers les consoles", async () => {
+    // Le fetcher lève à tout appel : si la branche niveau 1 s'exécutait, runCollect rejetterait.
+    const espion: any = async (url: string) => { throw new Error(`requête interdite : ${url}`); };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n0-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 0, strategyPath: null, consoleFetcher: espion });
+    expect(m.level).toBe(0);
+    expect(m.level1).toBeNull();
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+  });
+
+  test("avec --level 1, la branche s'exécute et écrit son dérivé", async () => {
+    // Le pendant du test précédent : sans lui, un `if (false)` passerait aussi le premier.
+    const vus: string[] = [];
+    const espion: any = async (url: string) => {
+      vus.push(url);
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null, consoleFetcher: espion });
+    expect(m.level).toBe(1);
+    expect(m.level1?.attempted).toBe(true);
+    expect(vus.some((u) => u.includes("googleapis"))).toBe(true);
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(true);
+  });
+
+  test("une panne du niveau 1 ne fait pas échouer l'audit", async () => {
+    // AC-7 : code de sortie 0 et rapport complet. assertNoSecret lève par conception, deriveConsole,
+    // mkdir et Bun.write aussi : une seule exception non rattrapée tuerait l'audit APRÈS avoir écrit
+    // raw/ et AVANT le manifeste, laissant un dossier inexploitable.
+    const espion: any = async () => { throw new Error("panne simulée du niveau 1"); };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-ko-"));
+    const m = await runCollect({ url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null, consoleFetcher: espion });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).not.toBeNull();
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);   // le manifeste existe quand même
+    expect(m.pages.length).toBeGreaterThan(0);                                    // le niveau 0 est intact
   });
 });
