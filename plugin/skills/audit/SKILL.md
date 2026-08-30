@@ -1,10 +1,10 @@
 ---
 name: audit
-description: Audit SEO et GEO d'un site à partir de son URL (niveau 0) ou de son code lancé en local (niveau 2). Collecte reproductible dans seo/audits/<date>-n<niveau>/, vérifications ancrées sur la documentation officielle des moteurs, rapport Markdown en français. Triggers : '/erom-seo:audit <url>', 'audite le SEO de', 'audit GEO', 'est-ce que ce site est visible dans ChatGPT / les AI Overviews', 'vérifie le robots.txt de'.
-argument-hint: "<url> [--max-pages N] [--page <url>]..."
+description: Audit SEO et GEO d'un site à partir de son URL (niveau 0), de ses accès Search Console et Bing Webmaster Tools (niveau 1), ou de son code lancé en local (niveau 2). Collecte reproductible dans seo/audits/<date>-n<niveau>/, vérifications ancrées sur la documentation officielle des moteurs, rapport Markdown en français. Triggers : '/erom-seo:audit <url>', 'audite le SEO de', 'audit GEO', 'est-ce que ce site est visible dans ChatGPT / les AI Overviews', 'vérifie le robots.txt de'.
+argument-hint: "<url> [--max-pages N] [--page <url>]... [--level 0|1|2]"
 ---
 
-# Audit SEO/GEO, niveau 0 et 2
+# Audit SEO/GEO, niveau 0, 1 et 2
 
 Tu produis un audit défendable : chaque trouvaille cite une preuve dans la collecte et une source officielle. Tu n'inventes jamais une trouvaille sans preuve dans `raw/` ou `derived/`, et tu ne modifies jamais `raw/`.
 
@@ -25,6 +25,8 @@ bun ${CLAUDE_PLUGIN_ROOT}/skills/audit/scripts/collect.ts <url> --max-pages 10 [
 Ne pas passer `--out` : `collect.ts` réserve lui-même le dossier (voir étape 0.3) et l'imprime sur la première ligne de sa sortie, par exemple `dossier : seo/audits/2026-08-27-n0-3`. Lire cette ligne et utiliser ce chemin pour la suite (écrire `report.md` dedans, étape 3). `--out <dossier>` reste disponible pour forcer un chemin précis en cas de besoin exceptionnel, mais n'est plus nécessaire en usage normal.
 
 Sortie attendue : `dossier : <chemin>` en première ligne, puis `collecte terminée : N pages, robots.txt <code>, ...`. Avec `--level 1`, une ligne supplémentaire `consoles : Google …, Bing …` dit l'état des deux accès (`ok` ou la raison du refus). Si la collecte échoue (site injoignable, 403 partout), écrire un `report.md` court qui le dit, avec `raw/manifest.json` en annexe, et s'arrêter : pas de trouvailles inventées.
+
+Cas particulier : `raw/manifest.json` peut porter `level1.attempted: true` sans que `derived/console.json` existe. Ça arrive quand un secret (jeton, clé Bing) a fui dans une réponse brute et que la garde a refusé d'écrire avant ce fichier : `level1.googleError` porte alors la raison du refus, jamais le secret lui-même. Dans ce cas, les quatre vérifications du niveau 1 (IDX-06, IDX-07, STRAT-05, AI-03) sont non vues, avec cette raison.
 
 Si la collecte écrit sur la sortie d'erreur `attention : N URL(s) du sitemap ignorées, hors site : <hôtes>`, le rapport le dit en une ligne Info dans « Ce que je n'ai pas pu voir », avec les hôtes et le compte, preuve `raw/manifest.json` champ `sitemapUrls`. Pas de nouveau check : c'est une limite de la collecte, pas une vérification.
 

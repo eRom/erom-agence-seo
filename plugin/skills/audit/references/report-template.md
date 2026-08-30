@@ -21,7 +21,7 @@ Effort    : {{rapide | moyen | lourd}}
 
 ## Ce que je n'ai pas pu voir
 Niveau 1, avec les accès : {{liste id + nom}}
-Couche stratégique, avec seo/strategy.md : {{les cinq ids et noms si la couche est inactive, avec la raison « pas de seo/strategy.md » ou « seo/strategy.md inanalysable : … » ; « aucune » si la couche est active}}
+Couche stratégique, avec seo/strategy.md : {{les six ids et noms si la couche est inactive, avec la raison « pas de seo/strategy.md » ou « seo/strategy.md inanalysable : … » ; « aucune » si la couche est active}}
 {{PERF-01 si clé absente, avec la procédure}}
 {{au niveau 2 : PERF-01, IDX-03, IDX-04 non applicable en local, une ligne par id}}
 {{si manifest.sitemapUrls.skipped non vide : une ligne Info « N URLs du sitemap ignorées, hors site : … », preuve raw/manifest.json}}
