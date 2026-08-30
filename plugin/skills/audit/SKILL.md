@@ -32,7 +32,7 @@ Si `raw/manifest.json` porte `strategy` sans `error` : `bun ${CLAUDE_PLUGIN_ROOT
 
 ## 2. Vérifier
 
-Lire dans l'ordre : `raw/manifest.json`, `derived/robots-eval.json`, `derived/pages.json`, `derived/psi.json`, `derived/strategy-eval.json`, et, niveau 1 exécuté, `derived/console.json` (source d'IDX-06, IDX-07, AI-03 et, couche stratégique active, STRAT-05). Le rapport donne toujours `google.lastDataDate` : les données de Google ont environ trois jours de retard, et sans cette date un lecteur croit à un trou dans son site. Ouvrir `raw/robots.txt` et `raw/pages/*.html` seulement pour citer une preuve avec ses lignes.
+Lire dans l'ordre : `raw/manifest.json`, `derived/robots-eval.json`, `derived/pages.json`, `derived/psi.json`, `derived/strategy-eval.json`, et, niveau 1 exécuté, `derived/console.json` (source d'IDX-06, IDX-07, AI-03 et, couche stratégique active, STRAT-05). Le rapport donne toujours `google.lastDataDate` : les données de Google ont environ trois jours de retard, et sans cette date un lecteur croit à un trou dans son site. Un `lastDataDate` nul accompagné de `google.searchError` veut dire « données non récupérées » (quota, panne transitoire), jamais « site sans trafic » : ne jamais confondre les deux causes. Ouvrir `raw/robots.txt` et `raw/pages/*.html` seulement pour citer une preuve avec ses lignes.
 
 Pages avec `challenge: true` dans `derived/pages.json` : les exclure des vérifications par page, et écrire une ligne Info dans le rapport : « N pages servies derrière une protection anti-bot au user-agent erom-seo-audit ; ce que voit un bot inconnu est probablement ce que voient les bots IA ». Jamais une trouvaille REND-01 sur ces pages.
 

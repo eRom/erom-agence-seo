@@ -254,6 +254,11 @@ export type ConsoleDerived = {
     permissionLevel: string | null;
     error: string | null;
     sitemapsError: string | null;
+    /** Fix round 2 (tâche 8) : `searchAnalytics.query` peut échouer seul, propriété par ailleurs accessible
+     *  (quota propre à cette API, 5xx transitoire). Sans cet emplacement, la panne se confondrait avec
+     *  `error` (panne globale, non), ou disparaîtrait derrière un `lastDataDate` null que le rapport lirait
+     *  comme « site sans trafic » au lieu de « données non récupérées ». */
+    searchError: string | null;
     index: IndexSummary;
     canonical: CanonicalFinding[];
     lastDataDate: string | null;
@@ -321,6 +326,7 @@ export function deriveConsole(r: Level1Result, planned: { page: string; motCle: 
       permissionLevel: g.property?.permissionLevel ?? null,
       error: g.error,
       sitemapsError: g.sitemapsError,
+      searchError: g.search?.error ?? null,
       index: indexSummary(g.pages),
       canonical: canonicalFindings(g.pages),
       lastDataDate: g.search?.lastDataDate ?? null,

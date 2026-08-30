@@ -472,6 +472,21 @@ test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () =
   expect(deriveConsole(bloc() as any, [{ page: "https://x.test/", motCle: "x" }]).strategy).toHaveLength(1);
 });
 
+// Fix round 2 : la propriété est accessible (google.error null), mais searchAnalytics.query a échoué seul
+// (quota propre à cette API, 5xx transitoire, ligne 301 ci-dessus pour la collecte réelle). Sans
+// `searchError`, ce cas était indiscernable d'une page sans trafic : `google.error` reste nul, et
+// `lastDataDate` vaut null sans qu'aucun champ ne dise pourquoi.
+test("deriveConsole porte l'échec de searchAnalytics dans searchError, sans le confondre avec google.error", () => {
+  const b = bloc({ google: { search: { lastDataDate: null, rows: [], truncated: false, error: "quota Search Console dépassé" } } });
+  const d = deriveConsole(b as any, [{ page: "https://x.test/", motCle: "x" }]);
+  expect(d.google.error).toBeNull();
+  expect(d.google.searchError).toBe("quota Search Console dépassé");
+  expect(d.google.lastDataDate).toBeNull();
+  // strategy dérive quand même (rows vide), keywordFound null : c'est searchError qui doit empêcher de le
+  // lire comme « aucune impression », pas une valeur inventée ici.
+  expect(d.strategy).toEqual([{ page: "https://x.test/", keyword: "x", hasImpressions: false, keywordFound: null, topQueries: [] }]);
+});
+
 // Le filet du repo est une liste explicite de sorties à exercer, par skill (voir
 // skills/console/scripts/tests/render.test.ts, bloc « pas de tiret cadratin »). Il ne couvre pas ce
 // nouveau module : sans ce test, un tiret injecté dans une des trois constantes de message
