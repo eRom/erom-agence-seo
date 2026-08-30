@@ -119,8 +119,11 @@ async function collectSearchAnalytics(
 ): Promise<GoogleBlock["search"]> {
   const days = o.days ?? 90;
   const endDate = o.today;
-  const startDate = shiftDate(o.today, -(days - 1));
   try {
+    // shiftDate() dans le try : un `today` malformé (donc une ISOString invalide) ne doit pas faire
+    // sortir d'exception du module, la promesse « le niveau 1 ne casse jamais l'audit » vaut aussi
+    // pour une entrée mal formée, pas seulement pour un refus réseau.
+    const startDate = shiftDate(o.today, -(days - 1));
     const byDate = await searchAnalytics(f, auth, siteUrl, { startDate, endDate, dimensions: ["date"], rowLimit: 1000, type: "web" });
     pushRaw(raw, "gsc/searchanalytics-date.json", byDate.query, byDate.rows);
     const byPageQuery = await searchAnalytics(f, auth, siteUrl, { startDate, endDate, dimensions: ["page", "query"], rowLimit: 1000, type: "web" });
@@ -202,7 +205,14 @@ async function collectBing(deps: Level1Deps, o: Level1Options, raw: Level1Raw[])
   }
   pushRaw(raw, "bing/usersites.json", { method: "GetUserSites" }, sites);
 
-  const site = resolveBingSite(new URL(o.origin).hostname, sites);
+  // new URL() dans son propre try : une origine malformée jette avant tout appel utile à resolveBingSite,
+  // et ne doit pas non plus faire sortir d'exception du module (même garantie que shiftDate ci-dessus).
+  let site: BingSite | null;
+  try {
+    site = resolveBingSite(new URL(o.origin).hostname, sites);
+  } catch (e) {
+    return { site: null, error: why(e), pages: [] };
+  }
   if (!site) return { site: null, error: SITE_HORS_COMPTE, pages: [] };
 
   const pages: BingPage[] = [];
