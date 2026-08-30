@@ -44,3 +44,13 @@ Source     : https://developers.google.com/search/docs/appearance/publication-da
 Source     : https://developers.google.com/search/docs/appearance/publication-dates « We recommend that you add a subtype of CreativeWork (such as Article, BlogPosting, or VideoObject), and specify the datePublished and/or dateModified fields. »
 Correctif  : mettre à jour le contenu à la cadence promise et propager la date : visible, dateModified en JSON-LD, en-tête Last-Modified.
 Effort     : moyen
+
+### STRAT-05 : les requêtes réelles contre le mot-clé visé
+Couche     : stratégique
+Niveau     : 1
+Sévérité   : Important
+Vérifie    : chaque page de strategy.md ressort sur le mot-clé qu'elle vise, d'après les requêtes réelles des 90 derniers jours.
+Comment    : derived/console.json → strategy : par page, hasImpressions, keywordFound et topQueries. keywordFound false avec hasImpressions true = trouvaille, citer les topQueries. keywordFound null = la page n'a aucune impression sur la période : ce n'est pas un échec de stratégie, le dire comme une information distincte. Toujours donner la date de dernier jour de données (google.lastDataDate) : elle a environ trois jours de retard.
+Source     : https://developers.google.com/webmaster-tools/v1/searchanalytics/query « The method returns zero or more rows grouped by the row keys (dimensions) that you define. »
+Correctif  : soit la page est réécrite vers le mot visé (title, h1, ouverture, voir STRAT-01), soit la stratégie adopte le mot sur lequel la page ressort déjà, si l'intention correspond.
+Effort     : lourd

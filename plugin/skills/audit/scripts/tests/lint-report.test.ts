@@ -9,6 +9,9 @@ const all: Check[] = [];
 for (const f of files) all.push(...parseChecks(await Bun.file(`${checksDir}/${f}`).text()));
 const absolute0 = all.filter((c) => c.niveau === 0 && c.couche === "absolue");
 const strategic = all.filter((c) => c.couche === "stratégique");
+// STRAT-05 (niveau 1) est stratégique mais hors périmètre d'un rapport niveau 0 : les tests ci-dessous, qui
+// fixent le niveau à 0, se limitent à ce sous-ensemble pour rester en phase avec expectedIds().
+const strategic0 = strategic.filter((c) => c.niveau === 0);
 
 /** Rapport synthétique minimal, conforme à toutes les règles existantes du lint (sections présentes, aucune
  * trouvaille), avec les ids donnés listés dans « Vérifications passées ». */
@@ -83,8 +86,8 @@ describe("lint-report : couche stratégique et niveau", () => {
   test("couche active : les vérifications stratégiques sont exigées", async () => {
     const head = "2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · 31 vérifications";
     const missing = await lintReport(report(absolute0, head), checksDir);
-    for (const c of strategic) expect(missing.some((e) => e.includes(c.id) && e.includes("absent")), c.id).toBe(true);
-    expect(await lintReport(report([...absolute0, ...strategic], head), checksDir)).toEqual([]);
+    for (const c of strategic0) expect(missing.some((e) => e.includes(c.id) && e.includes("absent")), c.id).toBe(true);
+    expect(await lintReport(report([...absolute0, ...strategic0], head), checksDir)).toEqual([]);
   });
   test("couche inactive : une vérification stratégique en passée est une erreur, en non vue est acceptée", async () => {
     const s = strategic[0];
@@ -94,8 +97,8 @@ describe("lint-report : couche stratégique et niveau", () => {
     expect(await lintReport(md, checksDir)).toEqual([]);
   });
   test("couche active : le nombre de vérifications annoncé correspond à l'union", async () => {
-    const head = `2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · ${absolute0.length + strategic.length} vérifications`;
-    expect(await lintReport(report([...absolute0, ...strategic], head), checksDir)).toEqual([]);
+    const head = `2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · ${absolute0.length + strategic0.length} vérifications`;
+    expect(await lintReport(report([...absolute0, ...strategic0], head), checksDir)).toEqual([]);
   });
   test("nombre de vérifications annoncé faux : rejeté", async () => {
     const head = `2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · ${absolute0.length} vérifications`;

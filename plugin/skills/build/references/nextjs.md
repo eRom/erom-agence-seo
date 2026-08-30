@@ -78,7 +78,7 @@ Piège    : une URL du sitemap qui répond autre chose que 200 (redirection, 404
 Source   : https://developers.google.com/search/docs/crawling-indexing/sitemaps/build-sitemap « The <lastmod> value should reflect the date and time of the last significant update to the page. »
 Source   : https://nextjs.org/docs/app/api-reference/file-conventions/metadata/sitemap « is a special file that matches the Sitemaps XML format to help search engine crawlers index your site more efficiently. »
 
-### Canonical (IDX-02)
+### Canonical (IDX-02, IDX-07)
 Fichiers : app/layout.tsx (metadataBase), puis chaque page.tsx prévue ou son layout.tsx de segment (alternates.canonical)
 Recette  : metadataBase à la racine, un canonical relatif par page, résolu par Next.js.
 ```tsx
@@ -236,7 +236,7 @@ Source   : https://nextjs.org/docs/app/api-reference/functions/generate-metadata
 Source   : https://nextjs.org/docs/app/api-reference/functions/generate-metadata « title.template can be used to add a prefix or a suffix to titles defined in child route segments. »
 Source   : https://nextjs.org/docs/app/api-reference/functions/generate-metadata « If you need to use Client Component features, keep your page.tsx as a Server Component and move the Client Component logic to a separate file »
 
-### h1 et ouverture (TAG-03, STRAT-01)
+### h1 et ouverture (TAG-03, STRAT-01, STRAT-05)
 Fichiers : le JSX de la page (page.tsx, ou le composant de section qu'elle rend en premier, par exemple Hero.tsx)
 Recette  : remplacer le texte du h1 et la première phrase du premier paragraphe par les valeurs validées, sans toucher aux classes, aux balises, aux liens ni aux images. Une page sans h1 (TAG-03) en reçoit un, placé avant le premier paragraphe, dans le style des autres pages du site.
 ```tsx

@@ -11,9 +11,10 @@ export type KindEntry = { kind: Kind; ou?: string };
 export const KINDS: Record<string, KindEntry> = {
   "ROBOTS-01": { kind: "code" }, "ROBOTS-02": { kind: "code" }, "ROBOTS-03": { kind: "code" }, "ROBOTS-04": { kind: "code" }, "ROBOTS-05": { kind: "code" }, "ROBOTS-06": { kind: "code" },
   "SNIP-01": { kind: "code" }, "SNIP-02": { kind: "code" }, "SNIP-03": { kind: "code" },
-  "IDX-01": { kind: "code" }, "IDX-02": { kind: "code" }, "IDX-05": { kind: "code" },
+  "IDX-01": { kind: "code" }, "IDX-02": { kind: "code" }, "IDX-05": { kind: "code" }, "IDX-07": { kind: "code" },
   "IDX-03": { kind: "hors-build", ou: "certificat et redirection HTTP vers HTTPS chez l'hébergeur (Vercel : automatique)" },
   "IDX-04": { kind: "hors-build", ou: "Vercel : Project Settings, Domains, Edit sur le domaine secondaire, « Redirect to » avec le code 308 (permanent, pas 307) ; ailleurs : le DNS ou la configuration de l'hébergeur. next.config n'est pas le bon endroit" },
+  "IDX-06": { kind: "hors-build", ou: "Search Console, URL Inspection, redemander l'indexation, une fois ROBOTS-*, IDX-01, IDX-02 et IDX-05 déjà passés : l'indexation elle-même ne se force pas par du code" },
   "SD-01": { kind: "code" }, "SD-02": { kind: "code" }, "SD-03": { kind: "code" },
   "TAG-01": { kind: "code" }, "TAG-02": { kind: "code" }, "TAG-04": { kind: "code" },
   "TAG-03": { kind: "texte" },
@@ -22,10 +23,12 @@ export const KINDS: Record<string, KindEntry> = {
   "PERF-01": { kind: "hors-build", ou: "PageSpeed Insights (pagespeed.web.dev) pour lire les données de terrain, puis un chantier de performance à part" },
   "AI-01": { kind: "hors-build", ou: "sans effet sur Google ; un llms.txt ne se justifie que pour un site de documentation" },
   "AI-02": { kind: "code" },
+  "AI-03": { kind: "hors-build", ou: "Bing Webmaster Tools : ajouter le site, soumettre le sitemap ; la clé IndexNow (AI-02) reste la seule action côté code" },
   "STRAT-01": { kind: "texte" }, "STRAT-02": { kind: "texte" }, "STRAT-03": { kind: "code" },
   "STRAT-04": { kind: "hors-build", ou: "calendrier éditorial : mettre à jour le contenu à la cadence promise, puis propager la date (visible et dateModified)" },
+  "STRAT-05": { kind: "texte" },
 };
-export const DEFAULT_KIND: KindEntry = { kind: "hors-build", ou: "hors du périmètre de build : vérification de niveau 1 ou inconnue" };
+export const DEFAULT_KIND: KindEntry = { kind: "hors-build", ou: "hors du périmètre de build : vérification inconnue du catalogue (par exemple LVL1-01, LVL1-02, jamais livrées)" };
 export function kindOf(id: string): KindEntry { return KINDS[id] ?? DEFAULT_KIND; }
 
 export type PlanFinding = { id: string; severity: Severity; title: string; kind: Kind; correctif: string; effort: string; ou?: string; origine?: string };

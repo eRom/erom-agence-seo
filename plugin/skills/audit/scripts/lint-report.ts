@@ -15,9 +15,15 @@ function findingBlocks(md: string): string[] {
   return md.split(/^### \[/m).slice(1);
 }
 
-/** Vérifications attendues dans un rapport : niveau inférieur ou égal au niveau exécuté, couche absolue toujours, couche stratégique si active. */
+/**
+ * Vérifications attendues dans un rapport : le niveau 0 est le socle de tout audit URL (0, 1 ou 2), mais le
+ * niveau 1 (accès Search Console et Bing) et le niveau 2 (code en local) sont deux extensions indépendantes,
+ * jamais l'une dans l'autre. Un rapport niveau 2 n'a jamais touché les consoles : il n'attend donc pas les
+ * vérifications de niveau 1, il n'a même pas essayé de les évaluer (elles ne sont pas « non applicables »,
+ * elles sont hors sujet). Couche absolue toujours, couche stratégique si active.
+ */
 export function expectedIds(checks: ReturnType<typeof parseChecks>, niveau: number, couche: boolean): string[] {
-  return checks.filter((c) => c.niveau <= niveau && (c.couche === "absolue" || couche)).map((c) => c.id);
+  return checks.filter((c) => (c.niveau === 0 || c.niveau === niveau) && (c.couche === "absolue" || couche)).map((c) => c.id);
 }
 
 async function allChecks(checksDir: string) {

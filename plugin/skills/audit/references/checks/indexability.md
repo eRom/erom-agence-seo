@@ -56,3 +56,23 @@ Source     : https://developers.google.com/search/docs/crawling-indexing/trouble
 Source     : https://developers.google.com/search/docs/crawling-indexing/troubleshoot-crawling-errors « Such pages are excluded from Search. »
 Correctif  : renvoyer un vrai code 404 (ou 410) sur les pages introuvables.
 Effort     : moyen
+
+### IDX-06 : pages indexées par Google
+Couche     : absolue
+Niveau     : 1
+Sévérité   : Critique
+Vérifie    : les pages collectées sont dans l'index Google. Une page absente de l'index ne reçoit aucun trafic, quelle que soit sa qualité.
+Comment    : derived/console.json → google.index : indexed sur total, et notIndexed liste chaque page avec son coverageState. Dire toujours que le compte porte sur les pages collectées et non sur le site entier (--max-pages plafonne). Ne jamais utiliser le champ indexed de sitemaps.list : il vaut « 0 » même sur des pages indexées (mesure du 30/08).
+Source     : https://support.google.com/webmasters/answer/9012289 « The URL Inspection tool provides information about Google's indexed version of a specific page, and also allows you to test whether a URL might be indexable. »
+Correctif  : vérifier robots.txt et la balise robots, soumettre la page dans Search Console, et s'assurer qu'elle est atteignable depuis le sitemap et un lien interne.
+Effort     : moyen
+
+### IDX-07 : Google a choisi un autre canonical que celui déclaré
+Couche     : absolue
+Niveau     : 1
+Sévérité   : Important
+Vérifie    : pour chaque page, le canonical retenu par Google est celui que la page déclare.
+Comment    : derived/console.json → google.canonical : une entrée par divergence, avec googleCanonical et userCanonical. Liste vide = passée. Une page sans canonical déclaré n'apparaît pas ici : c'est TAG-03 au niveau 0, ne pas doubler la trouvaille.
+Source     : https://support.google.com/webmasters/answer/9012289 « Inspect the indexed version of the page and look at the Page indexing > Google-selected canonical field. »
+Correctif  : rapprocher la balise canonique de l'URL réellement servie, vérifier les redirections apex/www et les paramètres d'URL, puis redemander l'indexation.
+Effort     : moyen
