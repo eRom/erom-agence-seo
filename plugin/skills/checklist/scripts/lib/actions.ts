@@ -1,7 +1,7 @@
 // Les deux écritures (D26) et la lecture Bing, avec un fetch injecté : les tests passent un faux, le CLI passe le vrai.
 // Conventions figées sur les exemples officiels : docs/recherches/2026-08-29-checklist-indexnow-bing-gsc.md, sections 3.1 et 3.2.
 import type { ActionResult, BingSite } from "./checklist";
-import { rewriteToOrigin } from "../../../audit/scripts/lib/sitemap";
+import { rewriteToOrigin } from "../../../../lib/url";
 
 export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
 export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
