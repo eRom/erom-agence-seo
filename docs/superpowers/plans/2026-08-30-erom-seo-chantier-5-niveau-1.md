@@ -1138,7 +1138,7 @@ describe("niveau 1", () => {
 });
 ```
 
-Le troisième test est celui qui ferme AC-7 côté code. Le rejouer sur `healthincloud.app` en tâche 9 le confirme sur du réel, mais un test qui ne dépend d'aucun compte doit garder la propriété.
+Le troisième test est celui qui ferme AC-8 côté code (le critère a changé de numéro le 30/08, voir la spec). Le rejouer sur un site en ligne hors des deux consoles en tâche 9 le confirme sur du réel, mais un test qui ne dépend d'aucun compte doit garder la propriété.
 
 - [ ] **Step 2: lancer, vérifier l'échec**
 
@@ -1415,17 +1415,27 @@ Ne jamais afficher la valeur d'une des deux variables.
 
 Une collecte niveau 1 sur `https://www.romain-ecarnot.com/`, puis lecture du dossier et de `derived/console.json`. Noter le compte de pages indexées, la liste des divergences de canonical (attendu : aucune, les deux canonicals sont égaux au 30/08), les pages connues de Bing, et `lastDataDate` (attendu : environ trois jours avant le jour de la recette).
 
-- [ ] **Step 3: AC-7, l'accès refusé**
+- [ ] **Step 3: AC-7, l'accès refusé est nommé**
+
+Le critère a été révisé le 30/08 : `healthincloud.app` est **hors ligne** par décision de Romain (mesuré : `curl` rend HTTP 000), donc aucun audit ne peut plus s'y dérouler. La **propriété** Search Console, elle, existe toujours et refuse toujours ses sitemaps. Le refus de droits s'observe donc par la lentille de consultation, pas par un audit :
 
 ```bash
-bun <plugin>/skills/audit/scripts/collect.ts https://healthincloud.app/ --level 1 --max-pages 3 --no-psi ; echo "code de sortie : $?"
+source ~/.zshenv && cd <plugin> && bun skills/console/scripts/console.ts sites
 ```
 
-Attendu : code **0**, collecte niveau 0 complète, et l'erreur de droits dans `level1.googleError`. Un code non nul est un échec du critère, à consigner tel quel.
+Attendu : la ligne `sc-domain:healthincloud.app (siteUnverifiedUser)` suivie de « sitemaps non lisibles pour cette propriété ». Consigner la sortie réelle.
 
-- [ ] **Step 4: AC-8, le site hors compte Bing**
+La partie « le refus n'est jamais confondu avec une absence » est portée par le test unitaire de `level1.ts` qui force `listSitemaps` à rendre 403 et exige le message dans `sitemapsError` : le nommer dans la recette et donner son résultat.
 
-Même commande sur `https://commentchercherbonheur.org/`, qui n'est dans aucun des deux comptes. Attendu : les deux moitiés non vues, avec leurs deux raisons distinctes, et l'audit qui se termine normalement.
+- [ ] **Step 4: AC-8, un site en ligne hors des deux consoles**
+
+C'est ce critère qui porte désormais la garantie « le niveau 1 ne fait jamais échouer l'audit », reprise d'AC-7 après sa révision. `commentchercherbonheur.org` est le seul site à la fois **en ligne** et absent des deux comptes.
+
+```bash
+bun <plugin>/skills/audit/scripts/collect.ts https://commentchercherbonheur.org/ --level 1 --max-pages 5 --no-psi ; echo "code de sortie : $?"
+```
+
+Attendu : code **0**, collecte niveau 0 complète avec ses pages, et les deux moitiés du niveau 1 non vues avec leurs **deux raisons distinctes** (« aucune propriété Search Console ne couvre cette URL » et « ce site n'est pas dans le compte Bing »). Un code non nul est un échec du critère, à consigner tel quel plutôt qu'à corriger.
 
 - [ ] **Step 5: AC-5, avec et sans stratégie**
 

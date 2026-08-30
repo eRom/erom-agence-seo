@@ -9,7 +9,7 @@ notes_liees:
   - docs/recherches/2026-08-29-niveau-1-apis.md
   - docs/superpowers/plans/2026-08-29-erom-seo-chantier-5-recette.md
   - .claude/notes/2026-08-27-reprise-2120.md
-cobaye: sc-domain:romain-ecarnot.com (rôle siteOwner), https://lebonpote.romain-ecarnot.com/ (préfixe, siteOwner), sc-domain:healthincloud.app (siteUnverifiedUser, cas de dégradation). Bing : les deux mêmes sites vérifiés. Chico n'a de propriété chez aucun des deux.
+cobaye: sc-domain:romain-ecarnot.com (rôle siteOwner), https://lebonpote.romain-ecarnot.com/ (préfixe, siteOwner), sc-domain:healthincloud.app (siteUnverifiedUser, propriété conservée mais SITE HORS LIGNE depuis le 30/08 par décision de Romain : sert le cas du refus de droits, plus celui de l'audit complet). Bing : les deux premiers sites vérifiés. Chico n'a de propriété chez aucun des deux et reste le seul site en ligne hors des deux consoles.
 ---
 
 # erom-seo, chantier 5 étape 2 : l'audit niveau 1
@@ -213,7 +213,7 @@ Le niveau 1 ne fait jamais échouer l'audit. Toute panne d'accès se traduit par
 | Site hors du compte Bing | AI-03 non vue | « ce site n'est pas dans le compte Bing » |
 | Une page en échec, les autres non | cette page seule est non vue | l'erreur, par page |
 
-Les trois premières lignes et les deux Bing sont exerçables sur les comptes réels de Romain aujourd'hui : `sc-domain:healthincloud.app` est en `siteUnverifiedUser` et refuse déjà ses sitemaps (section 11.5), et chico n'est dans aucun des deux comptes.
+Les deux lignes Bing et celle du rôle insuffisant sont exerçables sur les comptes réels : `sc-domain:healthincloud.app` est en `siteUnverifiedUser` et refuse ses sitemaps (section 11.5), et chico n'est dans aucun des deux comptes. Attention, `healthincloud.app` ne sert plus qu'à observer le refus par `console sites` : le site est hors ligne depuis le 30/08 et aucun audit ne peut plus s'y dérouler.
 
 Le décodage des refus est déjà écrit et recetté dans `gsc.ts` et `bing.ts` : cette spec n'en ajoute aucun, elle les fait remonter dans le manifeste.
 
@@ -265,13 +265,17 @@ Vérifié par : deux passages, l'un avec `--strategy-path none`, l'autre sans, e
 Quand le site est dans le compte Bing, alors le rapport liste les pages inconnues de l'index Bing, en se fondant sur la sentinelle de date et jamais sur `HttpStatus`.
 Vérifié par : le rapport sur lebonpote.romain-ecarnot.com, plus `jq '.[].LastCrawledDate' raw/bing/urlinfo/*.json`.
 
-**AC-7. Un accès refusé dégrade proprement.**
-Quand la collecte porte sur `healthincloud.app` (rôle `siteUnverifiedUser`), alors l'audit se termine avec un code de sortie 0, le rapport complet du niveau 0 est produit, et les vérifications Google du niveau 1 sont non vues avec la raison du refus.
-Vérifié par : la commande sur cette propriété, `echo $?` qui rend 0, et la section « Ce que je n'ai pas pu voir » du rapport.
+**AC-7. Un accès refusé est nommé, jamais confondu avec une absence.**
+Quand la collecte porte sur une propriété dont le rôle ne permet pas la lecture, alors le refus est nommé dans `derived/console.json` avec sa raison, et il n'est jamais présenté comme « aucun sitemap déclaré ».
+Vérifié par : le test unitaire de `level1.ts` qui force `listSitemaps` à rendre 403 et exige le message dans `sitemapsError`, plus, sur le compte réel, `console sites` qui rend « sitemaps non lisibles pour cette propriété » sur `sc-domain:healthincloud.app` (rôle `siteUnverifiedUser`).
 
-**AC-8. Un site hors du compte Bing dégrade proprement.**
-Quand la collecte porte sur un site absent du compte Bing, alors AI-03 est non vue avec « ce site n'est pas dans le compte Bing », et les vérifications Google sont évaluées normalement.
-Vérifié par : la commande sur `commentchercherbonheur.org`, qui n'est dans aucun des deux comptes, et la lecture du rapport.
+Révisé le 30/08 : le critère exigeait d'abord « le rapport complet du niveau 0 » lors d'une collecte sur `healthincloud.app`. Romain a mis ce site hors ligne volontairement, et il ne répond plus (HTTP 000 mesuré le 30/08). La **propriété** Search Console, elle, existe toujours et refuse toujours ses sitemaps : le cas de refus de droits reste donc observable sur du réel, mais il ne peut plus être observé au travers d'un audit complet, faute de site à auditer. La garantie « l'audit ne meurt pas » est portée par AC-8, sur un site en ligne.
+
+**AC-8. Un site hors des deux comptes dégrade proprement, et l'audit se termine.**
+Quand la collecte porte sur un site en ligne absent des deux consoles, alors l'audit se termine avec un **code de sortie 0**, le **rapport complet du niveau 0 est produit**, et les vérifications du niveau 1 sont non vues avec deux raisons distinctes : « aucune propriété Search Console ne couvre cette URL » et « ce site n'est pas dans le compte Bing ».
+Vérifié par : la commande sur `commentchercherbonheur.org`, qui est en ligne et dans aucun des deux comptes, `echo $?` qui rend 0, et la lecture du rapport.
+
+Ce critère porte désormais la garantie « le niveau 1 ne fait jamais échouer l'audit » que portait AC-7 avant sa révision : c'est le seul cas réel restant où un site vivant rencontre un accès manquant. Un test unitaire de `collect.ts` la garde en plus, en simulant une panne de la branche elle-même.
 
 **AC-9. La fraîcheur des données est écrite.**
 Quand le rapport présente des chiffres de requêtes, alors il nomme le dernier jour couvert par les données, distinct de la date de l'audit.
@@ -356,6 +360,8 @@ Fonde D35, avec le constat d'interface (menu, filtre « Type de recherche » lim
 ### 11.5 Rôle insuffisant, cas de dégradation réel
 
 `console sites` sur `sc-domain:healthincloud.app`, rôle `siteUnverifiedUser` : « sitemaps non lisibles pour cette propriété ». Sert AC-7 sans rien avoir à fabriquer.
+
+Mesuré à nouveau le 30/08 à 13 h 21, après que Romain a mis le site hors ligne : la **propriété** répond toujours et refuse toujours ses sitemaps, alors que `curl https://healthincloud.app/` rend **HTTP 000**, injoignable. Une propriété Search Console survit donc au site qu'elle décrit, ce qui est utile à savoir pour un audit d'agence : les données de la console restent lisibles après la mise hors ligne d'un site.
 
 ### 11.6 Fraîcheur et rétention
 
