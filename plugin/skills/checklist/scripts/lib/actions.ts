@@ -2,12 +2,13 @@
 // Conventions figées sur les exemples officiels : docs/recherches/2026-08-29-checklist-indexnow-bing-gsc.md, sections 3.1 et 3.2.
 import type { ActionResult, BingSite } from "./checklist";
 import { rewriteToOrigin } from "../../../../lib/url";
+import { BING_API_BASE, BING_ERROR_CODES, redact } from "../../../../lib/bing";
 
 export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
 export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
 
 export const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
-export const BING_API_BASE = "https://ssl.bing.com/webmaster/api.svc/json";
+export { BING_API_BASE, BING_ERROR_CODES, redact };
 const JSON_UTF8 = "application/json; charset=utf-8";
 
 /** Tableau officiel des codes IndexNow (indexnow.org/documentation), en français pour la ligne du fichier. */
@@ -15,12 +16,6 @@ export const INDEXNOW_MESSAGES: Record<number, string> = {
   200: "OK, URL reçues", 202: "Accepted, URL reçues, validation de la clé en attente",
   400: "Bad request, format invalide", 403: "Forbidden, clé non servie en /<clé>.txt sur la prod ou différente de celle du fichier",
   422: "Unprocessable Entity, une URL n'est pas sur host, ou la clé n'a pas la forme attendue", 429: "Too Many Requests, trop de soumissions, réessayer plus tard",
-};
-
-/** Enum ApiErrorCode de Bing Webmaster Tools (learn.microsoft.com, 2019-04-26). */
-export const BING_ERROR_CODES: Record<number, string> = {
-  0: "None", 1: "InternalError", 2: "UnknownError", 3: "InvalidApiKey", 4: "ThrottleUser", 5: "ThrottleHost", 6: "UserBlocked", 7: "InvalidUrl",
-  8: "InvalidParameter", 9: "TooManySites", 10: "UserNotFound", 11: "NotFound", 12: "AlreadyExists", 13: "NotAllowed", 14: "NotAuthorized", 15: "UnexpectedState", 16: "Deprecated",
 };
 
 export const defaultFetcher: Fetcher = async (url, init = {}) => {
@@ -32,11 +27,6 @@ export const defaultFetcher: Fetcher = async (url, init = {}) => {
     throw new Error(`service injoignable : ${e instanceof Error ? e.message : String(e)}`);
   }
 };
-
-/** Retire la clé d'un texte destiné au fichier ou à l'écran. */
-export function redact(text: string, key: string | null): string {
-  return key && key.length >= 8 ? text.split(key).join("[clé]") : text;
-}
 
 /**
  * Ramène chaque URL sur l'origine réellement servie (www ou apex) : IndexNow exige que toutes les URL soient sur `host`,

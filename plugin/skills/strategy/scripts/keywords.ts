@@ -2,8 +2,9 @@
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { assertNoSecret, bingSummary, entryFor, keywordSlug, parseBingStats, parseWikimediaMonthly, safeArticleFilename, wikiSummary, wikimediaRange, type KeywordEntry, type WikiSummary } from "./lib/keywords";
+import { BING_API_BASE } from "../../../lib/bing";
 
-export const BING_API_BASE = "https://ssl.bing.com/webmaster/api.svc/json";
+export { BING_API_BASE };
 const WIKIMEDIA_BASE = "https://wikimedia.org/api/rest_v1/metrics/pageviews/per-article/fr.wikipedia/all-access/user";
 const UA = "erom-seo-strategy/0.1 (+https://github.com/eRom/erom-agence-seo)";
 
