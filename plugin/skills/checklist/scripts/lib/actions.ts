@@ -8,7 +8,9 @@ export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, stri
 export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
 
 export const INDEXNOW_ENDPOINT = "https://api.indexnow.org/indexnow";
-export { BING_API_BASE, BING_ERROR_CODES, redact };
+// T3 : BING_API_BASE et BING_ERROR_CODES n'ont plus de consommateur hors de ce fichier (vérifié par grep,
+// ils s'importent directement depuis lib/bing.ts). redact, lui, est consommé via ce ré-export : gardé seul.
+export { redact };
 const JSON_UTF8 = "application/json; charset=utf-8";
 
 /** Tableau officiel des codes IndexNow (indexnow.org/documentation), en français pour la ligne du fichier. */
