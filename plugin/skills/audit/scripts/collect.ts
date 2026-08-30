@@ -233,6 +233,11 @@ export async function runCollect(o: CollectOptions): Promise<Manifest & { out: s
       const r = await collectLevel1({ fetcher, auth, authError, bingKey },
         { origin, pages: facts.map((f) => ({ url: f.url, slug: f.slug })), today: new Date().toISOString().slice(0, 10), delayMs: delay });
       for (const f of r.raw) {
+        // Round 2 de revue : raw/ reçoit des réponses brutes d'API, la même garde que le dérivé et le
+        // manifeste s'applique ici, avant l'écriture — un secret qui fuit dans une réponse ne doit pas
+        // survivre plus longtemps parce que le fichier qui le porte est un raw/ plutôt qu'un derived/.
+        assertNoSecret(f.body, bingKey);
+        assertNoSecret(f.body, auth?.token ?? null);
         await mkdir(join(raw, dirname(f.path)), { recursive: true });
         await save(f.path, f.body);
       }

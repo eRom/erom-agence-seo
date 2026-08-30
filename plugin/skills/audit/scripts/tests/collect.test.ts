@@ -328,6 +328,29 @@ describe("niveau 1", () => {
     expect(m.pages.length).toBeGreaterThan(0);                                       // le niveau 0 est intact
   });
 
+  test("une fuite dans un corps raw ne fait pas échouer l'audit non plus (round 2)", async () => {
+    // Round 2 de revue : raw/ n'avait pas la même garde que derived/ et le manifeste. sites.list rend une
+    // propriété dont le siteUrl embarque le jeton — un corps déjà poussé dans raw AVANT toute résolution
+    // de propriété (voir collectGoogle), donc le test le plus direct de la garde ajoutée sur la boucle
+    // d'écriture de raw/. Elle ne matchera aucune propriété réelle (domaine bidon), sans incidence : ce
+    // qui compte ici, c'est le contenu du corps poussé, pas la suite de la collecte.
+    const espion: any = async (url: string) => {
+      if (url.endsWith("/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: `sc-domain:leak-${fauxAuth.token}.example`, permissionLevel: "inconnu" }] }) };
+      return { status: 200, text: JSON.stringify({}) };
+    };
+    const dir = await mkdtemp(join(tmpdir(), "erom-seo-n1-fuiteraw-"));
+    const m = await runCollect({
+      url: base, out: dir, maxPages: 2, delayMs: 0, psiKey: null, level: 1, strategyPath: null,
+      consoleFetcher: espion, consoleAuth: { auth: fauxAuth, authError: null },
+    });
+    expect(m.level1?.attempted).toBe(true);
+    expect(m.level1?.googleError).toContain("clé API");
+    expect(await Bun.file(join(dir, "raw/gsc/sites.json")).exists()).toBe(false);     // jamais écrit : la garde a agi avant
+    expect(await Bun.file(join(dir, "raw/manifest.json")).exists()).toBe(true);       // le manifeste existe quand même
+    expect(await Bun.file(join(dir, "derived/console.json")).exists()).toBe(false);
+    expect(m.pages.length).toBeGreaterThan(0);
+  });
+
   test("sans accès (jeton indisponible), le niveau 1 le dit sans appeler Google", async () => {
     // Comportement légitime, distinct d'une panne : demandé en round 1 pour ne pas confondre les deux.
     // L'espion rend toujours un succès inoffensif : s'il levait, un vrai BING_WMT_API_KEY dans
