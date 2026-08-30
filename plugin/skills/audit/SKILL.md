@@ -38,7 +38,7 @@ Pages avec `challenge: true` dans `derived/pages.json` : les exclure des vérifi
 
 Puis parcourir chaque fichier de `references/checks/` (robots, snippets, indexability, structured-data, tags, freshness, rendering, performance, ai-presence, strategy). Pour chaque bloc `### ID : titre` :
 - Couche stratégique et couche inactive : le noter dans « Ce que je n'ai pas pu voir » avec son id, son titre et la raison (« pas de seo/strategy.md » ou « seo/strategy.md inanalysable : … »), sans même regarder `Comment`.
-- Niveau du bloc supérieur au niveau exécuté : le noter dans « Ce que je n'ai pas pu voir » avec son id et son titre.
+- Niveau du bloc différent du niveau exécuté : le noter dans « Ce que je n'ai pas pu voir » avec son id et son titre. Le niveau 0 est le socle de tout audit URL et s'applique toujours ; niveau 1 (consoles) et niveau 2 (code local) sont deux extensions indépendantes, jamais l'une dans l'autre (un bloc niveau 1 ne se lit jamais sur un audit niveau 2, `derived/console.json` n'y existe pas).
 - Sinon, appliquer `Comment` sur les JSON : passé, ou trouvaille avec la sévérité indiquée (SNIP-02 et TAG-03 ont deux sévérités possibles, `Comment` dit laquelle).
 - Sinon, si le check ne peut tout simplement pas être évalué sur cette collecte précise (par exemple : aucune page de contenu auditable derrière une protection anti-bot, aucun bloc JSON-LD de type page trouvé) : le noter aussi dans « Ce que je n'ai pas pu voir », avec son id, son titre et la raison précise en une phrase courte.
 - Une trouvaille reprend `Source` telle quelle (URL et citation), `Correctif`, `Effort`, et une `Preuve` précise.
