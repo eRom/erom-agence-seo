@@ -333,6 +333,17 @@ test("IDX-06 sur zéro page inspectée", () => {
   expect(indexSummary([])).toEqual({ total: 0, indexed: 0, notIndexed: [] });
 });
 
+// Fix round 1 : la fixture précédente fait toujours coïncider PASS et un coverageState qui contient
+// « indexed », donc rien ne distingue « je compte sur le verdict » de « je compte sur coverageState ».
+// Ici les deux divergent délibérément : le verdict dit FAIL, le texte contient quand même « Indexed ».
+// Seul un comptage sur le verdict exclut cette page ; un comptage sur coverageState.includes("indexed")
+// la compterait indexée à tort.
+test("IDX-06 compte sur le verdict même quand coverageState contient « indexed »", () => {
+  const r = indexSummary([page("https://x/a", "FAIL", "Indexed, though blocked by robots.txt")]);
+  expect(r.indexed).toBe(0);
+  expect(r.notIndexed).toEqual([{ url: "https://x/a", coverageState: "Indexed, though blocked by robots.txt" }]);
+});
+
 test("IDX-07 signale une divergence de canonical", () => {
   const r = canonicalFindings([page("https://x/a", "PASS", "ok", "https://x/b", "https://x/a")]);
   expect(r).toEqual([{ url: "https://x/a", googleCanonical: "https://x/b", userCanonical: "https://x/a" }]);
@@ -367,6 +378,32 @@ test("STRAT-05 distingue le mot raté de la page sans impression", () => {
   expect(r[1]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
 });
 
+// Fix round 1 : les deux tests STRAT-05 ci-dessus écrivent la même URL des deux côtés (ligne Google et
+// page planifiée), donc l'appariement n'y est jamais mis à l'épreuve : un appariement par chemin seul ou
+// par URL brute les satisfait tout autant que `pageKey`. Les deux cas suivants sont le couple que `pageKey`
+// sait résoudre et que chacune des deux règles dégradées rate d'un côté différent.
+
+test("STRAT-05 apparie l'apex déclaré à la stratégie et le www rendu par Google, capture réelle du montage", () => {
+  // Une propriété Search Console de type Domaine restitue ses lignes en www ; strategy.md déclare la page
+  // en apex. Une comparaison d'URL brute (sans normalisation `pageKey`) les traiterait comme deux pages
+  // distinctes et rendrait un faux « aucune impression » sur une page qui en a bel et bien.
+  const rows = [
+    { keys: ["https://www.romain-ecarnot.com/", "bon pote nantes"], clicks: 0, impressions: 5, ctr: 0, position: 3 },
+  ];
+  const r = keywordChecks(rows, [{ page: "https://romain-ecarnot.com/", motCle: "bon pote" }]);
+  expect(r[0].hasImpressions).toBe(true);
+  expect(r[0].keywordFound).toBe(true);
+  expect(r[0].topQueries).toEqual(["bon pote nantes"]);
+});
+
+test("STRAT-05 ne confond pas deux sous-domaines qui partagent le même chemin", () => {
+  // cv.example.com/ et www.example.com/ ont tous deux le chemin « / » (mesuré, cf. brief). Un appariement
+  // par le chemin seul ferait fuiter la requête de la boutique dans les topQueries du blog.
+  const rows = [{ keys: ["https://boutique.example.com/", "achat en ligne"], clicks: 0, impressions: 5, ctr: 0, position: 3 }];
+  const r = keywordChecks(rows, [{ page: "https://blog.example.com/", motCle: "quoi que ce soit" }]);
+  expect(r[0]).toMatchObject({ hasImpressions: false, keywordFound: null, topQueries: [] });
+});
+
 const bloc = (over: any = {}) => ({
   google: { property: { siteUrl: "sc-domain:x.test", permissionLevel: "siteOwner" }, error: null,
     pages: [page("https://x.test/", "PASS", "ok"), page("https://x.test/b", "FAIL", "Crawled - currently not indexed")],
@@ -396,6 +433,24 @@ test("deriveConsole recopie les raisons de panne sans rien inventer", () => {
   expect(d.google.index).toEqual({ total: 0, indexed: 0, notIndexed: [] });
   expect(d.google.lastDataDate).toBeNull();       // search null ne doit pas lever
   expect(d.google.truncated).toBe(false);
+});
+
+// Fix round 1 : `bloc()` a une page connue et une inconnue, parfaitement symétrique. Inverser
+// `known: total - unknown.length` en `known: unknown.length` donne le même chiffre par coïncidence.
+// Ce cas à trois connues et une inconnue distingue la somme de son complément.
+test("deriveConsole compte known et unknown sans les inverser, fixture asymétrique", () => {
+  const b = bloc({
+    bing: {
+      pages: [
+        { url: "https://x.test/a", slug: "a", known: true, lastCrawled: "2026-08-29", error: null },
+        { url: "https://x.test/b", slug: "b", known: true, lastCrawled: "2026-08-29", error: null },
+        { url: "https://x.test/c", slug: "c", known: true, lastCrawled: "2026-08-29", error: null },
+        { url: "https://x.test/d", slug: "d", known: false, lastCrawled: null, error: null },
+      ],
+    },
+  });
+  const d = deriveConsole(b as any, null);
+  expect(d.bing).toMatchObject({ known: 3, total: 4, unknown: ["https://x.test/d"] });
 });
 
 test("sans stratégie strategy vaut null, avec stratégie c'est une liste", () => {
