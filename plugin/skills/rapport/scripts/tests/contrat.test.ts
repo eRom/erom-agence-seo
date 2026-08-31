@@ -80,6 +80,7 @@ describe("détecteurs de surface", () => {
     const r = parseRapportClient(indente);
     expect(r.action.couvre).toEqual(["TAG-01", "IDX-02"]);
     expect(r.action.corps).not.toContain("couvre:");
+    expect(idsVisibles(indente)).toEqual([]);
   });
 
   test("lignesEmDash rend le numéro de ligne fautive", () => {
