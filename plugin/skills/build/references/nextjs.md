@@ -212,7 +212,7 @@ Piège    : une page « use client » peut rendre `<JsonLd>` mais pas exporter `
 Source   : https://developers.google.com/search/docs/appearance/publication-dates « We recommend that you add a subtype of CreativeWork (such as Article, BlogPosting, or VideoObject), and specify the datePublished and/or dateModified fields. »
 Source   : https://nextjs.org/docs/app/guides/json-ld « Our current recommendation for JSON-LD is to render structured data as a <script> tag in your layout.js or page.js components »
 
-### Title et description (TAG-01, TAG-02)
+### Title et description (TAG-01, TAG-02, TAG-05)
 Fichiers : app/layout.tsx (title.template, title.default, description de la home), puis chaque page.tsx prévue ou son layout.tsx de segment
 Recette  : les valeurs viennent de la table validée, le template du layout racine ajoute la marque, la page ne donne que sa partie.
 ```tsx
@@ -232,6 +232,7 @@ export const metadata: Metadata = {
 ```
 Piège    : une page « use client » (hooks, animations au niveau de la page) : créer `layout.tsx` dans son dossier, qui exporte `metadata` et rend `children` ; ne pas retirer « use client » de la page sans comprendre pourquoi il est là.
 Piège    : la home ne reçoit pas le template : son title vient de `title.default`, ou d'un `title.absolute` dans app/page.tsx.
+Piège    : un title proposé fait 60 caractères ou moins, nom de marque compris. TAG-05 le signalera au-dessus de 65 ; 60 est la marge, pour qu'une retouche de texte ne rouvre pas la trouvaille au prochain audit. L'information distinctive va en premier et la marque en dernier : c'est la fin qui est coupée.
 Source   : https://nextjs.org/docs/app/api-reference/functions/generate-metadata « The metadata object and generateMetadata function exports are only supported in Server Components. »
 Source   : https://nextjs.org/docs/app/api-reference/functions/generate-metadata « title.template can be used to add a prefix or a suffix to titles defined in child route segments. »
 Source   : https://nextjs.org/docs/app/api-reference/functions/generate-metadata « If you need to use Client Component features, keep your page.tsx as a Server Component and move the Client Component logic to a separate file »

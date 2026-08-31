@@ -121,6 +121,21 @@ describe("buildPlan, hors build de l'audit niveau 0 fusionnés dans le plan (R-6
   });
 });
 
+test("TAG-05 ouverte classe le titre en texte à réécrire", async () => {
+  // Montage : report-n2 (0 trouvaille, donc TAG-01 fermée) et strategyEval désactivé, comme le cas dégradé
+  // « sans couche stratégique » : /ascension n'a alors aucun texte à réécrire au départ, ce qui isole l'effet de
+  // la trouvaille TAG-05 injectée ci-dessous par le même remplacement de texte que le test voisin de la fusion R-6.
+  const md = (await Bun.file(`${F}/report-n2.md`).text()).replace(
+    "## Trouvailles\n",
+    "## Trouvailles\n\n### [Mineur] TAG-05 : title trop long sur /ascension\nPreuve    : test\nPourquoi  : test\nSource    : https://developers.google.com/x « x »\nCorrectif : test\nEffort    : rapide\n",
+  );
+  const reportAvecTag05 = parseReport(md);
+  const plan = buildPlan({ ...inputN2, report: reportAvecTag05, strategyEval: null });
+  const page = plan.pages.find((p) => p.page === "/ascension")!;
+  expect(page.textes).toContain("title");
+  expect(kindOf("TAG-05").kind).toBe("texte");
+});
+
 describe("KINDS", () => {
   test("tout id du catalogue de vérifications a un genre explicite", async () => {
     const dir = `${import.meta.dir}/../../../audit/references/checks`;
