@@ -7,7 +7,7 @@ import { parseStrategy, StrategyError } from "../../../lib/strategy";
 import { latestAuditDir, parseReport, ReportError, type Report } from "../../../lib/report";
 import type { Manifest } from "../../../skills/audit/scripts/lib/types";
 import { fetchChain } from "../../../skills/audit/scripts/lib/fetch";
-import { decodeSitemapBody, parseSitemap } from "../../../skills/audit/scripts/lib/sitemap";
+import { decodeSitemapBody, parseSitemap } from "../../../lib/sitemap";
 import { sameSite } from "../../../lib/url";
 import { kindOf } from "../../../skills/build/scripts/lib/plan";
 import { assertNoSecret } from "../../../skills/strategy/scripts/lib/keywords";

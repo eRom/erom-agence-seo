@@ -1,28 +1,12 @@
 import type { FetchResult, SitemapUrlStats } from "./types";
 import { sameSite, pageKey, rewriteToOrigin } from "../../../../lib/url";
+import { parseSitemap, decodeSitemapBody, type SitemapKind } from "../../../../lib/sitemap";
+
+// Réexport : les appelants de l'audit gardent leur import inchangé, la définition a déménagé dans le commun.
+export { parseSitemap, decodeSitemapBody, sitemapCandidates } from "../../../../lib/sitemap";
+export type { SitemapKind } from "../../../../lib/sitemap";
 
 export type Fetcher = (url: string) => Promise<FetchResult>;
-export type SitemapKind = "index" | "urlset" | "unknown";
-
-export function parseSitemap(xml: string): { kind: SitemapKind; locs: string[] } {
-  const kind: SitemapKind = /<sitemapindex[\s>]/i.test(xml) ? "index" : /<urlset[\s>]/i.test(xml) ? "urlset" : "unknown";
-  const locs = kind === "unknown" ? [] : [...xml.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map((m) => m[1]);
-  return { kind, locs };
-}
-
-/** Un sitemap peut être servi compressé (.gz, content-type gzip, ou octets magiques 1f 8b). Le protocole impose UTF-8. */
-export function decodeSitemapBody(body: Uint8Array, url: string, contentType: string | null): string {
-  const magic = body.length > 2 && body[0] === 0x1f && body[1] === 0x8b;
-  const gz = magic || url.endsWith(".gz") || /gzip/i.test(contentType ?? "");
-  return new TextDecoder().decode(gz ? Bun.gunzipSync(body) : body);
-}
-
-/** Ordre de recherche : ce que robots.txt déclare (peut être sur un autre hôte), puis /sitemap.xml, puis /sitemap_index.xml. */
-export function sitemapCandidates(fromRobots: string[], origin: string): string[] {
-  const out: string[] = [];
-  for (const u of [...fromRobots, `${origin}/sitemap.xml`, `${origin}/sitemap_index.xml`]) if (!out.includes(u)) out.push(u);
-  return out;
-}
 
 /** Avertissement lisible quand des <loc> ont été écartées, null s'il n'y a rien à signaler. */
 export function formatSkippedWarning(stats: SitemapUrlStats): string | null {
