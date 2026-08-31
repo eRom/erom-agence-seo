@@ -97,6 +97,29 @@ describe("verifier, le site sain de D49", () => {
     expect(verifier(backtick, RAPPORT_SAIN).join("\n")).toContain("accent grave");
   });
 
+  test("refuse un commentaire HTML dans le texte du client, que le rendu ferait disparaître sans le dire", () => {
+    // Le défaut trouvé par la re-revue : sans ce refus, ce passage survit au lint puis s'efface
+    // silencieusement au rendu (défense en profondeur de rendu.ts), amputant le texte du client.
+    const avecCommentaire = SAIN.replace(
+      "Rien ne freine",
+      "Rien ne freine, littéralement <!-- ceci --> dans son texte",
+    );
+    const refus = verifier(avecCommentaire, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("synthèse");
+    expect(refus).toContain("commentaire HTML");
+  });
+
+  test("un couvre: légitime ne déclenche pas le refus de commentaire HTML : blocs() l'a déjà retiré du corps", () => {
+    // Non-régression explicite du nouveau refus : SAIN et le CLIENT complété portent chacun des
+    // couvre: normaux, vivant dans un bloc ### et retirés du corps avant que verifier() ne regarde.
+    const complet = CLIENT.replace(
+      "<!-- couvre: SD-01, SD-02 -->",
+      "<!-- couvre: SD-01, SD-02, STRAT-01, STRAT-02 -->",
+    );
+    expect(verifier(complet, RAPPORT)).toEqual([]);
+    expect(verifier(SAIN, RAPPORT_SAIN)).toEqual([]);
+  });
+
   test("refuse un gras dans « Ce qui marche déjà », zone jusqu'ici hors radar", () => {
     const gras = SAIN.replace(
       "Chaque page a son propre titre et sa propre description",

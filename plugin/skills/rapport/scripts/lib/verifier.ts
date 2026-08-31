@@ -14,6 +14,10 @@ function refuserBalisage(refus: string[], zone: string, texte: string): void {
   if (/`/.test(texte)) refus.push(`${zone} : accent grave, le rendu l'afficherait tel quel`);
   if (/\*\*|__/.test(texte)) refus.push(`${zone} : gras Markdown, le rendu l'afficherait tel quel`);
   if (/^- /m.test(texte)) refus.push(`${zone} : liste à tirets, seule la liste numérotée est rendue`);
+  // Un couvre: légitime ne passe jamais ici : blocs() le retire du corps avant que verifier() ne
+  // regarde le texte. Ce refus ne vise que le commentaire HTML resté dans la prose du client, que
+  // la défense en profondeur de rendu.ts retirerait sans le dire.
+  if (/<!--/.test(texte)) refus.push(`${zone} : commentaire HTML, le rendu retirerait silencieusement ce passage`);
 }
 
 export function verifier(clientMd: string, rapportMd: string): string[] {
