@@ -66,6 +66,18 @@ Sans rien écrire, sans ouvrir un onglet :
 
 `sites` liste les propriétés Search Console et les sites Bing visibles par le compte, avec accès et sitemaps. `inspect <url>` donne l'état d'indexation Google (verdict, couverture, canonical retenu) et ce que Bing sait de cette URL. `crawl` donne les statistiques et erreurs de crawl côté Bing. Clés : `GSC_QUOTA_PROJECT` ou `GSC_SA_KEY_FILE` pour Google, `BING_WMT_API_KEY` pour Bing (`skills/console/references/acces.md` détaille les accès). Sans clé Bing, la moitié Bing répond « non interrogé » ; sans jeton Google, c'est la consigne de connexion qui sort à sa place. Pour agir (soumettre un sitemap, pinger IndexNow), c'est `/erom-seo:checklist --agir` ; pour une preuve datée sur disque, c'est `/erom-seo:audit`.
 
+## Livrer au client
+
+Depuis le dossier qui contient un audit déjà sur disque :
+
+```
+/erom-seo:rapport
+```
+
+Sans argument, le dernier audit sous `seo/audits/` est repris. La skill lit `report.md`, choisit une seule action à faire dans la semaine et reformule les trouvailles Critique et Important sans jargon, puis écrit `rapport-client.md` et le lint avant de le rendre. Deux gestes composent le flux : `rapport.ts --preparer` sort la matière du jugement sans rien écrire, `rapport.ts --rendre` lint le Markdown et n'écrit `rapport-client.html` que si le lint passe. Après une correction manuelle du Markdown, `rapport.ts --rendre-seul <dossier>` refait le HTML seul.
+
+Le fichier produit est autonome : polices et styles embarqués, aucune requête réseau à l'ouverture. Il s'envoie en pièce jointe, s'ouvre d'un double-clic et s'imprime proprement en PDF par Cmd+P.
+
 ## Vérifier que les références n'ont pas dérivé
 
 ```bash

@@ -4,7 +4,7 @@
 
 Le dépôt de l'agence SEO/GEO : le plugin Claude Code `erom-seo` et les dossiers des sites qu'il suit.
 
-Cinq skills, sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, mot pour mot, et chaque trouvaille cite sa preuve dans la collecte. Rien ne s'affirme sans être daté et sourcé.
+Six skills, sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, mot pour mot, et chaque trouvaille cite sa preuve dans la collecte. Rien ne s'affirme sans être daté et sourcé.
 
 | Skill | Ce qu'il fait |
 |---|---|
@@ -13,6 +13,7 @@ Cinq skills, sans abonnement tiers. Chaque vérification cite la documentation o
 | `build` | La correction du code, un commit par trouvaille, jusqu'à ce qu'un audit frais n'ait plus ni Critique ni Important |
 | `checklist` | Les quinze cases avant et après la mise en ligne, chacune avec sa preuve, plus les jalons J+1 à J+90 |
 | `console` | La lecture directe de Search Console et de Bing Webmaster Tools depuis le terminal, sans rien écrire |
+| `rapport` | Le livrable client : un HTML autonome et imprimable, bâti sur une seule action à faire dans la semaine |
 
 ## Démarrer
 
@@ -34,7 +35,7 @@ Le détail de chaque skills, les clés d'API gratuites et les options : [`plugin
 
 | Dossier | Contenu |
 |---|---|
-| `plugin/` | Le plugin `erom-seo` : les cinq skills, leurs scripts et leurs références |
+| `plugin/` | Le plugin `erom-seo` : les six skills, leurs scripts et leurs références |
 | `clients/` | Un dossier par site suivi, avec sa stratégie, ses audits et sa checklist |
 | `docs/` | Les recherches datées qui ancrent les vérifications, les specs et les plans |
 | `_memory_/` | La cartographie du dépôt : architecture, fichiers clés, patterns, gotchas |
