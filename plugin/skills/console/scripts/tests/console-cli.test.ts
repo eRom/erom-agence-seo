@@ -268,9 +268,11 @@ describe("console update", () => {
     const fetcher = async (url: string) => {
       if (url.endsWith("/robots.txt")) return { status: 200, text: "Sitemap: https://www.a.fr/sitemap-articles.xml", final: "https://www.a.fr/robots.txt" };
       if (url === "https://www.a.fr/sitemap-articles.xml") return { status: 200, text: '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
-      // Sans cette réponse, listProperties lève pour de vrai et le test ne prouverait plus que D53 :
-      // il n'a pas besoin d'une propriété qui couvre le site, seulement que Google ne crashe pas la fixture.
+      // Même raison des deux côtés : sans ces réponses, listProperties et bingUserSites lèvent pour de
+      // vrai et le test ne prouverait plus que D53. Il n'a besoin ni d'une propriété ni d'un site Bing
+      // qui couvrent le site, seulement que ni Google ni Bing ne crashent la fixture.
       if (url.includes("/webmasters/v3/sites")) return { status: 200, text: '{"siteEntry":[]}' };
+      if (url.includes("GetUserSites")) return { status: 200, text: '{"d":[]}' };
       return { status: 404, text: "" };
     };
     const { deps: d, calls } = deps({ fetcher });
