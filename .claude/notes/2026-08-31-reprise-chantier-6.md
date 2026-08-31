@@ -1,45 +1,48 @@
-# Reprise (dernière mise à jour : 2026-08-31, 13 h 45)
+# Reprise (dernière mise à jour : 2026-08-31, 16 h 10, après recette)
 
 ## L'état en trois lignes
 
-Six verbes, **506 tests, 0 échec**. Chantier 6 fusionné dans `main` (`da4008f`) et poussé. Worktree et branche supprimés. `main` et `origin/main` alignés.
+Six verbes, **506 tests, 0 échec**. Chantier 6 fusionné, **recetté et clos**. `main` et `origin/main` alignés sur `3a5d09a`.
 
-Une seule chose reste ouverte : **la recette du chantier 6**.
+**Rien n'est ouvert.** La recette est passée le 31/08 après-midi : `docs/superpowers/plans/2026-08-31-erom-seo-chantier-6-recette.md`.
 
-## Ce qui reste à faire
+## Ce que la recette a donné
 
-### La recette du verbe `rapport` (tâche 7 du plan)
+Les huit AC passent. Un seul défaut du livrable trouvé, et corrigé dans la foulée.
 
-Le plan : `docs/superpowers/plans/2026-08-31-erom-seo-chantier-6-rapport-client.md`, tâche 7. Elle porte sa propre précondition et ses commandes.
+**R-1, corrigé.** `@page` ne déclarait que la marge, jamais le format : l'impression suivait le défaut du navigateur et Chrome sortait du **Letter** alors qu'AC-6 promet de l'A4 sans réglage. Une ligne dans `plugin/skills/rapport/scripts/lib/rendu.ts:71`, `@page{size:A4;margin:18mm}`. Pagination inchangée, 506 tests toujours verts. Se revérifie en une commande :
 
-**Pourquoi elle n'est pas faite** : elle couvre AC-6 (impression PDF A4 sans réglage) et le taste-gate visuel, les deux seuls critères qu'aucun test ne peut juger. Il faut un œil et une imprimante.
+```bash
+"/Applications/Google Chrome.app/Contents/MacOS/Google Chrome" --headless \
+  --print-to-pdf=/tmp/t.pdf "file://<chemin>/rapport-client.html" && pdfinfo /tmp/t.pdf | grep "Page size"
+```
 
-**Où la lancer** : dans le checkout principal `/Users/recarnot/dev/erom-agence-seo`, **jamais dans un worktree**, parce que `clients/` est gitignoré et n'existe donc que là. La précondition est déjà remplie : le plugin est dans `main`.
+**R-5, assumé.** Le taste-gate n'a jamais tourné : le plugin `erom-devil` n'est pas actif dans ce répertoire, et Romain a tranché le 31/08 qu'il jugeait le rendu lui-même sur son Mac. Le verdict visuel du chantier est le sien. Si un futur chantier veut le juge automatique ici, il faut passer par `/session-profile`.
 
-**Les trois cobayes**, tous réels, dans `clients/commentchercherbonheur.org/seo/audits/` :
+**Deux écarts étaient des erreurs du plan, pas du code** : le cobaye `2026-08-28-n0-3` que la tâche 7 désigne n'a jamais eu de `report.md` (audit non finalisé, seuls `raw/` et `derived/` existent), et l'attendu « Ce qui bloque présent » sur le cas nominal contredit D49, puisque l'action porte la seule Critique et qu'une section vide s'omet.
 
-| Dossier | Ce qu'il éprouve | Attendu |
-|---|---|---|
-| `2026-08-31-n1-2` | 1 Critique, 0 Important | « Ce qui bloque » présent, « Ce qui freine » absent |
-| `2026-08-31-n0` | aucune trouvaille grave | ni l'un ni l'autre, l'action porte une mineure |
-| `2026-08-28-n0-3` | 6 Important | le plus fourni des trois |
+## Deux gotchas du verbe `rapport`, à ne pas redécouvrir
 
-**Le piège de registre à surveiller sur le n1-2** : son unique Critique est `IDX-06`, la page `/telekinesie` inconnue de Google, relevée le jour même où la propriété Search Console a été vérifiée. Le rapport client doit écrire « pas encore explorée, probablement un délai, à revérifier au prochain point », jamais « votre page est invisible ». Aucun lint n'attrape ça.
+**Un audit d'avant la couche stratégique est refusé par `--preparer`.** Les deux audits CHICO du 28/08 portent un en-tête antérieur à l'ajout du champ « Couche stratégique ». Le message d'erreur énumère les champs attendus sans dire que le format est ancien, ce qui envoie chercher un défaut dans l'audit récent au lieu du bon endroit. Pour s'en servir quand même, compléter l'en-tête à la main sur une copie. Correctif possible un jour : nommer ce cas explicitement.
 
-**Aucun des trois ne dépasse une page et demie** : pour éprouver les sauts de page à l'impression, étoffer un Markdown à la main le temps du test.
+**Les espaces insécables sortent fautives du premier jet.** Les trois rapports de la recette ont été écrits avec des espaces normales devant les deux-points, et le lint est resté vert : c'est la seule des neuf règles du registre qu'aucun outil ne rattrape. Le geste qui corrige et le geste qui vérifie :
 
-**Les commandes de vérification** sont dans la tâche 7 du plan, steps 2 et 2 bis, avec les valeurs attendues.
+```bash
+perl -CSD -i -pe 's/ :/\x{00A0}:/g' rapport-client.md
+sed -n '<ligne>p' rapport-client.md | od -An -tx1 -c   # chercher c2 a0 3a
+```
 
-### Deux points cosmétiques reportés à la recette
+## Trois points cosmétiques, sans effet sur le client
 
-- `SKILL.md` décrit la sortie de `--preparer` comme donnant les points mineurs « à annoncer », alors que le code dit « disponibles » depuis D49. Voir si le mot trouble en conditions réelles.
-- Dans « Ce qui freine », les amorces `Constaté :`, `Effet :`, `À faire :` sont rendues en texte plat. Lisible, mais elles gagneraient à être distinguées. Ça se traiterait dans le rendu, pas dans le texte : le gras Markdown est refusé par le lint.
+- Le temps 1 du `SKILL.md` dit « points mineurs à annoncer », la sortie réelle dit « disponibles ». Le mot du code est le bon (le nombre imprimé exclut la trouvaille que l'action retient) ; c'est le `SKILL.md` qui reste à aligner.
+- Dans « Ce qui freine », les amorces `Constaté :`, `Effet :`, `À faire :` se suivent en texte plat, sans respiration. Confirmé à l'impression sur le cas riche : trois sections d'affilée font un pavé dense. À traiter dans le rendu, le gras Markdown étant refusé par le lint.
+- L'avis de licence OFL en tête du HTML écrit « Distribuee » sans accent.
 
-## Deux dettes assumées
+## Deux dettes assumées, inchangées
 
-**La couverture est un pointage d'identifiant.** Le lint vérifie qu'aucune trouvaille grave n'est absente de la déclaration ; il ne peut pas vérifier que le texte en parle vraiment. Un rapport peut donc déclarer traiter `STRAT-01` sans en dire un mot. Seule protection : le premier des cinq défauts que la relecture du temps 3 doit chercher. À rouvrir si un premier rapport réel montre la triche.
+**La couverture est un pointage d'identifiant.** Le lint vérifie qu'aucune trouvaille grave n'est absente de la déclaration ; il ne peut pas vérifier que le texte en parle vraiment. Seule protection : le premier des cinq défauts que la relecture du temps 3 doit chercher. À rouvrir si un premier rapport réel montre la triche.
 
-**Le nettoyage des commentaires CSS est fragile.** `chargerTheme()` retire les commentaires de `tokens.css` par expression régulière. Sur un fichier malformé (commentaire non fermé, valeur texte contenant les délimiteurs), il peut couper des déclarations valides. Sans effet sur le fichier réel, bien formé et rarement touché. À durcir le jour où `tokens.css` gagnerait une valeur de type chaîne.
+**Le nettoyage des commentaires CSS est fragile.** `chargerTheme()` retire les commentaires de `tokens.css` par expression régulière. Sur un fichier malformé, il peut couper des déclarations valides. Sans effet sur le fichier réel. À durcir le jour où `tokens.css` gagnerait une valeur de type chaîne.
 
 ## Un défaut hors de ce dépôt
 
@@ -59,10 +62,14 @@ Le détail est dans `docs/superpowers/journaux/2026-08-31-erom-seo-chantier-6-jo
 2. **Une garantie que personne ne peut faire tomber est imaginaire.** Un `@import` distant et une balise de script injectés laissaient 495 tests au vert. La mutation reste le seul vrai gate.
 3. **Quand une décision amende une règle, la propager là où la règle est énoncée.** D49 a vécu dans la spec et dans le lint pendant tout le chantier, mais le `SKILL.md` que le modèle lit à chaque exécution portait encore la formulation d'avant.
 
+Un quatrième, ajouté par la recette : **un test négatif ne vaut que si l'on vérifie d'abord que le défaut a bien été introduit.** La première injection de tiret cadratin a visé une ligne vide ; le lint est ressorti vert et le test ne prouvait rien.
+
 ## Deux pièges de harness, corroborés deux fois chacun
 
-- **`ls` sans `RTK_DISABLED=1 command` peut avaler une ligne.** Deux `ls plugin/skills/` ont rendu cinq dossiers au lieu de six ; j'ai cru une skill disparue. Même déformation sur `od -c`. Toute sortie qui porte une décision passe par ce préfixe.
+- **`ls` sans `RTK_DISABLED=1 command` peut avaler une ligne.** Deux `ls plugin/skills/` ont rendu cinq dossiers au lieu de six. Même déformation sur `od -c`. Toute sortie qui porte une décision passe par ce préfixe.
 - **Le garde-fou d'isolation worktree refuse les commandes Bash composées.** `cd … && git add … && git commit …` est rejeté. Quatre implémenteurs l'ont redécouvert chacun de leur côté : à écrire dans chaque brief.
+
+Un troisième, vu pendant la recette : **le cwd d'un Bash survit d'un appel à l'autre**. Trois commandes de suite ont échoué en `No such file or directory` parce qu'un appel précédent avait laissé le shell dans `clients/commentchercherbonheur.org/`. Chaque commande part de `cd /Users/recarnot/dev/erom-agence-seo &&`.
 
 ## Une branche qui traîne
 
