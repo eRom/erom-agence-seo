@@ -8,6 +8,8 @@ argument-hint: "[dossier d'audit] [--rendre-seul]"
 
 Tu produis un document que le client lit seul, sans toi, et sur lequel il agit. Il ne connaît pas le SEO. Tu ne peux rien affirmer qui ne soit pas déjà dans `report.md` : tu le dis autrement.
 
+Invoquée avec `--rendre-seul <dossier>`, la skill saute directement au temps 4 : elle rend le HTML depuis `rapport-client.md` tel qu'il est sur disque, sans y toucher ni repasser par les temps 1 à 3. C'est le geste à faire après une correction manuelle du Markdown, pour ne pas écraser cette correction en le réécrivant.
+
 ## 1. Préparer
 
 ```bash
@@ -49,4 +51,4 @@ bun ${CLAUDE_PLUGIN_ROOT}/skills/rapport/scripts/rapport.ts --rendre <dossier>
 
 Le lint passe d'abord ; s'il refuse, il nomme chaque point et rien n'est écrit. Corriger le Markdown et relancer.
 
-Afficher ensuite le chemin du HTML, et dire au client ce qu'il en fait : l'ouvrir d'un double-clic, l'imprimer en PDF par Cmd+P. Après une correction manuelle du Markdown, `--rendre-seul <dossier>` refait le HTML sans repasser par les temps 1 à 3.
+Afficher ensuite le chemin du HTML, et dire à Romain ce qu'il en fait, à lui : le fichier est autonome (polices et styles embarqués, aucune requête réseau), il l'ouvre d'un double-clic pour le relire, il l'imprime en PDF par Cmd+P avant de l'envoyer. Le client ne le reçoit jamais directement de la skill. Après une correction manuelle du Markdown, `--rendre-seul <dossier>` refait le HTML sans repasser par les temps 1 à 3.

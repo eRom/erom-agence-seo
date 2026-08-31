@@ -1,6 +1,6 @@
 # erom-seo
 
-Plugin Claude Code de l'agence : audit, stratégie, build, checklist de déploiement et lecture des consoles SEO/GEO sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, avec sa citation mot pour mot.
+Plugin Claude Code de l'agence : audit, stratégie, build, checklist de déploiement, lecture des consoles et rapport client SEO/GEO sans abonnement tiers. Chaque vérification cite la documentation officielle du moteur concerné, avec sa citation mot pour mot.
 
 ## Charger le plugin en local
 

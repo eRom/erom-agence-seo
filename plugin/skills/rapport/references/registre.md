@@ -30,8 +30,10 @@ Juste   : « Une simple correction suffit, sans urgence particulière. »
 
 Le deux-points d'une phrase remise au client porte toujours l'espace insécable qui le précède, comme le design system institut l'impose ailleurs. Un espace normal se justifie à l'écran mais casse au moment le plus mauvais : juste avant une impression, quand le mot finit une ligne et que le deux-points commence la suivante, seul, sur la ligne d'après.
 
-Fautif  : « Constaté: le titre de cette page manque. »
-Juste   : « Constaté : le titre de cette page manque. » (l'espace avant le deux-points est une espace insécable, U+00A0, pas une espace ordinaire)
+C'est la seule des neuf règles qu'aucun lint ne vérifie : elle repose entièrement sur l'attention en écrivant. L'erreur réelle n'est pas d'oublier l'espace, c'est de taper une espace normale au lieu de l'insécable : les deux se voient exactement pareil, à l'écran comme à l'impression. On ne les distingue pas à l'oeil, seul un examen des octets le fait : une espace normale est le seul octet 0x20, une espace insécable est la séquence UTF-8 C2 A0 (vérifiable par un hexdump du fichier autour du deux-points).
+
+Fautif  : « Constaté : le titre de cette page manque. » (espace normale devant le deux-points, identique à l'oeil à la bonne version)
+Juste   : « Constaté : le titre de cette page manque. » (espace insécable, U+00A0, devant le deux-points)
 
 ## Toute affirmation vient d'une preuve dans la collecte
 
