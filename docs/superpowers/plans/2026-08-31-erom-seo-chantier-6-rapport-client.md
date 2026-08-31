@@ -331,7 +331,7 @@ Expected: PASS, 8 tests.
 - [ ] **Step 6: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/lib/contrat.ts plugin/skills/rapport/scripts/tests/contrat.test.ts plugin/skills/rapport/scripts/tests/fixtures/client-conforme.md
 git commit -m "feat(rapport): contrat.ts, le parseur du Markdown client"
 ```
@@ -355,10 +355,13 @@ La séparation compte : `verifier.ts` est pur et prend deux chaînes ; `lint-cli
 - [ ] **Step 1: copier les deux fixtures de rapport technique**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
+mkdir -p plugin/skills/rapport/scripts/tests/fixtures
 cp plugin/lib/tests/fixtures/report-chico-n0.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-n0.md
-cp clients/commentchercherbonheur.org/seo/audits/2026-08-31-n0/report.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-sain.md
+cp /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org/seo/audits/2026-08-31-n0/report.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-sain.md
 ```
+
+Le second chemin est absolu et pointe vers le **checkout principal**, à dessein : `clients/` est gitignoré (`clients/commentchercherbonheur.org/` dans le `.gitignore` racine), donc ce dossier n'existe dans aucun worktree. Un `cp` relatif échouerait ici. Une fois copiée, la fixture est versionnée sous `plugin/`, et plus rien ne dépend du checkout principal.
 
 Deux vrais rapports du même site, à trois jours d'écart. Valeurs relevées sur les fichiers, pas supposées :
 
@@ -582,7 +585,7 @@ Expected: PASS, 11 tests (7 du contrat de base, 4 du site sain de D49).
 - [ ] **Step 7: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/lib/verifier.ts plugin/skills/rapport/scripts/lint-client.ts plugin/skills/rapport/scripts/tests/verifier.test.ts plugin/skills/rapport/scripts/tests/fixtures/report-chico-n0.md
 git commit -m "feat(rapport): lint-client, les six règles du contrat client (D47)"
 ```
@@ -606,7 +609,7 @@ Les valeurs des tokens ci-dessous ont été **copiées le 31/08** depuis `/Users
 - [ ] **Step 1: copier les fonts et leur licence**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 mkdir -p plugin/skills/rapport/references/theme
 DS=/Users/recarnot/dev/erom-design-system-institutionnel
 cp $DS/dist/fonts/spectral-v15-latin-regular.woff2 plugin/skills/rapport/references/theme/
@@ -696,7 +699,7 @@ export async function chargerTheme(racine = RACINE): Promise<Theme> {
 - [ ] **Step 4: vérifier le chargement et le poids**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin
+cd "$(git rev-parse --show-toplevel)"/plugin
 bun -e '
 import { chargerTheme } from "./skills/rapport/scripts/lib/theme.ts";
 const t = await chargerTheme();
@@ -711,7 +714,7 @@ Expected: `fontes : 3 | base64 total : 88 Ko` et `bleu Souverain présent`. Le t
 - [ ] **Step 5: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/references/theme plugin/skills/rapport/scripts/lib/theme.ts
 git commit -m "feat(rapport): thème institut figé, tokens et fontes Spectral sous OFL"
 ```
@@ -907,7 +910,7 @@ Expected: PASS, 7 tests.
 - [ ] **Step 5: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/lib/rendu.ts plugin/skills/rapport/scripts/tests/rendu.test.ts
 git commit -m "feat(rapport): rendu.ts, le HTML autonome au profil institut"
 ```
@@ -1077,7 +1080,7 @@ Expected: PASS. La suite comptait 434 tests avant ce chantier ; elle en compte 4
 - [ ] **Step 6: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/rapport.ts plugin/skills/rapport/scripts/tests/rapport-cli.test.ts
 git commit -m "feat(rapport): le CLI à deux gestes, preparer et rendre"
 ```
@@ -1201,7 +1204,7 @@ Dans `plugin/README.md`, ajouter une section « Livrer au client » après « Li
 - [ ] **Step 5: vérifier que la skill est découverte**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin
+cd "$(git rev-parse --show-toplevel)"/plugin
 RTK_DISABLED=1 command grep -c "skills" .claude-plugin/plugin.json
 ls skills/
 ```
@@ -1211,7 +1214,7 @@ Expected: `skills/` liste six dossiers, dont `rapport`. Le manifeste pointe `./s
 - [ ] **Step 6: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/SKILL.md plugin/skills/rapport/references/registre.md plugin/skills/rapport/references/gabarit.md README.md plugin/README.md
 git commit -m "docs(rapport): la skill, le registre client et le gabarit"
 ```
