@@ -268,6 +268,9 @@ describe("console update", () => {
     const fetcher = async (url: string) => {
       if (url.endsWith("/robots.txt")) return { status: 200, text: "Sitemap: https://www.a.fr/sitemap-articles.xml", final: "https://www.a.fr/robots.txt" };
       if (url === "https://www.a.fr/sitemap-articles.xml") return { status: 200, text: '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
+      // Sans cette réponse, listProperties lève pour de vrai et le test ne prouverait plus que D53 :
+      // il n'a pas besoin d'une propriété qui couvre le site, seulement que Google ne crashe pas la fixture.
+      if (url.includes("/webmasters/v3/sites")) return { status: 200, text: '{"siteEntry":[]}' };
       return { status: 404, text: "" };
     };
     const { deps: d, calls } = deps({ fetcher });
@@ -303,6 +306,37 @@ describe("console update", () => {
     expect(out).toContain("service injoignable");
     expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
     expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  });
+
+  // Même gabarit que le test Bing ci-dessus, sur le point d'entrée équivalent de chaque moteur
+  // (résolution avant soumission) : la similarité des trois `catch` n'implique pas une équivalence
+  // de couverture, ce qui varie autour n'est pas le corps du `catch` mais les mocks et l'ordre des appels.
+  test("un transport qui lève sur l'appel Google n'empêche ni Bing ni IndexNow, et vaut 1", async () => {
+    const base = serveur();
+    const fetcherQuiLeve = async (url: string, init: { method?: string; body?: string } = {}) => {
+      if (url === "https://www.googleapis.com/webmasters/v3/sites") throw new Error("service injoignable : connexion refusée");
+      return base(url, init);
+    };
+    const { deps: d, calls } = deps({ fetcher: fetcherQuiLeve, strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("service injoignable");
+    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  });
+
+  test("un transport qui lève sur l'appel IndexNow n'empêche ni Google ni Bing, et vaut 1", async () => {
+    const base = serveur();
+    const fetcherQuiLeve = async (url: string, init: { method?: string; body?: string } = {}) => {
+      if (url.endsWith(".txt") && !url.endsWith("/robots.txt")) throw new Error("service injoignable : connexion refusée");
+      return base(url, init);
+    };
+    const { deps: d, calls } = deps({ fetcher: fetcherQuiLeve, strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("service injoignable");
+    expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
+    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
   });
 });
 
