@@ -28,7 +28,9 @@ export async function preparer(dossier: string): Promise<string> {
     `dossier : ${dossier}`,
     `site : ${rapport.site}`,
     `date de la collecte : ${rapport.date} (niveau ${rapport.niveau}, ${rapport.nbPages} pages)`,
-    `points mineurs à annoncer : ${mineurs.length}`,
+    // Ce compte n'est pas celui qui sera annoncé en Méthode : si l'action retient une de ces
+    // mineures (D49), le compte réel en Méthode vaut ce nombre moins une. Le libellé le dit.
+    `points mineurs et info disponibles : ${mineurs.length} (le compte annoncé en Méthode exclut celle que l'action retiendrait)`,
     "",
     `trouvailles graves (${graves.length}), à couvrir toutes :`,
   ];
@@ -40,6 +42,22 @@ export async function preparer(dossier: string): Promise<string> {
       `    correctif  : ${f.correctif}`,
       `    effort     : ${f.effort}`,
     );
+  }
+  if (graves.length === 0) {
+    // Le cas de D49 : sans trouvaille grave, l'action de la semaine doit s'appuyer sur une
+    // mineure ou une info. Sans ce détail, le modèle n'a sous les yeux aucune matière pour la
+    // construire, alors que c'est exactement le cas où il en a besoin.
+    lignes.push(
+      "",
+      "aucune trouvaille grave : l'action de la semaine s'appuie sur l'une des mineures ci-dessous (D49) :",
+    );
+    for (const f of mineurs) {
+      lignes.push(
+        "", `  ${f.id} [${f.severity}] ${f.title}`,
+        `    pourquoi   : ${f.pourquoi}`,
+        `    correctif  : ${f.correctif}`,
+      );
+    }
   }
   lignes.push("", `points forts disponibles (${rapport.passed.length}) : ${rapport.passed.join(", ")}`);
   return lignes.join("\n");

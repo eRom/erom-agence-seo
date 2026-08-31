@@ -29,7 +29,7 @@ Le travail de jugement tient en trois gestes :
 - **Regrouper.** Trois trouvailles de balises se disent en un paragraphe. Le commentaire `<!-- couvre: TAG-01, TAG-02, TAG-04 -->` porte les identifiants ; le client ne les voit jamais.
 - **Gloser.** Chaque terme technique est expliqué en une demi-phrase à sa première apparition.
 
-Toutes les trouvailles Critique et Important doivent être couvertes. Aucune Mineur ni Info ne doit l'être : leur nombre suffit, dans la section Méthode.
+Toutes les trouvailles Critique et Important doivent être couvertes, par l'action ou par une section d'inventaire. Les sections d'inventaire (« Ce qui bloque », « Ce qui freine ») ne portent jamais de Mineur ni d'Info : leur nombre suffit, dans la section Méthode. L'action de la semaine, elle, peut s'appuyer sur une trouvaille Mineur ou Info quand l'audit n'en porte aucune de grave (D49) ; le compte annoncé en Méthode exclut alors celle que l'action a remontée.
 
 ## 3. Relire
 

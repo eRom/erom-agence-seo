@@ -18,7 +18,15 @@ const html = () => rendre(parseRapportClient(CLIENT), THEME);
 describe("rendre", () => {
   test("le document est autonome : aucune ressource distante", () => {
     // L'invariant de D46. On assère le comportement, pas le texte du code.
-    expect(html()).not.toMatch(/(src|href)\s*=\s*["']https?:\/\//);
+    const out = html();
+    expect(out).not.toMatch(/(src|href)\s*=\s*["']https?:\/\//);
+    // Trois garanties de D46 démontrées absentes de la suite par la revue du 31/08 : un
+    // @import réseau dans la feuille de style, une fonction url() pointant vers http(s) hors
+    // des data: URI des fontes embarquées, ou une balise de script suffisent chacun à rendre
+    // le document non inerte et à requêter le réseau, sans qu'aucun test ne le remarque.
+    expect(out).not.toMatch(/@import/i);
+    expect(out).not.toMatch(/url\(\s*['"]?https?:\/\//i);
+    expect(out).not.toMatch(/<script[\s>]/i);
   });
 
   test("les trois fontes sont embarquées en base64", () => {

@@ -3,7 +3,10 @@
 // les sections d'inventaire ne portent que du Critique et de l'Important ; le compte de points mineurs
 // annoncé exclut celles que l'action a déjà remontées.
 import { parseReport, ReportError, type Severity } from "../../../../lib/report";
-import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash, couvreMalPlaces } from "./contrat";
+import {
+  parseRapportClient, RapportClientError, idsVisibles, lignesEmDash, couvreMalPlaces,
+  pucesMarcheTronquees, chapeauAvantBloc,
+} from "./contrat";
 
 const GRAVES: readonly Severity[] = ["Critique", "Important"];
 
@@ -76,6 +79,16 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   for (const ligne of couvreMalPlaces(clientMd)) {
     refus.push(`ligne ${ligne} : commentaire couvre: hors d'un bloc de section, il fuira dans le document remis au client`);
   }
+  // Deux fuites de contenu, jamais de fuite d'identifiant : le rendu ne conserve que les lignes
+  // « - » de « Ce qui marche déjà » et jette tout ce qui précède le premier ### d'une section à
+  // blocs. Un principe déjà tenu par le chantier : un rendu qui avale du texte sans le dire est
+  // pire que le défaut qu'il corrige.
+  for (const ligne of pucesMarcheTronquees(clientMd)) {
+    refus.push(`ligne ${ligne} : suite d'une puce repliée dans « Ce qui marche déjà », le rendu ne garde que les lignes commençant par « - »`);
+  }
+  for (const ligne of chapeauAvantBloc(clientMd)) {
+    refus.push(`ligne ${ligne} : chapeau de prose avant le premier bloc ### de sa section, le rendu ne garde que le contenu des blocs`);
+  }
   for (const { ligne, id } of idsVisibles(clientMd)) {
     refus.push(`ligne ${ligne} : l'identifiant ${id} est visible par le client`);
   }
@@ -83,10 +96,16 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
     refus.push(`ligne ${ligne} : tiret cadratin interdit dans un document remis à un tiers`);
   }
 
+  // Ce contrôle couvre sept zones : le corps de l'action et des sections d'inventaire, la
+  // synthèse d'ouverture, chaque puce de « Ce qui marche déjà », le titre de chaque bloc, et la
+  // section Méthode. Les deux dernières ont longtemps échappé au contrôle : un gras y arrivait
+  // littéral chez le client, un commentaire HTML y était amputé sans refus (revue du 31/08).
   for (const s of [client.action, ...sectionsInventaire]) {
     refuserBalisage(refus, `section « ${s.titre} »`, s.corps);
+    refuserBalisage(refus, `titre de « ${s.titre} »`, s.titre);
   }
   refuserBalisage(refus, "la synthèse d'ouverture", client.synthese);
+  refuserBalisage(refus, "la section « Méthode »", client.methode);
   for (const puce of client.marche) {
     refuserBalisage(refus, "« Ce qui marche déjà »", puce);
   }

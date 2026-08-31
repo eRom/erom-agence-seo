@@ -144,3 +144,31 @@ export function couvreMalPlaces(md: string): number[] {
   });
   return lignesCouvre(md).filter((n) => !legit.has(n));
 }
+
+/** Les lignes de « Ce qui marche déjà » qui ne sont ni une puce ni une ligne vide : la suite
+ *  d'une puce repliée sur plusieurs lignes. parseRapportClient() ne garde que les lignes qui
+ *  commencent par « - », cette ligne de continuation disparaît donc du HTML sans un mot. */
+export function pucesMarcheTronquees(md: string): number[] {
+  const out: number[] = [];
+  let dansMarche = false;
+  md.split("\n").forEach((l, i) => {
+    if (/^## /.test(l)) { dansMarche = l.trimEnd() === TITRES.marche; return; }
+    if (dansMarche && l.trim() !== "" && !l.startsWith("- ")) out.push(i + 1);
+  });
+  return out;
+}
+
+/** Un chapeau de prose placé après un titre de section à blocs (À faire cette semaine, Ce qui
+ *  bloque, Ce qui freine) mais avant son premier ### : blocs() découpe sur /^### /m et jette tout
+ *  ce qui précède le premier séparateur, ce chapeau disparaît donc du HTML sans un mot. */
+export function chapeauAvantBloc(md: string): number[] {
+  const out: number[] = [];
+  let dansSectionABlocs = false;
+  let vuBloc = false;
+  md.split("\n").forEach((l, i) => {
+    if (/^## /.test(l)) { dansSectionABlocs = SECTIONS_A_BLOCS.includes(l.trimEnd()); vuBloc = false; return; }
+    if (/^### /.test(l)) { vuBloc = true; return; }
+    if (dansSectionABlocs && !vuBloc && l.trim() !== "") out.push(i + 1);
+  });
+  return out;
+}

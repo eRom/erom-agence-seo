@@ -153,6 +153,62 @@ describe("verifier, le site sain de D49", () => {
   });
 });
 
+describe("verifier, trois fuites de contenu silencieuses (revue finale du 31/08)", () => {
+  test("refuse une puce de « Ce qui marche déjà » repliée sur deux lignes : la ligne de continuation disparaît du HTML", () => {
+    const repliee = SAIN.replace(
+      "- Chaque page a son propre titre et sa propre description",
+      "- Chaque page a son propre titre et sa propre description\net une meta bien renseignée",
+    );
+    const refus = verifier(repliee, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("Ce qui marche déjà");
+    expect(refus).toMatch(/ligne \d+/);
+  });
+
+  test("refuse un chapeau de prose placé après un titre de section mais avant son premier bloc ###, qui disparaîtrait du HTML", () => {
+    const chapeau = SAIN.replace(
+      "## À faire cette semaine\n### Ajouter un fichier",
+      "## À faire cette semaine\nCette semaine, une seule chose compte.\n### Ajouter un fichier",
+    );
+    const refus = verifier(chapeau, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("chapeau");
+    expect(refus).toMatch(/ligne \d+/);
+  });
+
+  test("refuse un gras dans la section « Méthode », zone jusqu'ici hors du contrôle de balisage", () => {
+    const gras = SAIN.replace("Relevé du 31 août 2026", "Relevé du **31 août 2026**");
+    const refus = verifier(gras, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("Méthode");
+    expect(refus).toContain("gras Markdown");
+  });
+
+  test("refuse un commentaire HTML dans la section « Méthode », que le rendu amputerait sans un mot", () => {
+    const avecCommentaire = SAIN.replace("Relevé du 31 août 2026", "Relevé du 31 août 2026 <!-- brouillon -->");
+    const refus = verifier(avecCommentaire, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("Méthode");
+    expect(refus).toContain("commentaire HTML");
+  });
+
+  test("refuse un gras dans le titre d'un bloc de section, zone jusqu'ici hors du contrôle de balisage", () => {
+    const gras = SAIN.replace(
+      "### Ajouter un fichier qui présente votre site aux assistants IA",
+      "### Ajouter un fichier **llms.txt**",
+    );
+    const refus = verifier(gras, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("titre de");
+    expect(refus).toContain("gras Markdown");
+  });
+
+  test("refuse un commentaire HTML dans le titre d'un bloc, que le rendu amputerait sans un mot", () => {
+    const avecCommentaire = SAIN.replace(
+      "### Ajouter un fichier qui présente votre site aux assistants IA",
+      "### Ajouter un fichier <!-- todo --> qui présente votre site aux assistants IA",
+    );
+    const refus = verifier(avecCommentaire, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("titre de");
+    expect(refus).toContain("commentaire HTML");
+  });
+});
+
 describe("lintDossier, le contrat sur fichiers", () => {
   async function dossier(client: string, rapport: string): Promise<string> {
     const d = await mkdtemp(join(tmpdir(), "lint-client-"));

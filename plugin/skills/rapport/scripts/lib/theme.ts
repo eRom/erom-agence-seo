@@ -13,8 +13,15 @@ const FONTES: { fichier: string; poids: number; style: string }[] = [
   { fichier: "spectral-v15-latin-italic.woff2", poids: 400, style: "italic" },
 ];
 
+// Retire les commentaires CSS (/* ... */). Le commentaire de tête de tokens.css documente la
+// provenance (chemin du dépôt du DS institut, version du paquet, D45) et doit rester dans le
+// fichier versionné : c'est au chargement qu'il se retire, jamais à l'écriture. Sans ce nettoyage,
+// il traverse tel quel jusqu'au <style> du HTML remis au client (revue du 31/08, offset ~90 650).
+const retirerCommentairesCss = (css: string): string => css.replace(/\/\*[\s\S]*?\*\//g, "").trim();
+
 export async function chargerTheme(racine = RACINE): Promise<Theme> {
-  const tokens = await Bun.file(join(racine, "tokens.css")).text();
+  const brut = await Bun.file(join(racine, "tokens.css")).text();
+  const tokens = retirerCommentairesCss(brut);
   const fontes: Fonte[] = [];
   for (const f of FONTES) {
     const octets = await Bun.file(join(racine, f.fichier)).arrayBuffer();

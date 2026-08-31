@@ -3,6 +3,7 @@
 - Une section dont la liste est vide s'omet entièrement, titre compris. Un rapport sans trouvaille Critique n'a donc pas de section « Ce qui bloque » : c'est le cas nominal d'un site sain, pas une anomalie.
 - Le commentaire `<!-- couvre: ID, ID -->` est la seule trace des identifiants. Il est retiré au rendu et n'atteint jamais le client, pas même dans la source du HTML.
 - Le compte de la section Méthode vaut Mineur plus Info, pas Mineur seul.
+- Ce compte exclut les Mineur et Info déjà remontées par l'action de la semaine : une trouvaille portée par l'action ne compte pas une deuxième fois dans la Méthode (D49).
 
 ```markdown
 # {{nom du site tel que le client l'appelle}}
