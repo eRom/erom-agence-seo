@@ -68,7 +68,7 @@ ol,ul{padding-left:var(--esp-24)}
 .marche li::before{content:"·";position:absolute;left:0;color:var(--vert)}
 .methode{margin-top:var(--esp-48);padding-top:var(--esp-16);border-top:1px solid var(--filet);color:var(--encre-muted);font-size:0.9rem}
 @media print{
-  @page{margin:18mm}
+  @page{size:A4;margin:18mm}
   body{padding:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}
   p{orphans:3;widows:3}
   .entete,.trouvaille,.action,.methode,.marche{break-inside:avoid;page-break-inside:avoid}

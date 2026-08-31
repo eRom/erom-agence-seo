@@ -69,13 +69,15 @@ Note de méthode : la première tentative d'injection a visé une ligne vide et 
 
 Impression par Chrome sans toucher aux options, sur les deux rapports.
 
-Résultat en l'état du code : **format Letter**, pas A4 (R-1).
+Premier passage : **format Letter**, pas A4 (R-1). Corrigé dans la foulée, `@page` déclare désormais `size:A4`. Résultat après correctif, sans toucher aux options d'impression :
 
-```
-Page size: 612 x 792 pts (letter)
-```
+| Rapport | Format | Pages |
+|---|---|---|
+| cas nominal `2026-08-31-n1-2` | A4 (594,96 x 841,92 pts) | 2 |
+| site sain `2026-08-31-n0` | A4 | 2 |
+| cas riche, 3 sections | A4 | 3 |
 
-En forçant A4, la pagination est correcte :
+Pagination :
 
 | Rapport | Pages A4 | Trouvaille coupée | Fond papier |
 |---|---|---|---|
@@ -84,7 +86,7 @@ En forçant A4, la pagination est correcte :
 
 Le bloc d'impression fait son travail : `break-inside:avoid` sur l'en-tête, l'action, chaque trouvaille, la méthode et les points forts ; `orphans:3` et `widows:3` sur les paragraphes ; `break-after:avoid` sur les titres ; `print-color-adjust:exact` qui préserve les fonds crème, bleu et vert à l'impression. Rien n'a été coupé sur cinq pages produites.
 
-**Partiel** : la pagination est bonne, le format ne l'est pas sans réglage.
+**OK** après correctif R-1. Avant correctif, la pagination était déjà bonne, le format ne l'était pas.
 
 ### AC-7, la re-génération après correction manuelle
 
@@ -138,11 +140,11 @@ Le fait que les trois rapports soient sortis fautifs du premier jet, sans qu'auc
 
 ### Taste gate
 
-**Non exécuté** (R-5). Le plugin `erom-devil` n'est pas actif dans ce répertoire, le juge vision ne peut pas tourner. Aucun jugement automatique ne couvre le rendu montré à Romain le 31 août.
+**Non exécuté** (R-5). Le plugin `erom-devil` n'est pas actif dans ce répertoire, le juge vision ne peut pas tourner. Romain a choisi de juger le rendu lui-même plutôt que d'activer le plugin. Aucun jugement automatique ne couvre le rendu de ce chantier.
 
 ## Écarts
 
-### R-1, l'impression ne fixe pas le format A4 (moyen)
+### R-1, l'impression ne fixait pas le format A4 (moyen), CORRIGÉ
 
 `@page{margin:18mm}` ne déclare pas `size`. Le format imprimé suit donc le défaut du navigateur ou du système, et non le A4 que promet AC-6. Chrome, sans réglage, produit du Letter.
 
@@ -155,7 +157,9 @@ pdfinfo /tmp/t.pdf | grep "Page size"
 # Page size: 612 x 792 pts (letter)
 ```
 
-Sur un Mac configuré en A4, le Cmd+P de Romain donnera de l'A4 et l'écart ne se verra pas. Il se verra chez un client dont le système est en Letter, ou dans toute impression automatisée. Correctif : `@page{size:A4;margin:18mm}` dans le thème. Vérifié : avec cette seule ligne, les deux rapports sortent en A4 (594,96 x 841,92 pts) sans autre changement, pagination identique.
+Sur un Mac configuré en A4, le Cmd+P de Romain donnait de l'A4 et l'écart ne se voyait pas. Il se serait vu chez un client dont le système est en Letter, ou dans toute impression automatisée.
+
+**Correctif appliqué** le 31/08 dans `plugin/skills/rapport/scripts/lib/rendu.ts:71` : `@page{size:A4;margin:18mm}`. Une ligne, aucun autre changement. Vérifié après coup : les trois rapports sortent en A4 sans réglage, pagination identique à celle mesurée en A4 forcé. Suite complète relancée, 506 tests, 0 échec.
 
 ### R-2, un cobaye du plan n'existe pas (faible)
 
@@ -179,9 +183,9 @@ Le plan attend « Ce qui bloque » présent sur le cobaye `2026-08-31-n1-2`. Or 
 
 Le rapport produit n'a ni « Ce qui bloque » ni « Ce qui freine ». C'est le comportement juste ; l'attendu du plan est faux. La reproduire aurait demandé de dire deux fois la même chose au client dans un document d'une page.
 
-### R-5, le taste gate n'a pas tourné (à trancher)
+### R-5, le taste gate n'a pas tourné (assumé)
 
-Le plugin `erom-devil` n'est pas dans les plugins actifs de ce répertoire. `/session-profile` l'active, puis le gate se relance sur les captures déjà produites. Tant qu'il n'a pas tourné, le verdict visuel sur ce chantier est celui de Romain seul.
+Le plugin `erom-devil` n'est pas dans les plugins actifs de ce répertoire. Romain a tranché le 31/08 : pas d'activation, il juge le rendu lui-même sur son Mac. Le verdict visuel de ce chantier est donc le sien, sans jugement automatique. C'est une décision, pas un oubli.
 
 ### R-6, cosmétique, le SKILL.md et le code ne disent pas la même chose
 
@@ -203,8 +207,8 @@ Le bloc d'impression est le vrai gagnant du chantier : cinq pages produites sur 
 
 ## Bilan
 
-Sept des huit critères d'acceptation passent. AC-6 passe sur la pagination et échoue sur le format, pour une ligne de CSS manquante dont le correctif est vérifié.
+Les huit critères d'acceptation passent, R-1 corrigé et revérifié dans la même séance.
 
-Deux des quatre écarts numérotés sont des erreurs du plan, pas du code (R-2, R-4). Un seul écart touche le livrable remis au client (R-1). Le taste gate reste à passer (R-5).
+Des quatre écarts numérotés, deux étaient des erreurs du plan et non du code (R-2, R-4), un seul touchait le livrable remis au client (R-1) et il est corrigé, le dernier est une décision assumée (R-5, taste gate jugé à l'œil par Romain). Restent trois points cosmétiques sans effet sur le client (R-6, R-7, R-8).
 
-Le rapport client se lit. Le registre tient sur le cas qui pouvait le faire tomber. Le chantier est recevable une fois R-1 corrigé.
+Le rapport client se lit. Le registre tient sur le cas qui pouvait le faire tomber. Le chantier est clos.
