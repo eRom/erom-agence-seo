@@ -1226,7 +1226,7 @@ Juste   : « Une de vos pages n'a pas encore été explorée par Google. La conn
 
 La sévérité du rapport technique est une convention de catalogue, pas une traduction directe en inquiétude client.
 
-Terminer par la liste des quatre défauts de la relecture adversariale (spec, section 5, « Relecture adversariale avant de rendre ») : une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation.
+Terminer par la liste des **cinq** défauts de la relecture adversariale (spec, section 5, « Relecture adversariale avant de rendre »), en gardant en tête celui qui vient en premier et qui n'a aucun équivalent mécanique : un identifiant déclaré dans un `couvre:` dont le texte ne parle pas. Puis une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation.
 
 - [ ] **Step 3: écrire `SKILL.md`**
 
@@ -1264,7 +1264,15 @@ Toutes les trouvailles Critique et Important doivent être couvertes. Aucune Min
 
 ## 3. Relire
 
-Relire le texte en cherchant quatre défauts précis : une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation. Corriger avant de rendre.
+Relire le texte en cherchant cinq défauts précis, dans cet ordre.
+
+1. **Un identifiant déclaré dans un `couvre:` dont le texte ne parle pas.** Pour chacun, retrouve la phrase qui le porte. Si elle n'existe pas, écris-la ; ne retire jamais l'identifiant pour faire passer le lint. C'est le seul défaut qu'aucune commande ne peut voir : la couverture est un pointage d'identifiant, pas une correspondance de contenu, et un rapport peut donc déclarer traiter une trouvaille dont il ne dit pas un mot.
+2. Une affirmation qui va au-delà de la preuve.
+3. Un terme technique non glosé.
+4. Un passage qui submerge un débutant.
+5. Une dramatisation.
+
+Corriger avant de rendre.
 
 ## 4. Rendre
 

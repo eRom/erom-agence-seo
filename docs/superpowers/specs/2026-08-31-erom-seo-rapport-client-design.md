@@ -114,6 +114,17 @@ Courier Prime n'est pas embarqué : le rapport client ne montre pas de code. Si 
 
 Le point 6 n'est pas une coquetterie : c'est un document lu par un tiers, la règle de Romain s'y applique pleinement, et une règle qu'aucune commande ne vérifie est une règle qui se perd. Le hook `guard-emdash` couvre l'écriture des fichiers du dépôt, pas le contenu d'un livrable généré.
 
+**La limite du contrat, nommée le 31/08 à la revue de la tâche 2.** La couverture est un **pointage d'identifiant, jamais une correspondance de contenu**. Le lint vérifie qu'aucune trouvaille grave n'est absente de la déclaration ; il ne peut pas vérifier que le texte en parle vraiment. Contre-exemple exécuté par le reviewer : ajouter `STRAT-01, STRAT-02` au commentaire `couvre:` d'une action dont le corps parle de titres de pages fait passer le lint, alors que ces deux trouvailles Important ont disparu du document remis au client.
+
+Ce trou n'est pas refermable par un lint : juger qu'un paragraphe français traite bien d'une trouvaille donnée est du jugement, et toute heuristique de substitution (une longueur minimale par identifiant, un plafond d'identifiants par section) produirait des refus arbitraires sur des rapports justes. Deux garde-fous le tiennent à la place, et ils sont humains ou quasi :
+
+1. **La relecture du temps 3** vérifie explicitement que chaque identifiant déclaré a bien son texte. C'est le premier item de sa liste.
+2. **Le rapport ne part jamais tout seul.** Romain le lit avant de l'envoyer ; c'est un livrable commercial, pas une sortie automatique.
+
+Le risque concret est prévisible et vaut d'être écrit : face à un lint qui refuse « STRAT-01 non couverte », la tentation est d'ajouter l'identifiant au commentaire plutôt que d'écrire le paragraphe. C'est exactement la triche que le temps 3 doit chercher.
+
+Ce que le lint garantit malgré tout, et qui n'est pas rien : aucune trouvaille grave n'est **oubliée en silence**, aucune mineure ne vient gonfler l'inventaire, aucun compte n'est faux, aucun identifiant technique ne fuit, aucune section d'inventaire ne déclare une couverture sans rien dire.
+
 **Battu :** un lint qui vérifie aussi l'absence de jargon, par liste de mots. Une liste noire de termes attrape « canonique » dans « nous avons corrigé la canonique » où la glose est deux lignes plus haut, et rate « votre maillage interne est déséquilibré » qui n'est dans aucune liste. Le registre est tenu par `references/registre.md` et par la relecture, pas par un grep. Le lint tient ce qui est mécanisable sans faux positif.
 
 ### D48. Le nom français désigne le client, le nom anglais désigne la technique
@@ -237,7 +248,13 @@ Le commentaire `<!-- couvre: ID, ID -->` est la seule trace des identifiants. Il
 
 ### Relecture adversariale avant de rendre
 
-Avant d'afficher le chemin du rapport, Claude relit son propre texte en cherchant quatre défauts précis : une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation. Cette passe est dans le `SKILL.md`, temps 3.
+Avant d'afficher le chemin du rapport, Claude relit son propre texte en cherchant cinq défauts précis. Cette passe est dans le `SKILL.md`, temps 3.
+
+1. **Un identifiant déclaré dans un `couvre:` dont le texte ne parle pas.** C'est le seul défaut que le lint ne peut pas voir (D47, « la limite du contrat »), et c'est celui qui prive le client d'une information qu'il paie. Pour chaque identifiant déclaré, retrouver la phrase qui le porte ; si elle n'existe pas, l'écrire ou retirer l'identifiant, jamais l'inverse.
+2. Une affirmation qui va au-delà de la preuve.
+3. Un terme technique non glosé.
+4. Un passage qui submerge un débutant.
+5. Une dramatisation.
 
 Elle est faite par le modèle lui-même, sans sous-agent : le document fait deux pages et tient en contexte, et un sous-agent pour relire un texte qu'on vient d'écrire est exactement la délégation que la doctrine interdit.
 
