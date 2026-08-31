@@ -1,6 +1,6 @@
-# Architecture (mis à jour le 2026-08-30, 15 h)
+# Architecture (mis à jour le 2026-08-31, 13 h 30)
 
-**Type.** Plugin Claude Code `erom-seo` (dossier `plugin/`) pour l'agence : audit, stratégie, build, checklist de déploiement et consultation des consoles, sans abonnement tiers, sites propres et clients. **Cinq verbes plus l'audit niveau 1, tout fusionné dans `main` au 30/08 ; le chantier 5 est terminé.** 434 tests, 119 citations officielles vérifiées, 35 entrées de catalogue. Le repo héberge aussi les dossiers clients (`clients/<domaine>/seo/`, non suivis) et la documentation de conception.
+**Type.** Plugin Claude Code `erom-seo` (dossier `plugin/`) pour l'agence : audit, stratégie, build, checklist de déploiement, consultation des consoles et rapport client, sans abonnement tiers, sites propres et clients. **Six verbes, le chantier 6 fusionné dans `main` au 31/08.** 506 tests, 119 citations officielles vérifiées, 35 entrées de catalogue. Le repo héberge aussi les dossiers clients (`clients/<domaine>/seo/`, non suivis) et la documentation de conception.
 
 **Stack.** Bun 1.4, TypeScript, `bun:test`, `node-html-parser`, `robots-parser`. Aucune autre dépendance. Une skill = `SKILL.md` (procédure en prose pour Claude) + `scripts/` bun + `references/` Markdown strict lus par des parseurs.
 
@@ -44,3 +44,30 @@ docs/recherches/                  mots-clés gratuits (Bing, Wikimedia), API SEO
 
 **Flux du niveau 1** : `collect.ts` monte le jeton et la clé, appelle `skills/audit/scripts/lib/level1.ts` (module **pur** : `Fetcher`, jeton et clé en paramètre, aucune écriture), écrit les réponses brutes dans `raw/gsc/` et `raw/bing/`, et le dérivé dans `derived/console.json`, seul fichier que les quatre vérifications du catalogue lisent. Toute la branche est sous `try` : une panne du niveau 1 ne fait jamais échouer l'audit.
 
+
+## Le verbe `rapport` (chantier 6, fusionné le 31/08)
+
+**Ce qu'il fait.** `/erom-seo:rapport` ne collecte rien, ne vérifie rien, ne corrige rien. Il lit un audit déjà sur disque et en tire `rapport-client.html` à côté du `report.md` : un fichier **autonome** (aucune requête réseau, fontes Spectral en base64, environ 94 Ko) destiné au client final, envoyé en pièce jointe et imprimé en PDF. Il est bâti sur **une seule action** à faire dans la semaine, puis les trouvailles Critique et Important reformulées sans jargon. C'est le premier artefact du dépôt destiné à quelqu'un d'extérieur à l'agence.
+
+**Le modèle écrit au milieu du flux**, d'où un CLI à deux gestes : `rapport.ts --preparer [dossier]` sort la matière du jugement sans rien écrire, Claude rédige `rapport-client.md`, puis `--rendre <dossier>` lint et n'écrit le HTML que si le lint passe. `--rendre-seul` est l'alias du second geste, pour re-rendre après une correction manuelle du Markdown sans réécrire le jugement.
+
+**Arborescence.**
+```
+plugin/skills/rapport/
+  SKILL.md                     quatre temps, l'aiguillage --rendre-seul est en tête
+  scripts/rapport.ts           CLI deux gestes ; ../../../lib/report (3 niveaux)
+  scripts/lint-client.ts       lintDossier(), lit les deux fichiers du dossier
+  scripts/lib/contrat.ts       parseRapportClient, idsVisibles, couvreMalPlaces, PREFIXES
+  scripts/lib/verifier.ts      les 7 règles ; ../../../../lib/report (4 niveaux)
+  scripts/lib/theme.ts         chargerTheme(), champ `fontes` (français), base64
+  scripts/lib/rendu.ts         rendre(rapport, theme), pur, thème en paramètre
+  references/registre.md       neuf règles de langue face au client
+  references/gabarit.md        le squelette du Markdown client
+  references/theme/            tokens institut figés, 3 woff2 Spectral, OFL.txt
+```
+
+**Le profil visuel est `institut`, par exception au routage** d'`erom-design` qui donne `perso` (D45) : perso est dark-first, disqualifiant pour un document imprimé chez un client. Tokens copiés une fois depuis `erom-design-system-institutionnel/src/styles/tokens.css` et figés ; aucune dépendance à ce dépôt à l'exécution.
+
+**Ce que le lint garantit, et ce qu'il ne garantit pas.** Il refuse un rapport dont une trouvaille grave n'est couverte nulle part, une mineure glissée dans l'inventaire, un compte de points mineurs faux, un identifiant de catalogue visible, un tiret cadratin, un balisage que le rendu ne sait pas produire, un commentaire `couvre:` hors bloc. Il **ne peut pas** vérifier que le texte parle vraiment de la trouvaille qu'il déclare couvrir : la couverture est un pointage d'identifiant (D47). Seule la relecture du temps 3, dont c'est le premier des cinq défauts cherchés, protège de cette triche.
+
+**Reste à faire.** La recette (tâche 7 du plan) : impression PDF réelle et taste-gate, les deux seuls critères qu'aucun test ne juge. Trois audits de CHICO couvrent les trois formes de rapport (fourni, site sain, un bloquant sans frein).

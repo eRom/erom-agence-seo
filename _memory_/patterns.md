@@ -1,4 +1,4 @@
-# Patterns et conventions (mis à jour le 2026-08-29, 22 h)
+# Patterns et conventions (mis à jour le 2026-08-31, 13 h 30)
 
 **Nommage.** Vérifications `FAMILLE-NN` (ROBOTS, SNIP, IDX, SD, TAG, FRESH, REND, PERF, AI, STRAT, LVL1) ; lignes de la checklist `CL-NN` (01 à 15). Sévérités : Critique, Important, Mineur, Info. Verbes : audit, strategy, build, checklist (jamais « launch » : la skill ne déploie rien, D23), console. Entrées de référence `ACC-NN` pour `acces.md`. Dossiers : `seo/audits/<AAAA-MM-JJ>-n<niveau>[-k]/`, `seo/strategy/<AAAA-MM-JJ>[-k]/`, réservés atomiquement (`mkdir` non récursif, suffixe au premier libre, jamais écrasés).
 
@@ -22,7 +22,7 @@
 
 **Textes tiers.** Aucun em dash dans `plugin/**` (rapports, références, gabarits, SKILL.md, README) : lint et tests le refusent. Le filet ne vaut que par sa couverture : toute chaîne littérale d'un module de rendu doit apparaître dans au moins une sortie du tableau contrôlé, sinon un em dash y passe sans être vu (vérifié par mutation, 29/08). Français, citations en anglais entre « ».
 
-**Git.** Commits en français, préfixes `feat(build):`, `fix(audit):`, `test(…):`, `docs:`, `seo-build(plan):` ; trailer Co-Authored-By ; fusions `--no-ff` avec message ; le plugin n'a pas de remote, rien n'est poussé. `build` commite dans le repo du site : `seo(ID, ID): …`, branche `seo-build-<date>` si on part de main ; Romain fusionne et pousse le site lui-même.
+**Git.** Commits en français, préfixes `feat(build):`, `fix(audit):`, `test(…):`, `docs:`, `seo-build(plan):` ; trailer Co-Authored-By ; fusions `--no-ff` avec message. **Le dépôt a un remote depuis le 31/08** (`git@github.com:eRom/erom-agence-seo.git`) : `main` y est poussé sur décision de Romain, jamais d'office. `build` commite dans le repo du site : `seo(ID, ID): …`, branche `seo-build-<date>` si on part de main ; Romain fusionne et pousse le site lui-même.
 
 **Recette vivante.** Un document par chantier (`docs/superpowers/plans/<date>-erom-seo-chantier-N-recette.md`) : procédure exacte par AC, puis une section « Résultats du <date> » avec OK / KO et les sorties réelles, chaque écart numéroté `R-n` avec sévérité et cause, un bilan (OK, KO, à trancher, mineurs), puis une section « Correctifs du <date> » quand Romain a tranché. Les AC observables après coup (commits, rapport, ports, diff) se vérifient depuis les fichiers et le transcript jsonl du cobaye ; ceux qui demandent un œil humain (liste des textes, message final) se lisent dans le transcript.
 
@@ -39,3 +39,19 @@
 - **Le module de collecte est pur, l'appelant écrit.** `level1.ts` rend la liste des fichiers à poser ; `collect.ts` seul touche au réseau et au disque. C'est ce qui rend testable « aucune requête ne part ».
 - **Revue par mutation.** La méthode qui a trouvé tous les défauts sérieux de ce chantier : écrire l'implémentation fausse, lancer la suite, et regarder si un test casse. Un test qui reste vert devant un code qui ment est le défaut le plus coûteux, parce qu'il donne confiance à tort. À appliquer aussi aux textes du catalogue, en se demandant ce qu'ils feraient écrire de faux.
 
+
+## Patterns du chantier 6, le rapport client (31/08)
+
+**CLI à deux gestes autour du jugement du modèle.** Quand le modèle doit écrire au milieu d'un flux, le CLI se coupe en deux : un geste qui sort la matière sans rien écrire (`--preparer`), le modèle rédige, un geste qui valide puis écrit (`--rendre`). La garantie centrale est qu'un lint qui refuse **n'écrit rien** : on ne produit jamais un artefact dont l'entrée a été rejetée. Testé en vérifiant l'absence du fichier de sortie après un refus, pas seulement le code de retour.
+
+**Défense en profondeur sur ce qui sort de l'agence.** Le lint refuse à l'écriture, le rendu retire en dernier recours. Les deux, jamais l'un seul : le rendu est la dernière porte avant le tiers, et il doit tenir même si le lint est contourné. Corollaire appris à ses dépens : un rendu qui **retire** du contenu doit avoir un lint qui le **refuse** en amont, sinon il ampute du texte légitime en silence.
+
+**Une garantie formulée sur un format ne protège pas d'un autre format.** Trois fuites d'identifiants vers le client sur ce chantier, par trois portes : l'indentation d'un commentaire, son emplacement hors bloc, puis un commentaire **CSS** que deux campagnes de chasse ont manqué parce qu'elles surveillaient le Markdown et le HTML. La question à poser n'est pas « ce format est-il filtré » mais « quels chemins atteignent la sortie ».
+
+**Deux fonctions qui décident du même motif doivent le tester à l'identique.** `blocs()` matchait sur la ligne brute, `idsVisibles()` sur la ligne trimmée : un commentaire indenté échappait au parseur tout en restant exempté du détecteur. Quand deux fonctions se répartissent la garde d'un même motif, leur solidarité se verrouille par un test qui casse **dans les deux sens** (vérifié par mutation des deux côtés).
+
+**Un lint mécanise ce qui est mécanisable, et la limite s'écrit.** La couverture d'une trouvaille est un pointage d'identifiant : aucun lint ne peut vérifier qu'un paragraphe français parle bien de ce qu'il déclare traiter. Plutôt qu'une heuristique (longueur minimale, plafond d'identifiants) qui ferait des refus arbitraires, la limite est nommée dans la spec et la relecture du modèle gagne un défaut dédié, placé **en tête** de sa liste.
+
+**Quand une décision amende une règle, la propager là où la règle est énoncée.** D49 a été écrite dans la spec et appliquée dans le lint, mais le `SKILL.md` a gardé la formulation d'avant pendant tout le chantier, et le CLI n'affichait pas la matière du cas concerné. Une règle vit à trois endroits : la spec qui la décide, le code qui l'applique, le mode d'emploi que le modèle lit.
+
+**Un compte de tests annoncé dans un plan est un piège.** Annoncé faux (8 au lieu de 11, 464 au lieu de 467), il fait lire une suite saine comme un échec. Formuler le critère en « zéro échec, aucun test sauté » et donner le compte à titre indicatif.

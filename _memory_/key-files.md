@@ -1,4 +1,4 @@
-# Fichiers clés (mis à jour le 2026-08-30, 15 h)
+# Fichiers clés (mis à jour le 2026-08-31, 13 h 30)
 
 **Contrats partagés (`plugin/lib/`)**
 - `lib/strategy.ts` : `parseStrategy`, `lintStrategy`, `normalizeText`, `keywordMatches`, `cadenceDays`, `INDEXNOW_KEY` ; le format strict de `seo/strategy.md`.
@@ -71,3 +71,21 @@
 - `plugin/skills/audit/scripts/lib/level1.ts` — la collecte du niveau 1 et ses dérivés. Module **pur** (rien du réseau ni du disque n'y entre sans passer par un paramètre). Porte `collectLevel1`, `bingKnows`, `indexSummary`, `canonicalFindings`, `keywordChecks`, `deriveConsole`.
 - `plugin/skills/audit/references/checks/` — `indexability.md` porte `IDX-06` et `IDX-07`, `strategy.md` porte `STRAT-05`, `ai-presence.md` porte `AI-03`. C'est le texte que le modèle lit pour écrire le rapport d'un client : sa justesse compte autant que celle du code.
 
+
+## Le verbe `rapport` (chantier 6, 31/08)
+
+| Fichier | Rôle |
+|---|---|
+| `plugin/skills/rapport/SKILL.md` | Quatre temps. L'aiguillage `--rendre-seul` est **avant le temps 1**, sinon le modèle rejoue l'écriture et écrase une correction manuelle |
+| `plugin/skills/rapport/scripts/rapport.ts` | CLI deux gestes. Valide le geste **avant** de résoudre le dossier, traduit un fichier absent en message lisible. Importe `../../../lib/report`, trois niveaux |
+| `plugin/skills/rapport/scripts/lint-client.ts` | `lintDossier(dossier)`, lit `report.md` et `rapport-client.md`, rend la liste des refus |
+| `plugin/skills/rapport/scripts/lib/contrat.ts` | Parseur du Markdown client. Expose `parseRapportClient`, `idsVisibles`, `lignesEmDash`, `couvreMalPlaces`, `pucesMarcheTronquees`, `chapeauAvantBloc`, `PREFIXES` |
+| `plugin/skills/rapport/scripts/lib/verifier.ts` | Les sept règles, pur, deux chaînes en entrée. Importe `../../../../lib/report`, **quatre** niveaux |
+| `plugin/skills/rapport/scripts/lib/theme.ts` | `chargerTheme()`. Champ `fontes` en français. **Retire les commentaires CSS au chargement**, le fichier versionné garde le sien |
+| `plugin/skills/rapport/scripts/lib/rendu.ts` | `rendre(rapport, theme)`, pur, thème en paramètre pour rester testable sans lire 66 Ko de binaire |
+| `plugin/skills/rapport/references/registre.md` | Neuf règles de langue client, chacune avec un exemple fautif et un juste |
+| `plugin/skills/rapport/references/gabarit.md` | Le squelette du Markdown client. Une section vide s'omet, titre compris |
+| `plugin/skills/rapport/references/theme/tokens.css` | Tokens institut figés, 32 valeurs identiques à la source, un écart voulu sur `--serif` |
+| `plugin/skills/rapport/references/theme/OFL.txt` | Licence des fontes. **L'avis de copyright a dû être rempli ici**, la source du DS institut ne l'a pas |
+| `plugin/skills/rapport/scripts/tests/catalogue.test.ts` | Dérive `PREFIXES` du contenu réel de `references/checks/` et échoue en nommant la famille à ajouter |
+| `.claude/notes/2026-08-31-chantier-6-journal.md` | Le registre du chantier : 26 arbitrages avec leur coût si faux, les deux gotchas de harness |

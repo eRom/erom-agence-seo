@@ -1,4 +1,4 @@
-# Pièges (mis à jour le 2026-08-30, 15 h)
+# Pièges (mis à jour le 2026-08-31, 13 h 30)
 
 **Sessions et outillage**
 - Checkout partagé : jamais `git switch` ni `checkout` dans `/Users/recarnot/dev/erom-agence-seo` ; une session déléguée qui l'a fait a basculé la session mère sur sa branche (28/08). Délégation = worktree frère.
@@ -100,3 +100,23 @@
 - **Google exporte un `.zip` de sept CSV aux noms localisés** (`Requêtes.csv`, `Filtres.csv`…), UTF-8 **sans** BOM, fins de ligne LF. Les noms accentués font échouer `unzip` en ligne de commande (`write error`) là où `ditto -x -k` les extrait correctement. `Filtres.csv` porte l'état du rapport exporté : c'est le seul garde-fou contre un mauvais fichier.
 - **Bing exporte un CSV nu**, UTF-8 **avec** BOM, fins de ligne CRLF, toutes valeurs entre guillemets, en-tête `"Date","Citations","Cited Pages"`.
 
+
+## Chantier 6, le rapport client (31/08)
+
+**`ls` sans `RTK_DISABLED=1 command` peut avaler une ligne de sa sortie.** Deux `ls plugin/skills/` successifs ont rendu cinq dossiers au lieu de six, `build` manquant, alors que `git ls-files` en indexait quinze fichiers et que `git status` était vide. `test -d` et `RTK_DISABLED=1 command ls -1` ont rendu les six. Même déformation constatée le même jour sur `od -c`, dont la sortie devenait illisible sans le préfixe. Conséquence : j'ai cru une skill entière disparue et j'allais enquêter sur une base fausse. **Toute sortie sur laquelle on s'apprête à conclure passe par `RTK_DISABLED=1 command`**, y compris un `ls` d'apparence anodine.
+
+**Le garde-fou d'isolation worktree refuse les commandes Bash composées.** Dans une session isolée en worktree, `cd … && git add … && git commit …` en une ligne est rejeté comme « trop complexe à vérifier ». Rencontré par la session mère puis par quatre implémenteurs indépendamment. Les commandes git se lancent une par une. À écrire dans chaque brief d'implémenteur, sinon chacun le redécouvre et le signale comme un échec.
+
+**`EnterWorktree` branche depuis `origin/<défaut>`, pas depuis HEAD.** Le réglage `worktree.baseRef` vaut `fresh` par défaut. Sur un `main` local en avance de plusieurs commits non poussés, le worktree créé par l'outil natif n'aurait porté ni la spec ni le plan du chantier. Contourné par `git worktree add <chemin> -b <branche>`, qui part de HEAD, puis `EnterWorktree` avec `path` pour y entrer. [candidat 1x - chantier 6, 31/08]
+
+**`clients/<domaine>/` est gitignoré, donc absent de tout worktree.** Une commande de plan qui copie une fixture depuis un dossier client échoue dans un worktree et réussit dans le checkout principal. Les chemins vers `clients/` restent absolus et pointent vers `/Users/recarnot/dev/erom-agence-seo`. Corollaire : **la recette d'un chantier se fait dans le checkout principal, après la fusion**, sinon le plugin qu'elle teste n'y existe pas encore.
+
+**L'`OFL.txt` du design system institut est un gabarit non rempli.** Son bloc de copyright porte encore `Copyright (c) <dates>, <Copyright Holder> (<URL|email>), with Reserved Font Name <Reserved Font Name>`, et il annonce Spectral et Courier Prime ensemble. L'OFL 1.1 exige l'avis réel sur chaque copie redistribuée. L'avis officiel de Spectral, vérifié sur `google/fonts` le 31/08, est `Copyright 2017 The Spectral Project Authors (https://github.com/productiontype/Spectral)`, **sans clause de nom réservé**. Rempli dans `plugin/skills/rapport/references/theme/OFL.txt` ; **le défaut subsiste en amont** dans `erom-design-system-institutionnel/fonts/OFL.txt`, et tout projet qui reprend ce DS en hérite.
+
+**Embarquer une fonte, c'est la redistribuer.** Le HTML client porte les Spectral en base64 : la condition 2 de l'OFL veut que chaque copie porte l'avis et renvoie à la licence. Un `OFL.txt` resté dans le dépôt ne suit pas la pièce jointe. Trois lignes de commentaire HTML en tête du document, avec un test qui les verrouille.
+
+**Un commentaire CSS traverse toutes les défenses écrites pour le HTML.** Le commentaire de provenance de `tokens.css` (chemin du dépôt du DS, version du paquet, note éditoriale) était collé brut dans la balise `<style>` et partait chez le client. Lint, détecteurs et strip du rendu portaient tous sur le Markdown et les commentaires HTML. Corrigé au **chargement** (`chargerTheme` retire les commentaires CSS), le fichier versionné gardant le sien, que D45 exige. La regex de nettoyage est fragile sur un fichier CSS malformé (commentaire non fermé, valeur texte contenant les délimiteurs) : sans effet sur le fichier réel, bien formé et rarement touché, à durcir le jour où `tokens.css` gagnerait une valeur de type chaîne.
+
+**Une garantie que personne ne peut faire tomber est imaginaire.** Un `@import url(https://…)` ajouté à la feuille de style et une balise de script injectée dans le corps laissaient les 495 tests au vert : le test d'autonomie ne regardait que les attributs `src` et `href`. Trois assertions ajoutées, chacune vérifiée en cassant ce qu'elle surveille. Le contrôle d'AC-2 par `grep -cE '(src|href)="https?://'` a la même cécité : il ne prouve pas l'absence de réseau, seulement l'absence d'attribut.
+
+**`PREFIXES` peut dériver du catalogue sans qu'un test tombe.** `contrat.ts` fige les dix familles de vérifications ; `plugin/lib/report.ts` accepte tout `[A-Z]+-\d{2}`. Une famille ajoutée au catalogue serait refusée bruyamment dans un `couvre:` mais **invisible** pour le détecteur d'identifiants en clair. `catalogue.test.ts` dérive désormais la liste des fichiers réels de `references/checks/` et nomme la famille à ajouter.
