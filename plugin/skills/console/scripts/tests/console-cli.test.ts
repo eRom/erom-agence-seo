@@ -236,20 +236,49 @@ describe("console update", () => {
     expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
   });
 
-  test("--dry-run est refusé, aucune écriture ne part avant que T5 le câble", async () => {
+  test("--dry-run n'émet aucune écriture", async () => {
     const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
     const { out, code } = await runConsole(["update", "--site", "https://www.a.fr", "--dry-run"], d);
-    expect(code).toBe(1);
-    expect(out).toContain("arrivent à la tâche suivante");
-    expect(calls).toHaveLength(0);
+    expect(code).toBe(0);
+    expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
+    // Les lectures nécessaires au calcul sont parties : sans elles, le dry-run serait décoratif.
+    expect(calls.some((a) => a.url.includes("/webmasters/v3/sites"))).toBe(true);
+    expect(calls.some((a) => a.url.includes("GetUserSites"))).toBe(true);
+    // Le contrôle de la clé IndexNow est une lecture : il se joue aussi en simulation (D54).
+    expect(calls.some((a) => a.url.endsWith("/clepublique.txt"))).toBe(true);
+    expect(out).toContain("simulation");
   });
 
-  test("--url est refusé au même titre que --dry-run, aucune écriture ne part", async () => {
+  test("--url pinge ces URL seules et ne soumet aucun sitemap", async () => {
     const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
-    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/page"], d);
+    const { out, code } = await runConsole(
+      ["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/article"], d,
+    );
+    expect(code).toBe(0);
+    expect(calls.filter((a) => a.method === "PUT")).toHaveLength(0);
+    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(0);
+    const post = calls.find((a) => a.url === "https://api.indexnow.org/indexnow");
+    expect(JSON.parse(post!.body!).urlList).toEqual(["https://www.a.fr/article"]);
+    expect(out).not.toContain("google");
+  });
+
+  test("--url sans clé Bing n'écrit aucune ligne bing", async () => {
+    // Sans cette variante, une ligne « bing : non interrogé (clé absente) » passerait inaperçue
+    // en mode --url, où aucun sitemap n'est soumis et où Bing n'a donc rien à dire (D55, AC-4).
+    const { deps: d } = deps({ fetcher: serveur(), strategy: STRAT, key: null });
+    const { out } = await runConsole(["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/x"], d);
+    expect(out).not.toContain("bing");
+    expect(out).not.toContain("google");
+  });
+
+  test("--url refuse une URL hors origine sans appeler personne", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+    const { out, code } = await runConsole(
+      ["update", "--site", "https://www.a.fr", "--url", "https://autre.fr/x"], d,
+    );
     expect(code).toBe(1);
-    expect(out).toContain("arrivent à la tâche suivante");
-    expect(calls).toHaveLength(0);
+    expect(out).toContain("autre.fr");
+    expect(calls.some((u) => u.url === "https://api.indexnow.org/indexnow")).toBe(false);
   });
 
   test("stratégie illisible avec --site explicite : IndexNow nomme l'échec d'analyse, pas « non »", async () => {

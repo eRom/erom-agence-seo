@@ -168,11 +168,13 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     if (i >= 0 && !rest[i + 1]) return { out: "--site attend une URL en argument", code: 1 };
     let site = i >= 0 ? rest[i + 1] : undefined;
 
-    // Annoncés par USAGE pour préparer T5, mais rien ici ne les lit encore : sans ce garde-fou,
-    // qui tape --dry-run croit simuler et soumet pour de vrai chez les trois moteurs. T5 remplacera
-    // ce refus par la vraie implémentation.
-    if (rest.includes("--dry-run") || rest.includes("--url")) {
-      return { out: "--dry-run et --url arrivent à la tâche suivante. Sans eux, update soumet pour de vrai.", code: 1 };
+    const simule = rest.includes("--dry-run");
+    const urlsDemandees: string[] = [];
+    for (let k = 0; k < rest.length; k++) {
+      if (rest[k] !== "--url") continue;
+      if (!rest[k + 1]) return { out: "--url attend une URL en argument", code: 1 };
+      urlsDemandees.push(rest[k + 1]);
+      k++;
     }
 
     // La stratégie se lit une fois : elle donne le site et la clé IndexNow. Une stratégie présente mais
@@ -200,17 +202,26 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     if (sonde.final) { try { origine = new URL(sonde.final).origin; } catch { /* on garde l'origine demandée */ } }
     const declares = sonde.status === 200 ? sitemapsFromRobots(sonde.text) : [];
 
-    const simule = false; // T5 le branche sur --dry-run
-    const trouve = await trouverSitemap(d.fetcher, origine, declares);
-    if (trouve.url === null) {
-      const view: UpdateView = { site, origine, sitemap: null, nbUrls: 0, deplacees: 0, raisonSitemap: trouve.raison,
-        google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule };
-      return done(view, renderUpdate(view), 1);
+    // D55 : avec --url, aucune soumission de sitemap. Une URL hors origine est refusée ici plutôt
+    // que d'aller chercher un 422 chez IndexNow.
+    let sitemapUrl: string | null = null, urlsAPoster: string[] = [], deplacees = 0, raisonSitemap: string | null = null;
+    if (urlsDemandees.length > 0) {
+      const hors = urlsDemandees.filter((u) => { try { return new URL(u).origin !== origine; } catch { return true; } });
+      if (hors.length > 0) return { out: `hors du site : ${hors.join(", ")}\n  IndexNow n'accepte que des URL sur ${origine}`, code: 1 };
+      urlsAPoster = urlsDemandees;
+    } else {
+      const trouve = await trouverSitemap(d.fetcher, origine, declares);
+      if (trouve.url === null) {
+        raisonSitemap = trouve.raison;
+        const view: UpdateView = { site, origine, sitemap: null, nbUrls: 0, deplacees: 0, raisonSitemap,
+          google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule };
+        return done(view, renderUpdate(view), 1);
+      }
+      sitemapUrl = trouve.url;
+      const r = urlsOnOrigin(trouve.urls, origine);
+      urlsAPoster = r.urls;
+      deplacees = r.moved;
     }
-    const sitemapUrl = trouve.url;
-    const ramenees = urlsOnOrigin(trouve.urls, origine);
-    const urlsAPoster = ramenees.urls, deplacees = ramenees.moved;
-    const raisonSitemap: string | null = null;
 
     // D57 distingue deux sortes de silence, et le code de sortie ne compte que la seconde.
     // « Non applicable » est une liste fermée de trois cas, reprise mot pour mot de la spec : clé Bing
@@ -219,25 +230,36 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     // et l'absence de propriété Search Console. `console sites` et `console crawl` rendent déjà 1
     // quand le moteur visé n'a rien pu dire : cette commande ne se comporte pas autrement.
     let google: ActionResult | null = null, googleRaison: string | null = null;
-    const [a, authErr] = await auth();
-    if (!a) googleRaison = authErr;
-    else {
-      try {
-        const props = await listProperties(d.fetcher, a);
-        const p = resolveProperty(origine, props);
-        if (!p) googleRaison = "aucune propriété Search Console ne couvre ce site. Lance `console sites`.";
-        else google = await submitSitemapGoogle(d.fetcher, a, p.siteUrl, sitemapUrl);
-      } catch (e) { googleRaison = reason(e); }
-    }
+    let bing: ActionResult | null = null, bingRaison: string | null = null, bingNonApplicable: string | null = null;
+    if (sitemapUrl) {
+      const [a, authErr] = await auth();
+      if (!a) googleRaison = authErr;
+      else {
+        try {
+          const props = await listProperties(d.fetcher, a);
+          const p = resolveProperty(origine, props);
+          if (!p) googleRaison = "aucune propriété Search Console ne couvre ce site. Lance `console sites`.";
+          else {
+            google = simule
+              ? { ok: true, status: 0, message: `le sitemap ${sitemapUrl} partira vers ${p.siteUrl}` }
+              : await submitSitemapGoogle(d.fetcher, a, p.siteUrl, sitemapUrl);
+          }
+        } catch (e) { googleRaison = reason(e); }
+      }
 
-    let bing: ActionResult | null = null, bingRaison: string | null = null, bingNonApplicable: string | null = key ? null : NOKEY;
-    if (key) {
-      try {
-        const sites = await bingUserSites(d.fetcher, key);
-        const s = resolveBingSite(new URL(origine).hostname, sites);
-        if (!s) bingNonApplicable = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
-        else bing = await bingSubmitFeed(d.fetcher, key, s.Url, sitemapUrl);
-      } catch (e) { bingRaison = reason(e); }
+      bingNonApplicable = key ? null : NOKEY;
+      if (key) {
+        try {
+          const sites = await bingUserSites(d.fetcher, key);
+          const s = resolveBingSite(new URL(origine).hostname, sites);
+          if (!s) bingNonApplicable = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
+          else {
+            bing = simule
+              ? { ok: true, status: 0, message: `le sitemap ${sitemapUrl} partira pour ${s.Url}` }
+              : await bingSubmitFeed(d.fetcher, key, s.Url, sitemapUrl);
+          }
+        } catch (e) { bingRaison = reason(e); }
+      }
     }
 
     let indexnow: ActionResult | null = null, indexnowRaison: string | null = null, indexnowNonApplicable: string | null = null;
@@ -250,7 +272,11 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
       try {
         const servie = await verifierCleServie(d.fetcher, origine, cle);
         if (!servie.ok) indexnowRaison = servie.message;
-        else indexnow = await pingIndexNow(d.fetcher, { host: new URL(origine).host, key: cle, urls: urlsAPoster });
+        else {
+          indexnow = simule
+            ? { ok: true, status: 0, message: `${urlsAPoster.length} URL partiront vers IndexNow`, urls: urlsAPoster.length }
+            : await pingIndexNow(d.fetcher, { host: new URL(origine).host, key: cle, urls: urlsAPoster });
+        }
       } catch (e) { indexnowRaison = reason(e); }
     }
 
