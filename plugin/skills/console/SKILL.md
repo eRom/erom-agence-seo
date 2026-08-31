@@ -46,7 +46,7 @@ Les codes de sortie, pour qui enchaîne les commandes en script :
 
 Quand `inspect` montre un `canonical retenu par Google` différent du `canonical déclaré` (attention affichée à l'écran), Google a choisi une autre URL que celle marquée `rel=canonical` sur la page : les deux versions se font concurrence pour le même contenu, et c'est Google qui tranche, pas le site. Voir IDX-04 (une seule version d'hôte servie) dans l'audit : la cause la plus fréquente d'un tel écart est justement une variante d'hôte (www et apex) qui répond toutes les deux en 200 au lieu que l'une redirige vers l'autre.
 
-Pas d'écriture, pas de rapport : tout ce que `console` produit tient dans la sortie du terminal.
+Pas d'écriture locale, pas de rapport : tout ce que `console` produit tient dans la sortie du terminal.
 
 ## 5. Soumettre
 

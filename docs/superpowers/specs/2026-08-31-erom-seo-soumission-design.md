@@ -148,7 +148,7 @@ plugin/skills/build/
 
 ### 3.1 Le flux d'`update`, sans `--url`
 
-1. **Situer.** `--site <url>` sinon `seo/strategy.md` du répertoire courant. Absent des deux : usage, code 2.
+1. **Situer.** `--site <url>` sinon `seo/strategy.md` du répertoire courant. Absent des deux : usage, code 1 (la signature du CLI ne rend que 0 ou 1, motif antérieur à ce chantier et suivi délibérément).
 2. **Trouver l'origine servie et le sitemap.** GET `robots.txt` en suivant les redirections. L'origine finale est l'origine servie. Directives `Sitemap:`, première qui répond 200, repli `<origine>/sitemap.xml`. Rien en 200 : arrêt, code 1.
 3. **Lire le sitemap.** `parseSitemap`. Un index de sitemaps est suivi d'un niveau. Les URL sont ramenées sur l'origine servie par `urlsOnOrigin`, qui compte les réécritures.
 4. **Google.** `listProperties` puis `resolveProperty` pour la propriété qui couvre l'origine, jamais fabriquée (D33). Puis `PUT webmasters/v3/sites/{siteUrl}/sitemaps/{feedpath}`, les deux encodés dans le chemin.
@@ -207,7 +207,7 @@ indexnow  : 202 Accepted, 10 URL reçues, validation de la clé en attente
 
 En `--dry-run`, les mêmes lignes au futur, préfixées, et aucune requête d'écriture émise. Les lectures nécessaires au calcul (robots, sitemap, `sites.list`, `GetUserSites`) partent quand même : c'est ce qui rend le dry-run honnête plutôt que décoratif.
 
-Codes de sortie : `0` tout ce qui a été tenté a réussi, `1` au moins un échec, `2` usage.
+Codes de sortie : `0` tout ce qui a été tenté a réussi, `1` au moins un échec ou une erreur d'usage (la signature du CLI ne rend que 0 ou 1, motif antérieur à ce chantier et suivi délibérément).
 
 ## 5. TAG-05
 

@@ -684,10 +684,12 @@ Attendu : tout vert. **Les 44 tests de `skills/checklist` doivent passer sans qu
 - [ ] **Step 7: Vérifier que le commun ne dépend d'aucune skill**
 
 ```bash
-cd /Users/recarnot/dev/erom-seo-chantier-7 && command grep -rn 'from "\.\./skills\|from "\./skills\|skills/' plugin/lib/*.ts ; echo "exit $?"
+cd /Users/recarnot/dev/erom-seo-chantier-7 && command grep -rn 'from ".*skills/' plugin/lib/*.ts ; echo "exit $?"
 ```
 
-Attendu : aucune ligne (`exit 1`). Une ligne trouvée casse la règle du commun.
+Attendu : aucune ligne (`exit 1`). Une ligne trouvée casse la règle du commun. (Le troisième motif de l'ancienne
+alternative, `skills/` nu, remontait aussi des commentaires de provenance sans rapport avec un import : corrigé
+en revue finale du chantier 7.)
 
 - [ ] **Step 8: Commit**
 
