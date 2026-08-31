@@ -147,9 +147,9 @@ export function renderUpdate(v: UpdateView): string {
     return `${nom} : ${r.message}`;
   };
   for (const [nom, r, raison] of [
-    ["google  ", v.google, v.googleRaison],
-    ["bing    ", v.bing, v.bingRaison],
-    ["indexnow", v.indexnow, v.indexnowRaison],
+    ["google   ", v.google, v.googleRaison],
+    ["bing     ", v.bing, v.bingRaison],
+    ["indexnow ", v.indexnow, v.indexnowRaison],
   ] as const) {
     const l = ligne(nom, r, raison);
     if (l) out.push(l);

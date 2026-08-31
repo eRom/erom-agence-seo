@@ -215,9 +215,10 @@ describe("renderUpdate", () => {
     expect(out).toContain("aucun sitemap trouvé");
     expect(out).not.toContain("google");
   });
-  test("en simulation, rien n'est annoncé au passé", () => {
+  test("en simulation, la ligne mode le dit et rien n'est annoncé au passé", () => {
     const out = renderUpdate({ ...vueMinimale, simule: true, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
       google: ok("le sitemap https://www.a.fr/sitemap.xml partira vers sc-domain:a.fr") });
+    expect(out).toContain("simulation");
     expect(out).toContain("partira");
     expect(out).not.toContain("soumis");
   });

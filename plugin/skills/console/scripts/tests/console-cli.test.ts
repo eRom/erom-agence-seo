@@ -12,6 +12,8 @@ const INSPECT = '{"inspectionResult":{"inspectionResultLink":"https://search.goo
 // (8 à 128 caractères, lettres, chiffres, tirets).
 const STRAT = (await Bun.file(`${import.meta.dir}/../../../checklist/scripts/tests/fixtures/chico/strategy.md`).text())
   .replace(/^IndexNow : .*$/m, "IndexNow : clepublique");
+/** Même fixture, sans clé IndexNow déclarée : un des trois cas non applicables de D57. */
+const STRAT_SANS_INDEXNOW = STRAT.replace(/^IndexNow : .*$/m, "IndexNow : non");
 
 type Call = { url: string; method: string; body?: string };
 function deps(opts: {
@@ -174,14 +176,17 @@ describe("console crawl", () => {
 });
 
 describe("console update", () => {
-  /** Faux serveur des quatre tests d'update. Chaque option force un refus, le reste répond juste. */
-  function serveur(o: { putStatus?: number; robots?: string; sitemapStatus?: number; cleServie?: string } = {}) {
+  /** Faux serveur des tests d'update, paramétré : chaque option force un refus (ou un site Bing différent), le reste répond juste. */
+  function serveur(o: { putStatus?: number; robots?: string; sitemapStatus?: number; cleServie?: string; bingHoteAbsent?: boolean } = {}) {
     return async (url: string, init: { method?: string; body?: string } = {}) => {
       if (url.endsWith("/robots.txt")) return { status: 200, text: o.robots ?? "Sitemap: https://www.a.fr/sitemap.xml", final: "https://www.a.fr/robots.txt" };
       if (url === "https://www.a.fr/sitemap.xml") return { status: o.sitemapStatus ?? 200, text: o.sitemapStatus ? "" : '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
       if (url.includes("/sitemaps/")) return { status: o.putStatus ?? 204, text: o.putStatus ? '{"error":{"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}' : "" };
       if (url.includes("/webmasters/v3/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "https://www.a.fr/", permissionLevel: "siteOwner" }] }) };
-      if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://www.a.fr/", IsVerified: true }] }) };
+      if (url.includes("GetUserSites")) {
+        const site = o.bingHoteAbsent ? { Url: "https://autre-site.fr/", IsVerified: true } : { Url: "https://www.a.fr/", IsVerified: true };
+        return { status: 200, text: JSON.stringify({ d: [site] }) };
+      }
       if (url.includes("SubmitFeed")) return { status: 200, text: '{"d":null}' };
       if (url === "https://api.indexnow.org/indexnow") return { status: 202, text: "" };
       if (url.endsWith(".txt")) return { status: 200, text: o.cleServie ?? "clepublique" };
@@ -230,11 +235,83 @@ describe("console update", () => {
     expect(out).toContain("aucun sitemap");
     expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
   });
+
+  test("--dry-run est refusé, aucune écriture ne part avant que T5 le câble", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr", "--dry-run"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("arrivent à la tâche suivante");
+    expect(calls).toHaveLength(0);
+  });
+
+  test("--url est refusé au même titre que --dry-run, aucune écriture ne part", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/page"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("arrivent à la tâche suivante");
+    expect(calls).toHaveLength(0);
+  });
+
+  test("stratégie illisible avec --site explicite : IndexNow nomme l'échec d'analyse, pas « non »", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: "markdown invalide sans titre" });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("ne s'analyse pas");
+    expect(out).not.toContain("pas de clé IndexNow dans seo/strategy.md");
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(0);
+  });
+
+  // D53 : la même requête donne l'origine réellement servie (via la redirection portée par `final`)
+  // et les directives Sitemap: du robots.txt. Un mutant qui ignore `final`, ou qui ne transmet pas
+  // (ou vide) les sitemaps déclarés, laisserait ce test rouge sur les trois assertions à la fois.
+  test("D53 : origine servie via redirection, sitemap au chemin déclaré par robots.txt, un seul GET robots.txt", async () => {
+    const fetcher = async (url: string) => {
+      if (url.endsWith("/robots.txt")) return { status: 200, text: "Sitemap: https://www.a.fr/sitemap-articles.xml", final: "https://www.a.fr/robots.txt" };
+      if (url === "https://www.a.fr/sitemap-articles.xml") return { status: 200, text: '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
+      return { status: 404, text: "" };
+    };
+    const { deps: d, calls } = deps({ fetcher });
+    const { out } = await runConsole(["update", "--site", "https://a.fr"], d);
+    expect(out).toContain("site      : https://www.a.fr (demandé : https://a.fr)");
+    expect(out).toContain("sitemap   : https://www.a.fr/sitemap-articles.xml (1 URL)");
+    expect(calls.filter((a) => a.url.endsWith("/robots.txt"))).toHaveLength(1);
+  });
+
+  test("D57 : site absent du compte Bing, non applicable, code 0", async () => {
+    const { deps: d } = deps({ fetcher: serveur({ bingHoteAbsent: true }), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(0);
+    expect(out).toContain("ce site n'est pas dans le compte Bing");
+  });
+
+  test("D57 : pas de clé IndexNow dans une stratégie par ailleurs lisible, non applicable, code 0", async () => {
+    const { deps: d } = deps({ fetcher: serveur(), strategy: STRAT_SANS_INDEXNOW });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(0);
+    expect(out).toContain("pas de clé IndexNow dans seo/strategy.md");
+  });
+
+  test("un transport qui lève sur l'appel Bing n'empêche ni Google ni IndexNow, et vaut 1", async () => {
+    const base = serveur();
+    const fetcherQuiLeve = async (url: string, init: { method?: string; body?: string } = {}) => {
+      if (url.includes("GetUserSites")) throw new Error("service injoignable : connexion refusée");
+      return base(url, init);
+    };
+    const { deps: d, calls } = deps({ fetcher: fetcherQuiLeve, strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("service injoignable");
+    expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  });
 });
 
 describe("aucun secret ne sort", () => {
-  test("ni la clé Bing ni le jeton Google, sur les trois commandes, en texte comme en JSON", async () => {
-    for (const args of [["sites"], ["inspect", "https://romain-ecarnot.com/"], ["crawl", "--site", "https://romain-ecarnot.com"]]) {
+  test("ni la clé Bing ni le jeton Google, sur les quatre commandes, en texte comme en JSON", async () => {
+    for (const args of [
+      ["sites"], ["inspect", "https://romain-ecarnot.com/"], ["crawl", "--site", "https://romain-ecarnot.com"],
+      ["update", "--site", "https://www.a.fr"],
+    ]) {
       for (const variante of [args, [...args, "--json"]]) {
         const { deps: d } = deps({});
         const r = await runConsole(variante, d);

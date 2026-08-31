@@ -168,6 +168,13 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     if (i >= 0 && !rest[i + 1]) return { out: "--site attend une URL en argument", code: 1 };
     let site = i >= 0 ? rest[i + 1] : undefined;
 
+    // Annoncés par USAGE pour préparer T5, mais rien ici ne les lit encore : sans ce garde-fou,
+    // qui tape --dry-run croit simuler et soumet pour de vrai chez les trois moteurs. T5 remplacera
+    // ce refus par la vraie implémentation.
+    if (rest.includes("--dry-run") || rest.includes("--url")) {
+      return { out: "--dry-run et --url arrivent à la tâche suivante. Sans eux, update soumet pour de vrai.", code: 1 };
+    }
+
     // La stratégie se lit une fois : elle donne le site et la clé IndexNow. Une stratégie présente mais
     // invalide n'est pas une stratégie absente, et le dire évite de chercher un fichier qui existe déjà :
     // c'est le motif de `crawl` (console.ts:134), on ne le contredit pas d'une commande à l'autre.
@@ -197,7 +204,7 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     const trouve = await trouverSitemap(d.fetcher, origine, declares);
     if (trouve.url === null) {
       const view: UpdateView = { site, origine, sitemap: null, nbUrls: 0, deplacees: 0, raisonSitemap: trouve.raison,
-        google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule: false };
+        google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule };
       return done(view, renderUpdate(view), 1);
     }
     const sitemapUrl = trouve.url;
@@ -235,7 +242,10 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
 
     let indexnow: ActionResult | null = null, indexnowRaison: string | null = null, indexnowNonApplicable: string | null = null;
     const cle = strategie?.indexnow ?? null;
-    if (!cle) indexnowNonApplicable = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
+    // Une stratégie illisible n'est pas une stratégie sans clé : la confondre avec « IndexNow : non »
+    // afficherait une affirmation fausse sur le fichier de l'utilisateur, en code 0 (non applicable).
+    if (raisonStrategie) indexnowRaison = raisonStrategie;
+    else if (!cle) indexnowNonApplicable = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
     else {
       try {
         const servie = await verifierCleServie(d.fetcher, origine, cle);
