@@ -43,8 +43,10 @@ plugin/skills/rapport/
       rendu.test.ts                     (Task 4)
       rapport-cli.test.ts               (Task 5)
       fixtures/
-        client-conforme.md              (Task 1)
-        report-chico-n0.md              copie de plugin/lib/tests/fixtures/ (Task 2)
+        client-conforme.md              rapport client d'un site à six trouvailles graves (Task 1)
+        client-sain.md                  rapport client d'un site sans trouvaille grave, cas D49 (Task 2)
+        report-chico-n0.md              rapport technique du 28/08, copie de plugin/lib/tests/fixtures/ (Task 2)
+        report-chico-sain.md            rapport technique du 31/08, copie du dossier client (Task 2)
   references/
     registre.md                         les règles de langue (Task 6)
     gabarit.md                          le squelette du Markdown client (Task 6)
@@ -350,14 +352,52 @@ git commit -m "feat(rapport): contrat.ts, le parseur du Markdown client"
 
 La séparation compte : `verifier.ts` est pur et prend deux chaînes ; `lint-client.ts` est le CLI qui lit les fichiers et rend le code de sortie. Le premier se teste sans disque.
 
-- [ ] **Step 1: copier la fixture du rapport technique**
+- [ ] **Step 1: copier les deux fixtures de rapport technique**
 
 ```bash
 cd /Users/recarnot/dev/erom-agence-seo
 cp plugin/lib/tests/fixtures/report-chico-n0.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-n0.md
+cp clients/commentchercherbonheur.org/seo/audits/2026-08-31-n0/report.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-sain.md
 ```
 
-Cette fixture est un vrai rapport de CHICO : zéro Critique, six Important (`SD-01`, `SD-02`, `IDX-02`, `TAG-01`, `STRAT-01`, `STRAT-02`), six Mineur et un Info, soit sept points mineurs. Ces valeurs ont été relevées sur le fichier, elles ne sont pas supposées.
+Deux vrais rapports du même site, à trois jours d'écart. Valeurs relevées sur les fichiers, pas supposées :
+
+| Fixture | Critique | Important | Mineur | Info |
+|---|---|---|---|---|
+| `report-chico-n0.md` (28/08) | 0 | 6 : `SD-01`, `SD-02`, `IDX-02`, `TAG-01`, `STRAT-01`, `STRAT-02` | 6 | 1 |
+| `report-chico-sain.md` (31/08) | 0 | 0 | 1 : `SD-03` | 2 : `PERF-01`, `AI-01` |
+
+La seconde est le cas D49, celui du site suivi qui va bien. C'est l'état réel du site au 31/08, pas un cas fabriqué : il a corrigé ses six Important en trois jours.
+
+- [ ] **Step 1 bis: écrire la fixture du rapport client d'un site sain**
+
+Créer `plugin/skills/rapport/scripts/tests/fixtures/client-sain.md` :
+
+```markdown
+# Comment chercher le bonheur
+Revue du 31 août 2026
+
+Votre site est en bon état. Rien ne freine aujourd'hui sa présence sur Google, et les corrections faites depuis fin août ont porté. Ce document propose la prochaine chose utile à faire, puis rappelle ce qui fonctionne.
+
+## À faire cette semaine
+### Ajouter un fichier qui présente votre site aux assistants IA
+<!-- couvre: AI-01 -->
+Les assistants comme ChatGPT ou Perplexity cherchent à la racine des sites un petit fichier texte qui résume de quoi le site parle. Le vôtre n'en a pas, donc ces assistants doivent deviner.
+
+1. Créez un fichier nommé llms.txt à la racine du site.
+2. Écrivez-y le nom du site, une phrase de description, et la liste de vos pages principales.
+
+## Ce qui marche déjà
+- Chaque page a son propre titre et sa propre description
+- Vos pages portent une fiche d'identité structurée que Google sait lire
+- L'adresse sans www renvoie définitivement vers l'adresse avec www
+
+## Méthode
+Relevé du 31 août 2026 sur dix pages, depuis l'adresse publique du site.
+2 points mineurs figurent dans le rapport technique complet, disponible sur demande.
+```
+
+Deux points à ne pas rater dans cette fixture : elle n'a **ni** « Ce qui bloque » **ni** « Ce qui freine », et son compte annonce **2** points mineurs alors que le rapport technique en porte 3, parce que l'action en a déjà remonté un (D49).
 
 - [ ] **Step 2: écrire les tests**
 
@@ -369,6 +409,8 @@ import { verifier } from "../lib/verifier";
 
 const CLIENT = await Bun.file(`${import.meta.dir}/fixtures/client-conforme.md`).text();
 const RAPPORT = await Bun.file(`${import.meta.dir}/fixtures/report-chico-n0.md`).text();
+const SAIN = await Bun.file(`${import.meta.dir}/fixtures/client-sain.md`).text();
+const RAPPORT_SAIN = await Bun.file(`${import.meta.dir}/fixtures/report-chico-sain.md`).text();
 
 describe("verifier", () => {
   test("la fixture conforme laisse deux Important non couvertes, et le dit", () => {
@@ -386,7 +428,7 @@ describe("verifier", () => {
     expect(verifier(complet, RAPPORT)).toEqual([]);
   });
 
-  test("refuse une trouvaille mineure glissée dans le rapport client", () => {
+  test("refuse une trouvaille mineure glissée dans une section d'inventaire", () => {
     const avecMineur = CLIENT.replace("<!-- couvre: SD-01, SD-02 -->", "<!-- couvre: SD-01, SD-02, STRAT-01, STRAT-02, SD-03 -->");
     expect(verifier(avecMineur, RAPPORT).join("\n")).toContain("SD-03");
   });
@@ -395,7 +437,33 @@ describe("verifier", () => {
     const fauxCompte = CLIENT
       .replace("<!-- couvre: SD-01, SD-02 -->", "<!-- couvre: SD-01, SD-02, STRAT-01, STRAT-02 -->")
       .replace("7 points mineurs", "3 points mineurs");
-    expect(verifier(fauxCompte, RAPPORT).join("\n")).toContain("7");
+    expect(verifier(fauxCompte, RAPPORT).join("\n")).toContain("compte de points mineurs faux");
+  });
+});
+
+describe("verifier, le site sain de D49", () => {
+  test("accepte un rapport sans aucune trouvaille grave, dont l'action porte une Info", () => {
+    // report-chico-sain.md : 0 Critique, 0 Important, 1 Mineur, 2 Info. L'action porte AI-01.
+    expect(verifier(SAIN, RAPPORT_SAIN)).toEqual([]);
+  });
+
+  test("le compte annoncé exclut la mineure remontée par l'action", () => {
+    // Trois mineures au rapport technique, une portée par l'action : deux restent à annoncer.
+    const troisAnnonces = SAIN.replace("2 points mineurs", "3 points mineurs");
+    expect(verifier(troisAnnonces, RAPPORT_SAIN).join("\n")).toContain("2 attendus");
+  });
+
+  test("refuse la même Info dans une section d'inventaire, alors qu'elle passe dans l'action", () => {
+    const dansInventaire = SAIN.replace(
+      "## Ce qui marche déjà",
+      "## Ce qui freine\n### Pas de données de vitesse\n<!-- couvre: PERF-01 -->\nUn corps.\n\n## Ce qui marche déjà",
+    );
+    expect(verifier(dansInventaire, RAPPORT_SAIN).join("\n")).toContain("section d'inventaire ne porte que");
+  });
+
+  test("refuse un identifiant que le rapport technique ne porte pas", () => {
+    const inventé = SAIN.replace("<!-- couvre: AI-01 -->", "<!-- couvre: IDX-01 -->");
+    expect(verifier(inventé, RAPPORT_SAIN).join("\n")).toContain("absente du rapport technique");
   });
 
   test("refuse un identifiant de catalogue visible par le client", () => {
@@ -427,7 +495,10 @@ Expected: FAIL, `Cannot find module '../lib/verifier'`.
 - [ ] **Step 4: écrire `verifier.ts`**
 
 ```typescript
-// Les six règles de D47. Pur : deux chaînes en entrée, la liste des refus en sortie.
+// Les six règles de D47, amendées par D49. Pur : deux chaînes en entrée, la liste des refus en sortie.
+// D49 : l'action de la semaine peut s'appuyer sur n'importe quelle trouvaille, y compris Mineur ou Info ;
+// les sections d'inventaire ne portent que du Critique et de l'Important ; le compte de points mineurs
+// annoncé exclut celles que l'action a déjà remontées.
 import { parseReport, type Severity } from "../../../../lib/report";
 import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash } from "./contrat";
 
@@ -443,19 +514,28 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   const rapport = parseReport(rapportMd);
   const graves = rapport.findings.filter((f) => GRAVES.includes(f.severity));
   const mineurs = rapport.findings.filter((f) => !GRAVES.includes(f.severity));
+  const connus = new Map(rapport.findings.map((f) => [f.id, f.severity] as const));
 
-  const couverts = new Set([client.action, ...client.bloque, ...client.freine].flatMap((s) => s.couvre));
+  const parAction = new Set(client.action.couvre);
+  const parSections = new Set([...client.bloque, ...client.freine].flatMap((s) => s.couvre));
 
   for (const f of graves) {
-    if (!couverts.has(f.id)) refus.push(`${f.id} (${f.severity}) n'est couverte par aucune section du rapport client : « ${f.title} »`);
+    if (!parAction.has(f.id) && !parSections.has(f.id)) {
+      refus.push(`${f.id} (${f.severity}) n'est couverte ni par l'action ni par une section : « ${f.title} »`);
+    }
   }
-  for (const id of couverts) {
-    const m = mineurs.find((f) => f.id === id);
-    if (m) refus.push(`${id} est ${m.severity} et n'a pas sa place dans le rapport client`);
-    else if (!graves.some((f) => f.id === id)) refus.push(`${id} est couverte mais absente du rapport technique`);
+  for (const id of parSections) {
+    const sev = connus.get(id);
+    if (sev === undefined) refus.push(`${id} est couverte mais absente du rapport technique`);
+    else if (!GRAVES.includes(sev)) refus.push(`${id} est ${sev} : une section d'inventaire ne porte que du Critique ou de l'Important (D49)`);
   }
-  if (client.mineursAnnonces !== mineurs.length) {
-    refus.push(`compte de points mineurs faux : ${client.mineursAnnonces} annoncés, ${mineurs.length} dans le rapport technique`);
+  for (const id of parAction) {
+    if (!connus.has(id)) refus.push(`${id} est couverte par l'action mais absente du rapport technique`);
+  }
+
+  const restants = mineurs.filter((f) => !parAction.has(f.id)).length;
+  if (client.mineursAnnonces !== restants) {
+    refus.push(`compte de points mineurs faux : ${client.mineursAnnonces} annoncés, ${restants} attendus`);
   }
   for (const { ligne, id } of idsVisibles(clientMd)) {
     refus.push(`ligne ${ligne} : l'identifiant ${id} est visible par le client`);
@@ -466,6 +546,8 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   return refus;
 }
 ```
+
+Ce code a été exécuté le 31/08 sur quatre cas, dont le rapport réel de CHICO du jour : site sain accepté, compte ajusté à 2 au lieu de 3, Info refusée dans une section d'inventaire, et comportement inchangé sur la fixture à six graves.
 
 - [ ] **Step 5: écrire le CLI `lint-client.ts`**
 
@@ -495,7 +577,7 @@ if (import.meta.main) {
 - [ ] **Step 6: lancer les tests et vérifier qu'ils passent**
 
 Run: `cd plugin && bun test skills/rapport/scripts/tests/verifier.test.ts`
-Expected: PASS, 7 tests.
+Expected: PASS, 11 tests (7 du contrat de base, 4 du site sain de D49).
 
 - [ ] **Step 7: commit**
 
@@ -990,7 +1072,7 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: lancer toute la suite, pour vérifier qu'aucun verbe existant n'a bougé**
 
 Run: `cd plugin && bun test`
-Expected: PASS. La suite comptait 434 tests avant ce chantier ; elle en compte 460 après les tâches 1 à 5.
+Expected: PASS. La suite comptait 434 tests avant ce chantier ; elle en compte 464 après les tâches 1 à 5 : 8 de contrat, 11 de lint, 7 de rendu, 4 de CLI.
 
 - [ ] **Step 6: commit**
 
@@ -1147,6 +1229,20 @@ RTK_DISABLED=1 command grep -cE '\b(AI|FRESH|IDX|PERF|REND|ROBOTS|SD|SNIP|STRAT|
 ```
 
 Pour AC-5, injecter un tiret cadratin dans le Markdown, relancer le lint, vérifier qu'il sort 1 en nommant la ligne, puis retirer le tiret.
+
+- [ ] **Step 2 bis: vérifier AC-8, le site sain**
+
+C'est le cas réel de CHICO au 31/08, pas une simulation : l'audit ne porte aucune trouvaille grave.
+
+```bash
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org
+D=seo/audits/2026-08-31-n0
+bun ../../plugin/skills/rapport/scripts/lint-client.ts $D                        # attendu 0
+RTK_DISABLED=1 command grep -c "Ce qui bloque\|Ce qui freine" $D/rapport-client.html  # attendu 0
+RTK_DISABLED=1 command grep -o "[0-9]* points mineurs" $D/rapport-client.md      # attendu « 2 points mineurs »
+```
+
+L'action doit porter `AI-01` et proposer le fichier `llms.txt`. Si Claude a choisi une autre action, ce n'est pas un échec : vérifier qu'elle s'appuie bien sur une des trois trouvailles réelles (`SD-03`, `PERF-01`, `AI-01`) et que le compte annoncé vaut 3 moins celles remontées.
 
 - [ ] **Step 3: vérifier AC-6, l'impression**
 

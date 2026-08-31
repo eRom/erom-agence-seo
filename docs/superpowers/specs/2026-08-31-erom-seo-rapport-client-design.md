@@ -73,6 +73,8 @@ L'honnêteté est préservée par ce compte, qui est vérifié par le lint : on 
 
 **Battu :** tout le rapport reformulé, les vingt-six vérifications comprises. Le document passe à cinq ou six pages, l'action principale se noie, et on retombe sur le défaut de `report.md` avec une typographie plus jolie. La justification du travail facturé passe par la section « Ce qui marche déjà » et par le pied de méthode, pas par un mur de mineurs.
 
+**Amendée par D49** le 31/08 : la restriction aux Critique et Important vaut pour les sections d'inventaire, pas pour l'action de la semaine.
+
 ### D45. Profil visuel institut, tokens figés dans le plugin
 
 Le routage d'`erom-design` donne **perso** par défaut, faute de signal `erom-institut` dans le repo (vérifié le 31/08, zéro fichier). Ce défaut est écarté pour cet artefact précis, sur décision de Romain.
@@ -104,9 +106,9 @@ Courier Prime n'est pas embarqué : le rapport client ne montre pas de code. Si 
 `lint-client.ts` sort 1 et nomme la ligne fautive si :
 
 1. la section « À faire cette semaine » manque ou est vide ;
-2. une trouvaille Critique ou Important de `report.md` n'est couverte par aucune section du rapport client (correspondance par identifiant, porté en commentaire HTML invisible côté client) ;
-3. une trouvaille Mineur ou Info est présente ;
-4. le compte de mineurs annoncé diffère de celui de `report.md` ;
+2. une trouvaille Critique ou Important de `report.md` n'est couverte ni par l'action ni par une section d'inventaire (correspondance par identifiant, porté en commentaire HTML invisible côté client) ;
+3. une trouvaille Mineur ou Info apparaît dans une section d'inventaire (D49 : l'action, elle, peut la porter) ;
+4. le compte de mineurs annoncé diffère du nombre de Mineur et Info **non remontées dans l'action** (D49) ;
 5. un identifiant technique (`IDX-03`, `SNIP-02`, …) apparaît dans le texte visible ;
 6. le document contient un em dash.
 
@@ -123,6 +125,25 @@ La proximité `rapport` / `report` a été pesée. Elle est retenue parce qu'ell
 **Battu :** `/erom-seo:livrable`. Exact mais jargonneux, et Romain ne le taperait pas spontanément.
 
 **Battu :** `/erom-seo:client`. Ambigu : le mot désigne déjà les dossiers de `clients/`.
+
+### D49. Le site sain a droit à un rapport, et l'action peut s'appuyer sur une trouvaille mineure
+
+Découverte le 31/08, sur le premier site réel. L'audit frais de CHICO donne **zéro Critique et zéro Important**, une Mineur et deux Info : en trois jours le site avait corrigé ses cinq Important du 28/08. Sous D44 seule, son rapport client serait vide, et le lint exigerait une action de la semaine qui ne s'appuie sur rien.
+
+Ce n'est pas un cas limite. C'est l'état de tout site suivi qui va bien, donc la moitié des rapports d'une agence en régime récurrent. Un livrable incapable de dire « rien ne bloque, voici la suite » ne sert qu'une fois, au premier audit.
+
+La règle se sépare donc en deux :
+
+- **L'action de la semaine** peut s'appuyer sur n'importe quelle trouvaille du rapport technique, Mineur et Info comprises. Sur CHICO, elle porte `AI-01` (pas de `llms.txt`) et devient « ajouter un fichier qui présente votre site aux assistants IA ».
+- **Les sections d'inventaire** (« Ce qui bloque », « Ce qui freine ») ne portent que du Critique et de l'Important, comme D44 le pose. Une Mineur qui s'y glisse est refusée.
+
+Conséquence sur le compte : **les points mineurs annoncés excluent ceux déjà remontés dans l'action**. Sur CHICO, trois mineures moins celle portée par l'action font deux. Annoncer trois serait mentir au client sur ce qu'il ne voit pas, puisqu'il en voit une.
+
+L'asymétrie a une raison : l'action est un choix éditorial, l'inventaire est un constat. Autoriser une mineure dans l'inventaire noierait le rapport, ce que D44 refuse ; l'interdire dans l'action rendrait le rapport de suivi impossible.
+
+**Battu :** la règle stricte, où un site sans trouvaille grave n'a pas de rapport client et où le verbe répond « rien à signaler ». Plus simple à tenir, et elle supprime exactement le livrable mensuel qui fait vivre un suivi.
+
+**Battu :** remonter les Mineur dans une troisième section d'inventaire, « Points de détail ». C'est le mur de vingt trouvailles que D44 a déjà écarté, réintroduit par une autre porte.
 
 ## 3. Composants
 
@@ -280,6 +301,10 @@ Quand le rapport est imprimé en A4 par Cmd+P sans toucher aux options, alors au
 Quand une phrase de `rapport-client.md` est corrigée à la main, alors `--rendre-seul` produit un HTML à jour sans passer par Claude.
 *Vérifié par* : modifier une phrase, lancer `rapport.ts --rendre-seul <dossier>`, `grep` la phrase corrigée dans le HTML.
 
+**AC-8. Un site sans trouvaille grave produit quand même un rapport utile.**
+Quand l'audit ne porte ni Critique ni Important, alors le rapport client est produit, son action s'appuie sur une trouvaille mineure, et aucune section d'inventaire vide n'apparaît.
+*Vérifié par* : sur `clients/commentchercherbonheur.org/seo/audits/2026-08-31-n0/` (0 Critique, 0 Important, 1 Mineur, 2 Info), `lint-client.ts` sort 0 avec une action portant `AI-01`, et `grep -c "Ce qui bloque\|Ce qui freine" rapport-client.html` sort `0`. Le compte annoncé dans la Méthode vaut alors 2, pas 3.
+
 ## 9. Hors périmètre
 
 - **Les huit autres skills d'OpenSEO** (mots-clés, clustering, concurrents, backlinks, prospection de liens, SEO local, coach, setup). Elles reposent toutes sur DataForSEO, payant à la requête. Ce n'est pas un problème de reprise, c'est un problème de source de données, et il se tranche séparément.
@@ -294,4 +319,4 @@ Quand une phrase de `rapport-client.md` est corrigée à la main, alors `--rendr
 1. **Les valeurs exactes des tokens institut ne sont pas dans le digest.** Seuls `--papier-fond`, `--encre` et le bleu 700 y figurent. Le reste se copie depuis `src/styles/tokens.css` du repo institut à l'implémentation. Rien ne doit être inventé ni déduit ; si un token manque à la copie, il est demandé, pas approximé.
 2. **La qualité du saut de page n'est vérifiable qu'à l'impression réelle.** AC-6 l'impose sur le site cobaye avant de déclarer le chantier fini. Un rapport à deux trouvailles ne prouve rien : la vérification se fait sur un rapport à six sections au moins.
 3. **Le choix de l'action unique est du jugement non testable.** Le lint garantit qu'il y en a une et une seule, pas que c'est la bonne. C'est le point où ce verbe peut décevoir, et le seul recours est la relecture de Romain sur les premiers rapports réels.
-4. **Le site cobaye reste à désigner.** `healthincloud.app` est hors ligne depuis le 30/08 et sert les cas de dégradation ; Chico n'a de propriété dans aucune console. Le rapport client n'a besoin ni de l'une ni de l'autre, un niveau 0 suffit, mais il faut un site avec assez de trouvailles pour éprouver la mise en page.
+4. **Le site cobaye est CHICO** (`commentchercherbonheur.org`), tranché par Romain le 31/08. Deux constats mesurés le jour même, qui changent la recette : le site n'a de propriété **ni** dans Search Console **ni** dans Bing, donc le niveau 1 lui est inaccessible et la recette se fera au niveau 0 ; et son audit frais ne porte plus aucune trouvaille grave, ce qui en fait le cobaye du cas D49 plutôt que celui d'un rapport fourni. **AC-6, l'impression, ne peut donc pas être vérifiée sur son rapport réel** : il faut un Markdown étoffé à la main pour éprouver les sauts de page, comme le plan le prévoit.
