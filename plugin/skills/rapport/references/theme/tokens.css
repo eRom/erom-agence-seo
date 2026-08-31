@@ -1,0 +1,44 @@
+/* Tokens du design system eRom institut, copiés le 2026-08-31 depuis
+   erom-design-system-institutionnel/src/styles/tokens.css (paquet erom-institut 0.1.0).
+   Figés ici pour que le plugin ne dépende d'aucun repo externe à l'exécution.
+   Sous-ensemble : seuls les tokens utilisés par le rapport client sont repris.
+
+   Un seul écart avec la source, délibéré : --serif y vaut 'Spectral', Georgia, serif.
+   'Times New Roman' est intercalé ici parce que ce fichier voyage chez le client, sur des
+   machines dont on ne sait rien ; Georgia manque sur beaucoup de postes Windows d'entreprise.
+   Tous les autres tokens sont copiés au caractère près et ne se retouchent pas. */
+:root {
+  --papier-carte: #FDFCFA;
+  --papier-fond: #FAF8F5;
+  --papier-surface: #F3F0EA;
+  --papier-creux: #EBE7DF;
+  --filet: #D9D4CC;
+  --filet-clair: #E5E0D8;
+
+  --encre: #1C1A19;
+  --encre-2: #44403C;
+  --encre-3: #57534E;
+  --encre-muted: #78716C;
+  --encre-estompee: #A8A29E;
+
+  --bleu-50: #F0F2F9;
+  --bleu-100: #E5E8F3;
+  --bleu-200: #C5CCE5;
+  --bleu-700: #122B78;
+  --bleu-800: #0D2058;
+
+  --garance-50: #FCF0F1;
+  --garance-200: #F5C2C7;
+  --garance-500: #CE1126;
+  --garance-700: #8A1622;
+
+  --vert-fond: #E7F2EC;
+  --vert: #1E6E45;
+  --vert-texte: #14492E;
+
+  --esp-4: 4px;   --esp-8: 8px;   --esp-12: 12px; --esp-16: 16px;
+  --esp-24: 24px; --esp-32: 32px; --esp-48: 48px; --esp-64: 64px;
+
+  --rayon-champ: 2px;
+  --serif: 'Spectral', Georgia, 'Times New Roman', serif;
+}

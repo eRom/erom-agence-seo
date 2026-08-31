@@ -8,7 +8,9 @@
 
 **Tech Stack:** TypeScript, Bun (runtime, `bun test`), zéro dépendance nouvelle. Aucune API externe : ce chantier ne touche pas au réseau.
 
-**Spec:** `docs/superpowers/specs/2026-08-31-erom-seo-rapport-client-design.md` (D42 à D48, AC-1 à AC-7)
+**Spec:** `docs/superpowers/specs/2026-08-31-erom-seo-rapport-client-design.md` (D42 à D49, AC-1 à AC-8)
+
+**Un écart assumé avec la spec :** sa section 3 liste un composant `render-client.ts`. Le plan ne le crée pas. Sa fonction pure est dans `scripts/lib/rendu.ts` et son geste de CLI dans `rapport.ts --rendre`. Le découpage est le même, les noms diffèrent, et rien dans la spec ne dépend de ce nom de fichier.
 
 ## Global Constraints
 
@@ -189,6 +191,15 @@ describe("détecteurs de surface", () => {
     expect(idsVisibles("Le fichier ROBOTS-02 bloque un bot.")).toHaveLength(1);
   });
 
+  test("un commentaire couvre: indenté est parsé, pas versé dans le corps", () => {
+    // Sans le trim dans blocs(), cette ligne n'est pas reconnue comme couvre: mais reste
+    // exclue d'idsVisibles : le lint passe et les identifiants partent dans le HTML client.
+    const indente = CONFORME.replace("<!-- couvre: TAG-01, IDX-02 -->", "  <!-- couvre: TAG-01, IDX-02 -->");
+    const r = parseRapportClient(indente);
+    expect(r.action.couvre).toEqual(["TAG-01", "IDX-02"]);
+    expect(r.action.corps).not.toContain("couvre:");
+  });
+
   test("lignesEmDash rend le numéro de ligne fautive", () => {
     expect(lignesEmDash(CONFORME)).toEqual([]);
     expect(lignesEmDash("ligne une\nune phrase — coupée\n")).toEqual([2]);
@@ -248,7 +259,10 @@ function blocs(sec: string, errors: string[], ou: string): SectionClient[] {
     const couvre: string[] = [];
     const corps: string[] = [];
     for (const l of lignes) {
-      const m = l.match(COUVRE_RE);
+      // Le trim est solidaire de celui d'idsVisibles : sans lui, un commentaire indenté
+      // n'est pas parsé ici mais reste exclu du détecteur de fuite, et ses identifiants
+      // partent en clair dans le HTML du client. Les deux tests le verrouillent.
+      const m = l.trim().match(COUVRE_RE);
       if (m) {
         for (const id of m[1].split(",").map((s) => s.trim()).filter(Boolean)) {
           if (ID_EXACT.test(id)) couvre.push(id);
@@ -326,12 +340,12 @@ export function lignesEmDash(md: string): number[] {
 - [ ] **Step 5: lancer les tests et vérifier qu'ils passent**
 
 Run: `cd plugin && bun test skills/rapport/scripts/tests/contrat.test.ts`
-Expected: PASS, 8 tests.
+Expected: PASS, 12 tests. Un compte différent n'est pas un échec en soi : ce qui compte est zéro échec et aucun test sauté.
 
 - [ ] **Step 6: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/lib/contrat.ts plugin/skills/rapport/scripts/tests/contrat.test.ts plugin/skills/rapport/scripts/tests/fixtures/client-conforme.md
 git commit -m "feat(rapport): contrat.ts, le parseur du Markdown client"
 ```
@@ -355,10 +369,13 @@ La séparation compte : `verifier.ts` est pur et prend deux chaînes ; `lint-cli
 - [ ] **Step 1: copier les deux fixtures de rapport technique**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
+mkdir -p plugin/skills/rapport/scripts/tests/fixtures
 cp plugin/lib/tests/fixtures/report-chico-n0.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-n0.md
-cp clients/commentchercherbonheur.org/seo/audits/2026-08-31-n0/report.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-sain.md
+cp /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org/seo/audits/2026-08-31-n0/report.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-sain.md
 ```
+
+Le second chemin est absolu et pointe vers le **checkout principal**, à dessein. Le `.gitignore` racine ignore les audits de ce client, si bien que le dossier ne contient aucun fichier versionné et n'existe donc dans aucun worktree (vérifié le 31/08 : `ls clients/` ne rend rien dans le worktree). Un `cp` relatif échouerait ici. Une fois copiée, la fixture est versionnée sous `plugin/`, et plus rien ne dépend du checkout principal.
 
 Deux vrais rapports du même site, à trois jours d'écart. Valeurs relevées sur les fichiers, pas supposées :
 
@@ -405,7 +422,11 @@ Créer `plugin/skills/rapport/scripts/tests/verifier.test.ts` :
 
 ```typescript
 import { describe, test, expect } from "bun:test";
+import { mkdtemp, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { verifier } from "../lib/verifier";
+import { lintDossier } from "../lint-client";
 
 const CLIENT = await Bun.file(`${import.meta.dir}/fixtures/client-conforme.md`).text();
 const RAPPORT = await Bun.file(`${import.meta.dir}/fixtures/report-chico-n0.md`).text();
@@ -466,6 +487,36 @@ describe("verifier, le site sain de D49", () => {
     expect(verifier(inventé, RAPPORT_SAIN).join("\n")).toContain("absente du rapport technique");
   });
 
+  test("refuse un balisage que le rendu ne sait pas rendre", () => {
+    const gras = SAIN.replace("Créez un fichier nommé llms.txt", "Créez un fichier nommé **llms.txt**");
+    expect(verifier(gras, RAPPORT_SAIN).join("\n")).toContain("gras Markdown");
+    const backtick = SAIN.replace("Créez un fichier nommé llms.txt", "Créez un fichier nommé `llms.txt`");
+    expect(verifier(backtick, RAPPORT_SAIN).join("\n")).toContain("accent grave");
+  });
+});
+
+describe("lintDossier, le contrat sur fichiers", () => {
+  async function dossier(client: string, rapport: string): Promise<string> {
+    const d = await mkdtemp(join(tmpdir(), "lint-client-"));
+    await writeFile(join(d, "report.md"), rapport);
+    await writeFile(join(d, "rapport-client.md"), client);
+    return d;
+  }
+
+  test("ne rend aucun refus sur un dossier conforme", async () => {
+    expect(await lintDossier(await dossier(SAIN, RAPPORT_SAIN))).toEqual([]);
+  });
+
+  test("nomme la ligne du tiret cadratin, ce qu'AC-5 exige", async () => {
+    const d = await dossier(SAIN.replace("Vos pages portent", "Vos pages portent — oui —"), RAPPORT_SAIN);
+    expect((await lintDossier(d)).join("\n")).toMatch(/ligne \d+ : tiret cadratin/);
+  });
+
+  test("nomme un rapport technique illisible au lieu de lever", async () => {
+    const d = await dossier(SAIN, "# pas un rapport d'audit\n");
+    expect((await lintDossier(d)).join("\n")).toContain("inanalysable");
+  });
+
   test("refuse un identifiant de catalogue visible par le client", () => {
     const fuite = CLIENT
       .replace("<!-- couvre: SD-01, SD-02 -->", "<!-- couvre: SD-01, SD-02, STRAT-01, STRAT-02 -->")
@@ -499,7 +550,7 @@ Expected: FAIL, `Cannot find module '../lib/verifier'`.
 // D49 : l'action de la semaine peut s'appuyer sur n'importe quelle trouvaille, y compris Mineur ou Info ;
 // les sections d'inventaire ne portent que du Critique et de l'Important ; le compte de points mineurs
 // annoncé exclut celles que l'action a déjà remontées.
-import { parseReport, type Severity } from "../../../../lib/report";
+import { parseReport, ReportError, type Severity } from "../../../../lib/report";
 import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash } from "./contrat";
 
 const GRAVES: readonly Severity[] = ["Critique", "Important"];
@@ -511,7 +562,14 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   try { client = parseRapportClient(clientMd); }
   catch (e) { return (e as RapportClientError).errors; }
 
-  const rapport = parseReport(rapportMd);
+  // Un rapport technique illisible se nomme, il ne remonte pas en stack trace : c'est la
+  // convention du dépôt, déjà tenue par checklist.ts et par plan.ts, qui importent ReportError.
+  let rapport;
+  try { rapport = parseReport(rapportMd); }
+  catch (e) {
+    if (e instanceof ReportError) return [`rapport technique inanalysable : ${e.errors.join(" ; ")}`];
+    throw e;
+  }
   const graves = rapport.findings.filter((f) => GRAVES.includes(f.severity));
   const mineurs = rapport.findings.filter((f) => !GRAVES.includes(f.severity));
   const connus = new Map(rapport.findings.map((f) => [f.id, f.severity] as const));
@@ -542,6 +600,14 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   }
   for (const ligne of lignesEmDash(clientMd)) {
     refus.push(`ligne ${ligne} : tiret cadratin interdit dans un document remis à un tiers`);
+  }
+  // Le rendu ne connaît que le paragraphe et la liste numérotée. Tout autre balisage
+  // arriverait en clair chez le client (des backticks, des astérisques), ce qui est pire
+  // qu'un rendu pauvre. On le refuse à l'écriture plutôt que d'étendre le rendu.
+  for (const s of [client.action, ...client.bloque, ...client.freine]) {
+    if (/`/.test(s.corps)) refus.push(`section « ${s.titre} » : accent grave, le rendu l'afficherait tel quel`);
+    if (/\*\*|__/.test(s.corps)) refus.push(`section « ${s.titre} » : gras Markdown, le rendu l'afficherait tel quel`);
+    if (/^- /m.test(s.corps)) refus.push(`section « ${s.titre} » : liste à tirets, seule la liste numérotée est rendue`);
   }
   return refus;
 }
@@ -577,14 +643,16 @@ if (import.meta.main) {
 - [ ] **Step 6: lancer les tests et vérifier qu'ils passent**
 
 Run: `cd plugin && bun test skills/rapport/scripts/tests/verifier.test.ts`
-Expected: PASS, 11 tests (7 du contrat de base, 4 du site sain de D49).
+Expected: PASS, 15 tests (7 sur le contrat de base, 5 sur le site sain de D49, 3 sur lintDossier).
 
 - [ ] **Step 7: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
-git add plugin/skills/rapport/scripts/lib/verifier.ts plugin/skills/rapport/scripts/lint-client.ts plugin/skills/rapport/scripts/tests/verifier.test.ts plugin/skills/rapport/scripts/tests/fixtures/report-chico-n0.md
-git commit -m "feat(rapport): lint-client, les six règles du contrat client (D47)"
+cd "$(git rev-parse --show-toplevel)"
+git add plugin/skills/rapport/scripts/lib/verifier.ts plugin/skills/rapport/scripts/lint-client.ts plugin/skills/rapport/scripts/tests/verifier.test.ts
+git add plugin/skills/rapport/scripts/tests/fixtures/report-chico-n0.md plugin/skills/rapport/scripts/tests/fixtures/report-chico-sain.md plugin/skills/rapport/scripts/tests/fixtures/client-sain.md
+git status --short plugin/skills/rapport/   # doit être vide : toute fixture oubliée casse la suite sur un clone frais
+git commit -m "feat(rapport): lint-client, les sept règles du contrat client (D47, D49)"
 ```
 
 ---
@@ -606,7 +674,7 @@ Les valeurs des tokens ci-dessous ont été **copiées le 31/08** depuis `/Users
 - [ ] **Step 1: copier les fonts et leur licence**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 mkdir -p plugin/skills/rapport/references/theme
 DS=/Users/recarnot/dev/erom-design-system-institutionnel
 cp $DS/dist/fonts/spectral-v15-latin-regular.woff2 plugin/skills/rapport/references/theme/
@@ -626,7 +694,12 @@ La licence OFL 1.1 exige d'accompagner les fichiers de fonte de sa copie. `OFL.t
 /* Tokens du design system eRom institut, copiés le 2026-08-31 depuis
    erom-design-system-institutionnel/src/styles/tokens.css (paquet erom-institut 0.1.0).
    Figés ici pour que le plugin ne dépende d'aucun repo externe à l'exécution.
-   Sous-ensemble : seuls les tokens utilisés par le rapport client sont repris. */
+   Sous-ensemble : seuls les tokens utilisés par le rapport client sont repris.
+
+   Un seul écart avec la source, délibéré : --serif y vaut 'Spectral', Georgia, serif.
+   'Times New Roman' est intercalé ici parce que ce fichier voyage chez le client, sur des
+   machines dont on ne sait rien ; Georgia manque sur beaucoup de postes Windows d'entreprise.
+   Tous les autres tokens sont copiés au caractère près et ne se retouchent pas. */
 :root {
   --papier-carte: #FDFCFA;
   --papier-fond: #FAF8F5;
@@ -696,7 +769,7 @@ export async function chargerTheme(racine = RACINE): Promise<Theme> {
 - [ ] **Step 4: vérifier le chargement et le poids**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin
+cd "$(git rev-parse --show-toplevel)"/plugin
 bun -e '
 import { chargerTheme } from "./skills/rapport/scripts/lib/theme.ts";
 const t = await chargerTheme();
@@ -711,7 +784,7 @@ Expected: `fontes : 3 | base64 total : 88 Ko` et `bleu Souverain présent`. Le t
 - [ ] **Step 5: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/references/theme plugin/skills/rapport/scripts/lib/theme.ts
 git commit -m "feat(rapport): thème institut figé, tokens et fontes Spectral sous OFL"
 ```
@@ -762,6 +835,13 @@ describe("rendre", () => {
     const out = html();
     expect(out.match(/@font-face/g)).toHaveLength(3);
     expect(out).toContain("data:font/woff2;base64,AAAA");
+  });
+
+  test("embarquer les fontes, c'est les redistribuer : l'avis de licence accompagne le fichier", () => {
+    // Condition 2 de l'OFL 1.1. Le document part chez un tiers avec la police dedans.
+    const out = html();
+    expect(out).toContain("The Spectral Project Authors");
+    expect(out).toContain("SIL Open Font License");
   });
 
   test("aucun identifiant de catalogue ne survit dans le HTML remis au client", () => {
@@ -834,6 +914,14 @@ function fontFaces(theme: Theme): string {
   return theme.fontes.map((f) => `@font-face{font-family:'${f.nom}';font-style:${f.style};font-weight:${f.poids};font-display:swap;src:url(data:font/woff2;base64,${f.base64}) format('woff2');}`).join("\n");
 }
 
+// Le document embarque les fontes en base64 : il redistribue donc le logiciel de police,
+// et l'OFL 1.1 veut que chaque copie porte l'avis de copyright et renvoie à la licence.
+// Deux lignes de commentaire suffisent et n'atteignent jamais l'écran du client.
+const AVIS_FONTES = `<!--
+Police Spectral, Copyright 2017 The Spectral Project Authors (https://github.com/productiontype/Spectral)
+Distribuee sous SIL Open Font License 1.1 : https://scripts.sil.org/OFL
+-->`;
+
 const FEUILLE = `
 *{box-sizing:border-box}
 html{background:var(--papier-fond)}
@@ -847,12 +935,12 @@ h3{font-size:1.15rem;font-weight:600;margin:0 0 var(--esp-8)}
 p,ol,ul{margin:0 0 var(--esp-12)}
 ol,ul{padding-left:var(--esp-24)}
 .trouvaille{margin-bottom:var(--esp-32)}
-.action{background:var(--bleu-50);border-left:3px solid var(--bleu-700);padding:var(--esp-24);margin-bottom:var(--esp-32)}
+.action{background:var(--bleu-50);border-left:3px solid var(--bleu-700);border-radius:var(--rayon-champ);padding:var(--esp-24);margin-bottom:var(--esp-32)}
 .action h2{color:var(--bleu-700);border-bottom-color:var(--bleu-200);margin-top:0}
 .action h3{color:var(--bleu-800)}
 .bloque .trouvaille{border-left:3px solid var(--garance-500);padding-left:var(--esp-16)}
 .bloque h2{color:var(--garance-700);border-bottom-color:var(--garance-200)}
-.marche{background:var(--vert-fond);padding:var(--esp-16) var(--esp-24);margin-top:var(--esp-32)}
+.marche{background:var(--vert-fond);border-radius:var(--rayon-champ);padding:var(--esp-16) var(--esp-24);margin-top:var(--esp-32)}
 .marche h2{color:var(--vert-texte);border-bottom-color:transparent;margin:0 0 var(--esp-8)}
 .marche ul{margin:0;list-style:none;padding:0}
 .marche li{padding-left:var(--esp-16);position:relative}
@@ -871,6 +959,7 @@ export function rendre(rapport: RapportClient, theme: Theme): string {
   const marche = rapport.marche.length === 0 ? "" :
     `<section class="marche">\n<h2>Ce qui marche déjà</h2>\n<ul>${rapport.marche.map((l) => `<li>${echapper(l)}</li>`).join("")}</ul>\n</section>`;
   return `<!doctype html>
+${AVIS_FONTES}
 <html lang="fr">
 <head>
 <meta charset="utf-8">
@@ -891,7 +980,10 @@ ${action}
 ${groupeHtml("Ce qui bloque", rapport.bloque, "bloque")}
 ${groupeHtml("Ce qui freine", rapport.freine, "freine")}
 ${marche}
-<section class="methode">${corpsHtml(rapport.methode)}</section>
+<section class="methode">
+<h2>Méthode</h2>
+${corpsHtml(rapport.methode)}
+</section>
 </main>
 </body>
 </html>
@@ -907,7 +999,7 @@ Expected: PASS, 7 tests.
 - [ ] **Step 5: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/lib/rendu.ts plugin/skills/rapport/scripts/tests/rendu.test.ts
 git commit -m "feat(rapport): rendu.ts, le HTML autonome au profil institut"
 ```
@@ -955,7 +1047,9 @@ describe("preparer", () => {
     for (const id of ["SD-01", "SD-02", "IDX-02", "TAG-01", "STRAT-01", "STRAT-02"]) {
       expect(sortie).toContain(id);
     }
-    expect(sortie).toContain("7");
+    // Assertion ancrée sur son libellé : un simple toContain("7") passerait sur du code faux,
+    // le chemin mkdtemp contenant presque toujours un chiffre 7.
+    expect(sortie).toContain("points mineurs à annoncer : 7");
     expect(await Bun.file(join(d, "rapport-client.md")).exists()).toBe(false);
   });
 
@@ -1046,20 +1140,33 @@ export async function rendreDossier(dossier: string): Promise<void> {
   await Bun.write(join(dossier, "rapport-client.html"), rendre(client, theme));
 }
 
+const GESTES = ["--preparer", "--rendre", "--rendre-seul"] as const;
+
 if (import.meta.main) {
   const args = process.argv.slice(2);
   const geste = args.find((a) => a.startsWith("--")) ?? "--preparer";
-  const dossier = await resoudre(args.find((a) => !a.startsWith("--")));
-  if (geste === "--preparer") {
-    console.log(await preparer(dossier));
-  } else if (geste === "--rendre" || geste === "--rendre-seul") {
-    try {
-      await rendreDossier(dossier);
-      console.log(`rapport client écrit : ${join(dossier, "rapport-client.html")}`);
-    } catch (e) { console.error((e as Error).message); process.exit(1); }
-  } else {
+  // Le geste se valide avant que le dossier ne se résolve : sinon `--bidon` dans un dossier
+  // sans audit répond « aucun audit trouvé » au lieu de dire que le drapeau n'existe pas.
+  if (!GESTES.includes(geste as (typeof GESTES)[number])) {
+    console.error(`geste inconnu : ${geste}`);
     console.error("usage : rapport.ts [--preparer|--rendre|--rendre-seul] [dossier]");
     process.exit(2);
+  }
+  try {
+    const dossier = await resoudre(args.find((a) => !a.startsWith("--")));
+    if (geste === "--preparer") {
+      console.log(await preparer(dossier));
+    } else {
+      await rendreDossier(dossier);
+      console.log(`rapport client écrit : ${join(dossier, "rapport-client.html")}`);
+    }
+  } catch (e) {
+    // Un fichier absent se nomme, il ne remonte pas en ENOENT brut : même convention que checklist.ts.
+    const m = (e as NodeJS.ErrnoException).code === "ENOENT"
+      ? `fichier attendu introuvable : ${(e as NodeJS.ErrnoException).path ?? "chemin inconnu"}`
+      : (e as Error).message;
+    console.error(m);
+    process.exit(1);
   }
 }
 ```
@@ -1072,12 +1179,12 @@ Expected: PASS, 4 tests.
 - [ ] **Step 5: lancer toute la suite, pour vérifier qu'aucun verbe existant n'a bougé**
 
 Run: `cd plugin && bun test`
-Expected: PASS. La suite comptait 434 tests avant ce chantier ; elle en compte 464 après les tâches 1 à 5 : 8 de contrat, 11 de lint, 7 de rendu, 4 de CLI.
+Expected: PASS, zéro échec. La suite comptait 434 tests avant ce chantier ; elle en compte environ 472 après les tâches 1 à 5 : 12 de contrat, 15 de lint, 7 de rendu, 4 de CLI. Le total exact importe moins que le zéro échec et l'absence de test sauté.
 
 - [ ] **Step 6: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/scripts/rapport.ts plugin/skills/rapport/scripts/tests/rapport-cli.test.ts
 git commit -m "feat(rapport): le CLI à deux gestes, preparer et rendre"
 ```
@@ -1135,7 +1242,7 @@ Juste   : « Une de vos pages n'a pas encore été explorée par Google. La conn
 
 La sévérité du rapport technique est une convention de catalogue, pas une traduction directe en inquiétude client.
 
-Terminer par la liste des quatre défauts de la relecture adversariale (spec, section 5, « Relecture adversariale avant de rendre ») : une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation.
+Terminer par la liste des **cinq** défauts de la relecture adversariale (spec, section 5, « Relecture adversariale avant de rendre »), en gardant en tête celui qui vient en premier et qui n'a aucun équivalent mécanique : un identifiant déclaré dans un `couvre:` dont le texte ne parle pas. Puis une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation.
 
 - [ ] **Step 3: écrire `SKILL.md`**
 
@@ -1173,7 +1280,15 @@ Toutes les trouvailles Critique et Important doivent être couvertes. Aucune Min
 
 ## 3. Relire
 
-Relire le texte en cherchant quatre défauts précis : une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation. Corriger avant de rendre.
+Relire le texte en cherchant cinq défauts précis, dans cet ordre.
+
+1. **Un identifiant déclaré dans un `couvre:` dont le texte ne parle pas.** Pour chacun, retrouve la phrase qui le porte. Si elle n'existe pas, écris-la ; ne retire jamais l'identifiant pour faire passer le lint. C'est le seul défaut qu'aucune commande ne peut voir : la couverture est un pointage d'identifiant, pas une correspondance de contenu, et un rapport peut donc déclarer traiter une trouvaille dont il ne dit pas un mot.
+2. Une affirmation qui va au-delà de la preuve.
+3. Un terme technique non glosé.
+4. Un passage qui submerge un débutant.
+5. Une dramatisation.
+
+Corriger avant de rendre.
 
 ## 4. Rendre
 
@@ -1194,14 +1309,29 @@ Dans `README.md`, ajouter la ligne au tableau des skills, après `console` :
 | `rapport` | Le livrable client : un HTML autonome et imprimable, bâti sur une seule action à faire dans la semaine |
 ```
 
-Et remplacer « Cinq skills, sans abonnement tiers. » par « Six skills, sans abonnement tiers. »
+Puis les **trois** endroits qui comptent encore cinq, relevés le 31/08. Les traiter ensemble : n'en corriger qu'un laisse la documentation se contredire.
+
+| Fichier | Ligne | Avant | Après |
+|---|---|---|---|
+| `README.md` | 7 | « Cinq skills, sans abonnement tiers. » | « Six skills, sans abonnement tiers. » |
+| `README.md` | 37 | « Le plugin `erom-seo` : les cinq skills, … » | « … les six skills, … » |
+| `plugin/.claude-plugin/plugin.json` | 4 | `"Audit, stratégie, build, checklist de déploiement et lecture des consoles SEO/GEO sans abonnement tiers : …"` | insérer le sixième verbe : `"Audit, stratégie, build, checklist de déploiement, lecture des consoles et rapport client SEO/GEO sans abonnement tiers : …"` |
+
+Vérifier ensuite qu'il n'en reste aucun :
+
+```bash
+cd "$(git rev-parse --show-toplevel)"
+RTK_DISABLED=1 command grep -rn "cinq skills\|Cinq skills" README.md plugin/   # attendu : aucune sortie
+```
+
+La description du manifeste est le texte public du plugin ; la laisser énumérer cinq verbes après en avoir livré six est le genre de dérive que personne ne relit.
 
 Dans `plugin/README.md`, ajouter une section « Livrer au client » après « Lire les consoles », décrivant les deux gestes et le fait que le fichier est autonome.
 
 - [ ] **Step 5: vérifier que la skill est découverte**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin
+cd "$(git rev-parse --show-toplevel)"/plugin
 RTK_DISABLED=1 command grep -c "skills" .claude-plugin/plugin.json
 ls skills/
 ```
@@ -1211,7 +1341,7 @@ Expected: `skills/` liste six dossiers, dont `rapport`. Le manifeste pointe `./s
 - [ ] **Step 6: commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo
+cd "$(git rev-parse --show-toplevel)"
 git add plugin/skills/rapport/SKILL.md plugin/skills/rapport/references/registre.md plugin/skills/rapport/references/gabarit.md README.md plugin/README.md
 git commit -m "docs(rapport): la skill, le registre client et le gabarit"
 ```
@@ -1228,6 +1358,18 @@ git commit -m "docs(rapport): la skill, le registre client et le gabarit"
 - Produces: le document de recette, avec les résultats réels et les écarts numérotés `R-n`.
 
 Cette tâche se fait avec Romain, sur le vrai site. Elle ne se simule pas.
+
+**Précondition, sans laquelle chaque commande de cette tâche échoue.** Toutes ses commandes s'exécutent dans le **checkout principal** `/Users/recarnot/dev/erom-agence-seo`, et non dans le worktree, parce que les dossiers clients sont gitignorés et n'existent que là. Or ce checkout ne porte le verbe `rapport` qu'une fois la branche `chantier-6` fusionnée dans `main` : avant le merge, `plugin/skills/rapport/` n'y existe pas et les cinq vérifications d'AC répondent « fichier introuvable ».
+
+Donc : **fusionner d'abord, recetter ensuite.** Vérifier la précondition en une commande avant de commencer :
+
+```bash
+cd /Users/recarnot/dev/erom-agence-seo
+git branch --show-current                    # attendu : main
+ls -d plugin/skills/rapport                  # doit exister ; sinon le merge n'est pas fait
+```
+
+C'est aussi ce qui rend le Step 7 correct : son `git commit` porte alors sur `main` depuis le checkout principal, ce qui est le geste voulu, et non un commit de branche échappé dans le checkout partagé.
 
 - [ ] **Step 1: produire trois rapports clients réels**
 
