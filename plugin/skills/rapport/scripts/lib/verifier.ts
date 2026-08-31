@@ -7,12 +7,24 @@ import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash } fro
 
 const GRAVES: readonly Severity[] = ["Critique", "Important"];
 
+/** Le rendu ne connaît que le paragraphe et la liste numérotée : tout autre balisage arriverait
+ *  en clair chez le client (des backticks, des astérisques). On le refuse à l'écriture. `zone`
+ *  nomme l'endroit du document pour un message utile, sans le forcer dans une forme qu'il n'a pas. */
+function refuserBalisage(refus: string[], zone: string, texte: string): void {
+  if (/`/.test(texte)) refus.push(`${zone} : accent grave, le rendu l'afficherait tel quel`);
+  if (/\*\*|__/.test(texte)) refus.push(`${zone} : gras Markdown, le rendu l'afficherait tel quel`);
+  if (/^- /m.test(texte)) refus.push(`${zone} : liste à tirets, seule la liste numérotée est rendue`);
+}
+
 export function verifier(clientMd: string, rapportMd: string): string[] {
   const refus: string[] = [];
 
   let client;
   try { client = parseRapportClient(clientMd); }
-  catch (e) { return (e as RapportClientError).errors; }
+  catch (e) {
+    if (e instanceof RapportClientError) return e.errors;
+    throw e;
+  }
 
   // Un rapport technique illisible se nomme, il ne remonte pas en stack trace : c'est la
   // convention du dépôt, déjà tenue par checklist.ts et par plan.ts, qui importent ReportError.
@@ -27,7 +39,14 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   const connus = new Map(rapport.findings.map((f) => [f.id, f.severity] as const));
 
   const parAction = new Set(client.action.couvre);
-  const parSections = new Set([...client.bloque, ...client.freine].flatMap((s) => s.couvre));
+  const sectionsInventaire = [...client.bloque, ...client.freine];
+  const parSections = new Set(sectionsInventaire.flatMap((s) => s.couvre));
+
+  for (const s of sectionsInventaire) {
+    if (s.couvre.length > 0 && s.corps === "") {
+      refus.push(`section « ${s.titre} » : couvre ${s.couvre.join(", ")} sans un mot d'explication`);
+    }
+  }
 
   for (const f of graves) {
     if (!parAction.has(f.id) && !parSections.has(f.id)) {
@@ -53,13 +72,13 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   for (const ligne of lignesEmDash(clientMd)) {
     refus.push(`ligne ${ligne} : tiret cadratin interdit dans un document remis à un tiers`);
   }
-  // Le rendu ne connaît que le paragraphe et la liste numérotée. Tout autre balisage
-  // arriverait en clair chez le client (des backticks, des astérisques), ce qui est pire
-  // qu'un rendu pauvre. On le refuse à l'écriture plutôt que d'étendre le rendu.
-  for (const s of [client.action, ...client.bloque, ...client.freine]) {
-    if (/`/.test(s.corps)) refus.push(`section « ${s.titre} » : accent grave, le rendu l'afficherait tel quel`);
-    if (/\*\*|__/.test(s.corps)) refus.push(`section « ${s.titre} » : gras Markdown, le rendu l'afficherait tel quel`);
-    if (/^- /m.test(s.corps)) refus.push(`section « ${s.titre} » : liste à tirets, seule la liste numérotée est rendue`);
+
+  for (const s of [client.action, ...sectionsInventaire]) {
+    refuserBalisage(refus, `section « ${s.titre} »`, s.corps);
+  }
+  refuserBalisage(refus, "la synthèse d'ouverture", client.synthese);
+  for (const puce of client.marche) {
+    refuserBalisage(refus, "« Ce qui marche déjà »", puce);
   }
   return refus;
 }

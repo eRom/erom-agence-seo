@@ -37,6 +37,14 @@ describe("verifier", () => {
       .replace("7 points mineurs", "3 points mineurs");
     expect(verifier(fauxCompte, RAPPORT).join("\n")).toContain("compte de points mineurs faux");
   });
+
+  test("exige la couverture d'une trouvaille Critique, pas seulement Important", () => {
+    // report-chico-n0.md n'a aucune Critique ; on en fabrique une à partir d'une Important réelle,
+    // non couverte par client-conforme.md, pour vérifier que GRAVES traite les deux pareil.
+    const rapportAvecCritique = RAPPORT.replace("[Important] STRAT-01", "[Critique] STRAT-01");
+    expect(rapportAvecCritique).not.toEqual(RAPPORT);
+    expect(verifier(CLIENT, rapportAvecCritique).join("\n")).toContain("STRAT-01 (Critique)");
+  });
 });
 
 describe("verifier, le site sain de D49", () => {
@@ -69,6 +77,38 @@ describe("verifier, le site sain de D49", () => {
     expect(verifier(gras, RAPPORT_SAIN).join("\n")).toContain("gras Markdown");
     const backtick = SAIN.replace("Créez un fichier nommé llms.txt", "Créez un fichier nommé `llms.txt`");
     expect(verifier(backtick, RAPPORT_SAIN).join("\n")).toContain("accent grave");
+  });
+
+  test("refuse un gras dans « Ce qui marche déjà », zone jusqu'ici hors radar", () => {
+    const gras = SAIN.replace(
+      "Chaque page a son propre titre et sa propre description",
+      "Chaque page a son propre **titre** et sa propre description",
+    );
+    const refus = verifier(gras, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("Ce qui marche déjà");
+    expect(refus).toContain("gras Markdown");
+  });
+
+  test("refuse un accent grave dans la synthèse d'ouverture, zone jusqu'ici hors radar", () => {
+    const backtick = SAIN.replace("Rien ne freine", "Rien ne `freine`");
+    const refus = verifier(backtick, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("synthèse");
+    expect(refus).toContain("accent grave");
+  });
+
+  test("refuse un gras dans la synthèse d'ouverture", () => {
+    const gras = SAIN.replace("Rien ne freine", "Rien ne **freine** pas");
+    const refus = verifier(gras, RAPPORT_SAIN).join("\n");
+    expect(refus).toContain("synthèse");
+    expect(refus).toContain("gras Markdown");
+  });
+
+  test("refuse une section d'inventaire qui couvre une trouvaille sans un mot d'explication", () => {
+    const sansCorps = SAIN.replace(
+      "## Ce qui marche déjà",
+      "## Ce qui freine\n### Un frein sans détail\n<!-- couvre: PERF-01 -->\n\n## Ce qui marche déjà",
+    );
+    expect(verifier(sansCorps, RAPPORT_SAIN).join("\n")).toContain("sans un mot d'explication");
   });
 });
 
