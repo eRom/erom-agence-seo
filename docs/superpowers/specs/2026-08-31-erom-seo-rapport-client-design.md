@@ -258,7 +258,9 @@ Règles de rendu, tirées du DS institut et non négociables :
 
 Répartition des rôles, pour lever toute ambiguïté : `lint-client.ts` lit le **Markdown**, où les commentaires `couvre:` sont présents et où « texte visible » signifie hors de ces commentaires. `rendu.ts` produit le **HTML**, où ils n'existent plus. AC-3 se vérifie donc sur le Markdown et AC-4 sur le HTML.
 
-Feuille d'impression (`@media print`) : marges de 18 mm, fond papier forcé (`print-color-adjust: exact`), pas de coupure au milieu d'une trouvaille (`break-inside: avoid`), en-tête de section non orphelin, et l'URL du site en pied de page. La cible est un PDF A4 propre par Cmd+P, sans réglage.
+Feuille d'impression (`@media print`) : marges de 18 mm, fond papier forcé (`print-color-adjust: exact`), pas de coupure au milieu d'une trouvaille (`break-inside: avoid`), en-tête de section non orphelin. La cible est un PDF A4 propre par Cmd+P, sans réglage.
+
+**Amendement du 31/08, à la revue du plan.** Cette section exigeait aussi « l'URL du site en pied de page ». Retirée : `RapportClient` ne porte que le nom du site tel que le client l'appelle, jamais son URL, et la faire arriver jusqu'au rendu obligerait à traverser tout le flux avec une donnée du rapport technique pour un gain d'impression marginal. Le titre du document nomme le site, la Méthode date le relevé : cela suffit à identifier le document. Si un client à plusieurs domaines rend l'ambiguïté réelle, la réponse sera de le nommer dans le titre, pas d'ajouter un champ.
 
 ## 7. Tests
 
