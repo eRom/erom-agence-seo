@@ -1,11 +1,12 @@
-// Les trois lectures Search Console. Aucune écriture (D30) : sitemaps.submit n'est pas ici et n'y sera pas.
-// Conventions capturées en vrai le 29/08 sur les propriétés de Romain (échantillons A à D du plan).
+// Les lectures Search Console, plus une écriture et une seule : sitemaps.submit (D51, chantier 7).
+// Refusées explicitement, bien que le scope les autorise : sitemaps.delete, sites.add, sites.delete.
+// Conventions capturées en vrai le 29/08 et le 31/08 sur les propriétés de Romain.
 import type { Property } from "./resolve";
 import type { GoogleAuth } from "./auth-google";
-import { LOGIN_HINT, QUOTA_HINT } from "./auth-google";
+import { LOGIN_HINT, QUOTA_HINT, SUBMIT_HINT } from "./auth-google";
 
-export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
-export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
+export type FetchInit = { method?: "GET" | "POST" | "PUT"; headers?: Record<string, string>; body?: string };
+export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string; final?: string }>;
 
 export const WMX_BASE = "https://www.googleapis.com/webmasters/v3";
 export const INSPECT_ENDPOINT = "https://searchconsole.googleapis.com/v1/urlInspection/index:inspect";
@@ -41,7 +42,7 @@ function headers(auth: GoogleAuth, json = false): Record<string, string> {
  * (Google le nomme dans son propre message, capture du 29/08, `dockertest-1268`) d'une variable qui manque
  * vraiment (auth-google.ts s'arrête avant tout appel réseau dans ce cas, cette fonction n'est jamais atteinte).
  */
-function fail(status: number, text: string, quotaProject: string | null): never {
+function fail(status: number, text: string, quotaProject: string | null, ecriture = false): never {
   let reason = "", message = "";
   try {
     const e = (JSON.parse(text) as { error?: { message?: string; details?: { reason?: string }[] } }).error ?? {};
@@ -65,9 +66,19 @@ function fail(status: number, text: string, quotaProject: string | null): never 
       "vérifie la valeur de GSC_QUOTA_PROJECT : c'est l'identifiant d'un projet Google Cloud (pas son nom d'affichage), et le compte utilisé doit y avoir accès.",
     );
   }
-  if (reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" || /insufficient authentication scopes/i.test(message)) throw new GscError("Search Console a refusé, scope insuffisant", status, LOGIN_HINT);
+  if (reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" || /insufficient authentication scopes/i.test(message)) {
+    throw new GscError("Search Console a refusé, scope insuffisant", status, ecriture ? SUBMIT_HINT : LOGIN_HINT);
+  }
   if (status === 401) throw new GscError("jeton refusé ou expiré", status, LOGIN_HINT);
-  if (status === 403) throw new GscError("droits insuffisants sur cette propriété", status, "le rôle de ce compte ne permet pas cette lecture. Voir references/acces.md, rôles Search Console.");
+  if (status === 403) {
+    throw new GscError(
+      "droits insuffisants sur cette propriété",
+      status,
+      ecriture
+        ? "le rôle de ce compte ne permet probablement pas de soumettre un sitemap. Google ne documente pas le rôle exigé par l'API, seulement qu'il faut « appropriate access (owner, full, read) » ; le rapport Sitemaps de l'interface web, lui, demande Owner. Repli sûr : le faire faire par le propriétaire du site, ou déclarer le sitemap dans robots.txt."
+        : "le rôle de ce compte ne permet pas cette lecture. Voir references/acces.md, rôles Search Console.",
+    );
+  }
   if (status === 404) throw new GscError("propriété inconnue", status, "cette propriété n'existe pas ou n'est pas partagée avec ce compte. Lance `console sites`.");
   throw new GscError(`Search Console a répondu ${status}`, status, "réessayer ; si ça persiste, lance `console sites` pour vérifier l'accès.");
 }
@@ -143,4 +154,21 @@ export async function searchAnalytics(f: Fetcher, auth: GoogleAuth, siteUrl: str
     clicks: num(r.clicks), impressions: num(r.impressions), ctr: num(r.ctr), position: num(r.position),
   }));
   return { query: q, rows, truncated: rows.length >= q.rowLimit };
+}
+
+/**
+ * sitemaps.submit, la seule écriture de ce module et la seule du plugin vers Google (D51).
+ * Le scope `auth/webmasters` qu'elle réclame autorise aussi sitemaps.delete, sites.add et sites.delete :
+ * aucune des trois n'est implémentée, et ce refus est une décision. Un plugin capable de retirer la
+ * propriété Search Console d'un client est un plugin qu'on n'ose plus lancer.
+ * Chemin et encodage validés contre l'API le 31/08 (la requête atteint SitemapsService.Submit).
+ * Le code de succès n'est documenté nulle part : la référence dit seulement « returns an empty response
+ * body », le discovery ne déclare aucun schéma de réponse. On accepte donc 200 et 204 sans en attester un.
+ * WMX_BASE reste sur www.googleapis.com : le discovery donne searchconsole.googleapis.com en rootUrl
+ * préféré, mais les deux hôtes routent ce chemin et le dépôt s'y appuie déjà pour ses quatre lectures.
+ */
+export async function submitSitemap(f: Fetcher, auth: GoogleAuth, siteUrl: string, feedUrl: string): Promise<void> {
+  const url = `${WMX_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(feedUrl)}`;
+  const r = await f(url, { method: "PUT", headers: headers(auth) });
+  if (r.status !== 200 && r.status !== 204) fail(r.status, r.text, auth.quotaProject, true);
 }

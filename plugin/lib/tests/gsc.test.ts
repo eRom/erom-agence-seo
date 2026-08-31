@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, searchAnalytics, GscError, type Fetcher } from "../gsc";
-import type { GoogleAuth } from "../auth-google";
+import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, searchAnalytics, submitSitemap, GscError, type Fetcher } from "../gsc";
+import { SUBMIT_HINT, type GoogleAuth } from "../auth-google";
 
 const AUTH: GoogleAuth = { token: "ya29.FAUX", quotaProject: "p-123", provider: "gcloud" };
 const SA: GoogleAuth = { token: "sa.FAUX", quotaProject: null, provider: "service-account" };
@@ -232,4 +232,48 @@ describe("aucune écriture", () => {
     // une assertion qui ne regarde que la méthode.
     for (const c of calls) expect(/\/sitemaps\/|SubmitFeed|SubmitUrlBatch|indexnow/.test(c.url)).toBe(false);
   });
+});
+
+const auth = { token: "jeton-de-test-non-hex", quotaProject: "projet-test", provider: "gcloud" as const };
+
+test("submitSitemap construit le chemin exact validé contre l'API le 31/08", async () => {
+  let vu = { url: "", method: "" };
+  const f = async (url: string, init?: { method?: string }) => { vu = { url, method: init?.method ?? "GET" }; return { status: 204, text: "" }; };
+  await submitSitemap(f, auth, "sc-domain:commentchercherbonheur.org", "https://www.commentchercherbonheur.org/sitemap.xml");
+  expect(vu.method).toBe("PUT");
+  expect(vu.url).toBe(
+    "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Acommentchercherbonheur.org" +
+    "/sitemaps/https%3A%2F%2Fwww.commentchercherbonheur.org%2Fsitemap.xml",
+  );
+});
+
+test("submitSitemap accepte 200 comme 204", async () => {
+  const f = async () => ({ status: 200, text: "" });
+  expect(await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml")).toBeUndefined();
+});
+
+test("un scope insuffisant donne la commande gcloud du scope d'écriture", async () => {
+  const corps = JSON.stringify({ error: { code: 403, message: "Request had insufficient authentication scopes.",
+    status: "PERMISSION_DENIED",
+    details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] } });
+  const f = async () => ({ status: 403, text: corps });
+  try {
+    await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml");
+    throw new Error("aurait dû lever");
+  } catch (e) {
+    const hint = (e as { hint: string }).hint;
+    expect(hint).toBe(SUBMIT_HINT);
+    expect(hint).toContain("auth/webmasters");
+    expect(hint).not.toContain("webmasters.readonly");
+  }
+});
+
+test("un 403 sans reason de scope parle du rôle, pas du jeton", async () => {
+  const f = async () => ({ status: 403, text: JSON.stringify({ error: { code: 403, message: "User does not have sufficient permission for site" } }) });
+  try {
+    await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml");
+    throw new Error("aurait dû lever");
+  } catch (e) {
+    expect((e as { hint: string }).hint).toContain("propriétaire");
+  }
 });
