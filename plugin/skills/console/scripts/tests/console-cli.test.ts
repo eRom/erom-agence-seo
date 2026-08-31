@@ -247,6 +247,25 @@ describe("console update", () => {
     // Le contrôle de la clé IndexNow est une lecture : il se joue aussi en simulation (D54).
     expect(calls.some((a) => a.url.endsWith("/clepublique.txt"))).toBe(true);
     expect(out).toContain("simulation");
+    // Le futur porte la promesse du dry-run : sans lui, la sortie affirmerait à tort qu'une
+    // écriture a déjà eu lieu (« soumis », « reçues » sont les verbes des messages réels).
+    expect(out).not.toContain("soumis");
+    expect(out).not.toContain("reçues");
+    expect(out).toContain("partira");
+    expect(out).toContain("partiront");
+  });
+
+  test("--dry-run et --url combinés : toujours zéro écriture, la simulation reste affichée", async () => {
+    // Un mutant qui ne désactive `simule` qu'en l'absence de --url (`--dry-run && !--url`) laisserait
+    // ce cas partir pour de vrai vers IndexNow, sans même la ligne « mode : simulation » : c'est le
+    // seul verbe qui écrit chez des tiers, donc le seul où cette combinaison compte vraiment.
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+    const { out, code } = await runConsole(
+      ["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/page", "--dry-run"], d,
+    );
+    expect(code).toBe(0);
+    expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
+    expect(out).toContain("simulation");
   });
 
   test("--url pinge ces URL seules et ne soumet aucun sitemap", async () => {
@@ -260,6 +279,19 @@ describe("console update", () => {
     const post = calls.find((a) => a.url === "https://api.indexnow.org/indexnow");
     expect(JSON.parse(post!.body!).urlList).toEqual(["https://www.a.fr/article"]);
     expect(out).not.toContain("google");
+  });
+
+  test("--url répété poste toutes les URL, dans l'ordre, sans en perdre une", async () => {
+    // Un `indexOf` en lieu et place de la boucle ne garderait que la première occurrence : la
+    // seconde URL disparaîtrait sans code d'erreur ni ligne dans la sortie. USAGE documente
+    // pourtant [--url <u>]... comme répétable.
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+    const { code } = await runConsole(
+      ["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/un", "--url", "https://www.a.fr/deux"], d,
+    );
+    expect(code).toBe(0);
+    const post = calls.find((a) => a.url === "https://api.indexnow.org/indexnow");
+    expect(JSON.parse(post!.body!).urlList).toEqual(["https://www.a.fr/un", "https://www.a.fr/deux"]);
   });
 
   test("--url sans clé Bing n'écrit aucune ligne bing", async () => {
