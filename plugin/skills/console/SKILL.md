@@ -1,12 +1,14 @@
 ---
 name: console
 description: Lit l'état des consoles Google Search Console et Bing Webmaster Tools depuis le terminal, sans ouvrir un onglet, et soumet aux deux moteurs quand on le lui demande : quelles propriétés et quels accès, quel sitemap est arrivé et ce qu'il en dit, si une URL est indexée et sous quel canonical Google l'a retenue, ce que Bing voit passer, et l'envoi du sitemap plus le POST IndexNow après une mise en production. Triggers : '/erom-seo:console', 'est-ce que cette page est indexée', 'quel canonical Google a retenu', 'j'ai bien accès à la Search Console de ce client', 'mon sitemap est-il arrivé', 'qu'est-ce que Bing voit', 'soumets le sitemap', 'préviens les moteurs', 'on vient de déployer', 'signale cette page aux moteurs'.
-argument-hint: "[sites | inspect <url> | crawl | update] [--site <url>] [--url <u>] [--dry-run] [--json]"
+argument-hint: "[sites | inspect <url> | crawl | update] [--site <url>] [--url <u>]... [--dry-run] [--json]"
 ---
 
 # Console : lire Search Console et Bing Webmaster Tools
 
 Le verbe `console` lit, et il agit sur une seule commande, `update`, qui prévient les moteurs qu'un site a bougé. Les trois autres commandes n'écrivent rien : ni fichier posé sur disque, ni requête d'écriture. Ce n'est pas un audit : pas de `raw/`, pas de rapport daté. Pour une preuve datée, c'est `/erom-seo:audit`.
+
+`/erom-seo:checklist --agir` est le rituel de mise en ligne, joué une fois, qui coche des cases dans `seo/checklist.md`. `console update` est le geste répétable d'après chaque publication suivante, sans état à tenir à jour. Les deux passent par le même code de soumission, `plugin/lib/soumission.ts`.
 
 ## 1. Situer
 
@@ -62,7 +64,7 @@ Pas d'écriture, pas de rapport : tout ce que `console` produit tient dans la so
 
 Le dry-run joue toutes les lectures, y compris le contrôle de la clé IndexNow servie, et n'émet aucune écriture. Sauter cette étape parce que « ça a marché la dernière fois » est exactement le geste que cette consigne interdit.
 
-Pour signaler une page qui vient de changer sans retoucher les sitemaps : `console update --url https://<site>/la-page`, répétable. C'est le geste courant après le lancement, quand le sitemap ne bouge pas mais qu'une page a été réécrite.
+Pour signaler une page qui vient de changer sans retoucher les sitemaps : `console update --url https://<site>/la-page`, répétable. C'est le geste courant après le lancement, quand le sitemap ne bouge pas mais qu'une page a été réécrite. Le même ordre s'y applique : dry-run d'abord, OK de Romain ensuite, envoi enfin.
 
 Le premier refus attendu la première fois est le scope : le jeton par défaut de gcloud ne sait que lire. Le message donne la commande exacte à relancer, elle est aussi dans `references/acces.md`, ACC-07.
 

@@ -59,7 +59,7 @@ Source   : https://learn.microsoft.com/en-us/bingwebmaster/getting-access « Onl
 
 ### J+1, sitemap soumis dans Search Console (CL-11)
 Chemin   : search.google.com/search-console, choisir la propriété, Sitemaps (menu Indexation), « Ajouter un sitemap », coller l'URL complète https://<site>/sitemap.xml, Envoyer. Le statut doit passer à « Opération réussie » ; sinon cliquer la ligne pour le détail.
-Piège    : il faut le rôle Owner sur la propriété : c'est le propriétaire qui clique, jamais l'agence à sa place, et jamais par l'API (jeton en lecture seule par construction, note niveau 1).
+Piège    : il faut le rôle Owner sur la propriété : c'est le propriétaire qui clique, jamais l'agence à sa place. La ligne reste au propriétaire parce que c'est un geste de lancement vérifié par un humain, pas parce que l'API en serait incapable : pour la voie API après ce premier envoi, voir `console update` et ACC-07.
 Piège    : le sitemap est lu tout de suite, mais l'exploration des URL prend du temps et n'est pas garantie pour toutes.
 Source   : https://support.google.com/webmasters/answer/7451001 « You must have owner permissions on a property to submit a sitemap »
 Source   : https://support.google.com/webmasters/answer/7451001 « The sitemap should be fetched immediately. However, it can take some time to crawl the URLs listed in a sitemap, and it is possible that not all URLs in a sitemap will be crawled, depending on the site size, activity, traffic, and so on. »
