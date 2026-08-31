@@ -176,7 +176,7 @@ Les deux paramètres sont dans le chemin et s'encodent, comme `listSitemaps` le 
 
 ```bash
 gcloud auth application-default login \
-  --scopes=openid,email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/webmasters
+  --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/webmasters
 ```
 
 `cloud-platform` est conservé parce que `GSC_QUOTA_PROJECT` en dépend. `webmasters` couvre `webmasters.readonly`, donc les quatre lectures existantes continuent sans changement.

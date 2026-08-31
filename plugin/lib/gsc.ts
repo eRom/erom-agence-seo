@@ -69,7 +69,7 @@ function fail(status: number, text: string, quotaProject: string | null, ecritur
   if (reason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT" || /insufficient authentication scopes/i.test(message)) {
     throw new GscError("Search Console a refusé, scope insuffisant", status, ecriture ? SUBMIT_HINT : LOGIN_HINT);
   }
-  if (status === 401) throw new GscError("jeton refusé ou expiré", status, LOGIN_HINT);
+  if (status === 401) throw new GscError("jeton refusé ou expiré", status, ecriture ? SUBMIT_HINT : LOGIN_HINT);
   if (status === 403) {
     throw new GscError(
       "droits insuffisants sur cette propriété",

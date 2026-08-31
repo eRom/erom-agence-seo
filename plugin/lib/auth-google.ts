@@ -4,7 +4,9 @@ export type Provider = "gcloud" | "service-account";
 export type GoogleAuth = { token: string; quotaProject: string | null; provider: Provider };
 export type Env = { GSC_SA_KEY_FILE?: string; GSC_QUOTA_PROJECT?: string };
 export type GcloudRunner = () => Promise<string | null>;
-// auth-google déclare son propre Fetcher : gsc.ts (tâche 3) n'existe pas encore, et déclarera la même forme.
+// Fetcher a la même forme ici et dans gsc.ts, par choix : une seule implémentation de fetcher sert les
+// deux (le jeton OAuth ici, les lectures et l'écriture Search Console là-bas), sans que les deux modules
+// ne dépendent l'un de l'autre.
 export type FetchInit = { method?: "GET" | "POST" | "PUT"; headers?: Record<string, string>; body?: string };
 // `final` porte l'URL après redirections. Optionnel : seul console update s'en sert, pour connaître
 // l'origine réellement servie (D53). Les appelants qui l'ignorent ne changent pas.
