@@ -144,6 +144,10 @@ export function renderUpdate(v: UpdateView): string {
   const ligne = (nom: string, r: ActionResult | null, raison: string | null) => {
     if (raison) return `${nom} : ${raison}`;
     if (!r) return null;
+    // Seul IndexNow porte un compte d'URL (`urls`) : en mode --url, c'est la seule des trois lignes où
+    // le nombre d'URL soumises ne s'affiche autrement nulle part (spec section 4). Le statut 0 est la
+    // sentinelle du dry-run et du cas « aucune URL » : leur message porte déjà tout, le code n'y ajoute rien.
+    if (r.status && r.urls !== undefined) return `${nom} : ${r.status} ${r.message} (${r.urls} URL)`;
     return `${nom} : ${r.message}`;
   };
   for (const [nom, r, raison] of [

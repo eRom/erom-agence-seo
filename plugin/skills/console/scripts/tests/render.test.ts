@@ -203,6 +203,9 @@ describe("renderUpdate", () => {
     expect(out).toContain("sitemap   : https://www.a.fr/sitemap.xml (10 URL, 2 ramenée(s)");
     expect(out).toContain("(demandé : https://a.fr)");
     expect(out.split("\n").filter((l) => l.trim().endsWith(":"))).toHaveLength(0);
+    // Seule IndexNow porte un compte d'URL (spec section 4) : sans le code et le compte sur cette
+    // ligne, --url ne le montre nulle part ailleurs à l'écran (revue finale du chantier 7, point e).
+    expect(out).toContain("indexnow  : 202 Accepted (10 URL)");
   });
   test("un moteur muet écrit sa raison, jamais un blanc", () => {
     const out = renderUpdate({ ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,

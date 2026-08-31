@@ -266,7 +266,10 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     const cle = strategie?.indexnow ?? null;
     // Une stratégie illisible n'est pas une stratégie sans clé : la confondre avec « IndexNow : non »
     // afficherait une affirmation fausse sur le fichier de l'utilisateur, en code 0 (non applicable).
+    // Même distinction pour un fichier absent : affirmer ce que dit sa section Cadence de fraîcheur
+    // quand ce fichier n'existe pas serait une seconde affirmation fausse, symétrique de la première.
     if (raisonStrategie) indexnowRaison = raisonStrategie;
+    else if (md === null) indexnowNonApplicable = "pas de clé IndexNow : seo/strategy.md est absent";
     else if (!cle) indexnowNonApplicable = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
     else {
       try {

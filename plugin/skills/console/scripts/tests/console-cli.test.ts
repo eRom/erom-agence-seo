@@ -198,9 +198,19 @@ describe("console update", () => {
     const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
     const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
     expect(code).toBe(0);
-    expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
+    const put = calls.filter((a) => a.method === "PUT");
+    expect(put).toHaveLength(1);
+    // L'URL du PUT porte la propriété et le sitemap encodés dans son chemin : un mutant qui permute
+    // les deux arguments de submitSitemapGoogle garderait le même nombre d'appels mais un chemin faux.
+    expect(put[0].url).toBe(
+      `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent("https://www.a.fr/")}/sitemaps/${encodeURIComponent("https://www.a.fr/sitemap.xml")}`,
+    );
     expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
-    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
+    const feed = calls.filter((a) => a.url.includes("SubmitFeed"));
+    expect(feed).toHaveLength(1);
+    // Le corps du POST porte siteUrl et feedUrl : un mutant qui permute s.Url et sitemapUrl garderait
+    // le même nombre d'appels mais soumettrait le sitemap au mauvais site.
+    expect(JSON.parse(feed[0].body!)).toEqual({ siteUrl: "https://www.a.fr/", feedUrl: "https://www.a.fr/sitemap.xml" });
   });
 
   test("un échec Google n'empêche ni Bing ni IndexNow, et vaut 1", async () => {
@@ -334,13 +344,25 @@ describe("console update", () => {
       // qui couvrent le site, seulement que ni Google ni Bing ne crashent la fixture.
       if (url.includes("/webmasters/v3/sites")) return { status: 200, text: '{"siteEntry":[]}' };
       if (url.includes("GetUserSites")) return { status: 200, text: '{"d":[]}' };
+      // La clé IndexNow doit être contrôlée sur l'hôte servi (www.a.fr), jamais sur l'hôte demandé
+      // (a.fr) : seul l'hôte servi répond 200 ici, un mutant qui confondrait origine et demandee
+      // recevrait un 404 sur son contrôle de clé et le raterait.
+      if (url === "https://www.a.fr/clepublique.txt") return { status: 200, text: "clepublique" };
+      if (url === "https://api.indexnow.org/indexnow") return { status: 202, text: "" };
       return { status: 404, text: "" };
     };
-    const { deps: d, calls } = deps({ fetcher });
+    // Une stratégie est nécessaire ici : sans elle, aucune clé IndexNow n'est résolue et la branche
+    // IndexNow ne tourne jamais, ce qui laissait passer une confusion entre origine et demandee (revue
+    // finale du chantier 7, point b).
+    const { deps: d, calls } = deps({ fetcher, strategy: STRAT });
     const { out } = await runConsole(["update", "--site", "https://a.fr"], d);
     expect(out).toContain("site      : https://www.a.fr (demandé : https://a.fr)");
     expect(out).toContain("sitemap   : https://www.a.fr/sitemap-articles.xml (1 URL)");
     expect(calls.filter((a) => a.url.endsWith("/robots.txt"))).toHaveLength(1);
+    // Le contrôle de clé et le corps IndexNow portent l'hôte servi, jamais l'hôte demandé.
+    expect(calls.some((a) => a.url === "https://www.a.fr/clepublique.txt")).toBe(true);
+    const post = calls.find((a) => a.url === "https://api.indexnow.org/indexnow");
+    expect(JSON.parse(post!.body!).host).toBe("www.a.fr");
   });
 
   test("D57 : site absent du compte Bing, non applicable, code 0", async () => {
@@ -355,6 +377,17 @@ describe("console update", () => {
     const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
     expect(code).toBe(0);
     expect(out).toContain("pas de clé IndexNow dans seo/strategy.md");
+  });
+
+  // Même famille que le cas ci-dessus, mais seo/strategy.md n'existe pas du tout : affirmer ce que dit
+  // sa section Cadence de fraîcheur serait une affirmation fausse sur un fichier absent (revue finale
+  // du chantier 7, point d).
+  test("D57 : pas de clé IndexNow parce que seo/strategy.md est absent, non applicable, code 0", async () => {
+    const { deps: d } = deps({ fetcher: serveur(), strategy: null });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(0);
+    expect(out).toContain("seo/strategy.md est absent");
+    expect(out).not.toContain("Cadence de fraîcheur");
   });
 
   test("un transport qui lève sur l'appel Bing n'empêche ni Google ni IndexNow, et vaut 1", async () => {
@@ -401,6 +434,26 @@ describe("console update", () => {
     expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
     expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
   });
+
+  // T3 avait prévu deux implémentations de bingUserSites aux comportements volontairement différents
+  // (lib/bing lit un ErrorCode logé dans un corps HTTP 200, lib/soumission ne regarde que le statut) ;
+  // rien ne mesurait laquelle console.ts importe vraiment. Ce test le fait : seul l'import correct
+  // (lib/bing) rend ce refus nommé.
+  test("Bing répond 200 avec un ErrorCode dans le corps : refus nommé, pas une réponse illisible", async () => {
+    const base = serveur();
+    const fetcherAvecErrorCode = async (url: string, init: { method?: string; body?: string } = {}) => {
+      if (url.includes("GetUserSites")) return { status: 200, text: '{"ErrorCode":3,"Message":"InvalidApiKey"}' };
+      return base(url, init);
+    };
+    const { deps: d, calls } = deps({ fetcher: fetcherAvecErrorCode, strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("InvalidApiKey");
+    expect(out).not.toContain("sans tableau d");
+    // Google et IndexNow ne dépendent pas de Bing : ce refus n'empêche pas le reste de partir.
+    expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  });
 });
 
 describe("aucun secret ne sort", () => {
@@ -441,7 +494,7 @@ describe("aucune écriture", () => {
     const interdits = ["SubmitFeed", "SubmitUrlBatch", "indexnow", "/sitemaps/"];
     for (const c of calls) {
       for (const i of interdits) expect(c.url.includes(i)).toBe(false);
-      // index:inspect est le seul appel en écriture de flux HTTP (POST) : une lecture (D30, D34).
+      // index:inspect est le seul appel en écriture de flux HTTP (POST) : une lecture (D50, D34).
       if (!c.url.includes("index:inspect")) expect(c.method).toBe("GET");
     }
   });
