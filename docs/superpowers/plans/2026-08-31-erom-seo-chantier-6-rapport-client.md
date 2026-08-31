@@ -837,6 +837,13 @@ describe("rendre", () => {
     expect(out).toContain("data:font/woff2;base64,AAAA");
   });
 
+  test("embarquer les fontes, c'est les redistribuer : l'avis de licence accompagne le fichier", () => {
+    // Condition 2 de l'OFL 1.1. Le document part chez un tiers avec la police dedans.
+    const out = html();
+    expect(out).toContain("The Spectral Project Authors");
+    expect(out).toContain("SIL Open Font License");
+  });
+
   test("aucun identifiant de catalogue ne survit dans le HTML remis au client", () => {
     const avecCouvre = html();
     expect(avecCouvre).not.toContain("couvre:");
@@ -907,6 +914,14 @@ function fontFaces(theme: Theme): string {
   return theme.fontes.map((f) => `@font-face{font-family:'${f.nom}';font-style:${f.style};font-weight:${f.poids};font-display:swap;src:url(data:font/woff2;base64,${f.base64}) format('woff2');}`).join("\n");
 }
 
+// Le document embarque les fontes en base64 : il redistribue donc le logiciel de police,
+// et l'OFL 1.1 veut que chaque copie porte l'avis de copyright et renvoie à la licence.
+// Deux lignes de commentaire suffisent et n'atteignent jamais l'écran du client.
+const AVIS_FONTES = `<!--
+Police Spectral, Copyright 2017 The Spectral Project Authors (https://github.com/productiontype/Spectral)
+Distribuee sous SIL Open Font License 1.1 : https://scripts.sil.org/OFL
+-->`;
+
 const FEUILLE = `
 *{box-sizing:border-box}
 html{background:var(--papier-fond)}
@@ -944,6 +959,7 @@ export function rendre(rapport: RapportClient, theme: Theme): string {
   const marche = rapport.marche.length === 0 ? "" :
     `<section class="marche">\n<h2>Ce qui marche déjà</h2>\n<ul>${rapport.marche.map((l) => `<li>${echapper(l)}</li>`).join("")}</ul>\n</section>`;
   return `<!doctype html>
+${AVIS_FONTES}
 <html lang="fr">
 <head>
 <meta charset="utf-8">
