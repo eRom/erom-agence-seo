@@ -1,6 +1,7 @@
 // plugin/lib/bing.ts
-// Lectures Bing Webmaster Tools. Aucune écriture (D30) : SubmitFeed et SubmitUrlBatch ne sont pas ici,
-// elles restent dans skills/checklist/scripts/lib/actions.ts, seul endroit du plugin qui écrit vers l'extérieur.
+// Aucune écriture ici : SubmitFeed vit dans lib/soumission.ts (D52, chantier 7), seul endroit du
+// plugin qui écrit vers un moteur, appelé par console update et par checklist --agir.
+// Ce module garde les lectures Bing, le transport et la table des codes d'erreur.
 // BING_API_BASE, BING_ERROR_CODES et redact sont le seul transport commun (D40) : strategy/keywords.ts et
 // checklist/actions.ts les importent d'ici plutôt que de les redéfinir chacun de leur côté.
 import type { BingSite } from "./resolve";

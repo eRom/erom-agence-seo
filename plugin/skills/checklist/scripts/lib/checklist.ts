@@ -108,9 +108,11 @@ export function renderChecklist(cl: Checklist): string {
   return out.join("\n") + "\n";
 }
 
+import type { ActionResult } from "../../../../lib/soumission";
+export type { ActionResult };
+
 export type RedirectCheck = { url: string; ok: boolean; detail: string };
 export type BingSite = { Url: string; IsVerified: boolean };
-export type ActionResult = { ok: boolean; status: number; message: string; urls?: number };
 
 export type ChecklistInput = {
   site: string;
