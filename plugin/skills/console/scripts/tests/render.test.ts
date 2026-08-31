@@ -1,6 +1,6 @@
 // plugin/skills/console/scripts/tests/render.test.ts
 import { describe, test, expect } from "bun:test";
-import { renderSites, renderInspect, renderCrawl } from "../lib/render";
+import { renderSites, renderInspect, renderCrawl, renderUpdate } from "../lib/render";
 
 const fx = (n: string) => Bun.file(new URL(`./fixtures/bing/${n}.json`, import.meta.url).pathname).text();
 const bingD = async (n: string) => (JSON.parse(await fx(n)) as { d: unknown }).d;
@@ -186,6 +186,43 @@ describe("renderCrawl", () => {
   });
 });
 
+const vueMinimale = {
+  site: "https://a.fr", origine: "https://www.a.fr", sitemap: null, nbUrls: 0, deplacees: 0,
+  raisonSitemap: null, google: null, googleRaison: null, bing: null, bingRaison: null,
+  indexnow: null, indexnowRaison: null, simule: false,
+};
+const ok = (message: string) => ({ ok: true, status: 200, message });
+
+describe("renderUpdate", () => {
+  test("une ligne par soumission, aucune ligne vide", () => {
+    const out = renderUpdate({
+      ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 10, deplacees: 2,
+      google: ok("sitemap soumis à sc-domain:a.fr"), bing: ok("sitemap soumis pour https://a.fr/"),
+      indexnow: { ok: true, status: 202, message: "Accepted", urls: 10 },
+    });
+    expect(out).toContain("sitemap   : https://www.a.fr/sitemap.xml (10 URL, 2 ramenée(s)");
+    expect(out).toContain("(demandé : https://a.fr)");
+    expect(out.split("\n").filter((l) => l.trim().endsWith(":"))).toHaveLength(0);
+  });
+  test("un moteur muet écrit sa raison, jamais un blanc", () => {
+    const out = renderUpdate({ ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
+      google: ok("soumis"), bingRaison: "non interrogé (clé absente)" });
+    expect(out).toContain("non interrogé (clé absente)");
+    expect(out).not.toContain("indexnow");
+  });
+  test("sans sitemap, la raison remplace la ligne et aucun moteur n'apparaît", () => {
+    const out = renderUpdate({ ...vueMinimale, raisonSitemap: "aucun sitemap trouvé : ni déclaré dans …" });
+    expect(out).toContain("aucun sitemap trouvé");
+    expect(out).not.toContain("google");
+  });
+  test("en simulation, rien n'est annoncé au passé", () => {
+    const out = renderUpdate({ ...vueMinimale, simule: true, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
+      google: ok("le sitemap https://www.a.fr/sitemap.xml partira vers sc-domain:a.fr") });
+    expect(out).toContain("partira");
+    expect(out).not.toContain("soumis");
+  });
+});
+
 describe("pas de tiret cadratin", () => {
   // Le filet doit voir chaque chaîne littérale de render.ts au moins une fois : sinon un tiret injecté
   // dans une branche non exercée passerait la suite sans être vu (trouvaille de la revue du 29/08).
@@ -242,11 +279,23 @@ describe("pas de tiret cadratin", () => {
     const crawlSansErreur = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [] }, bingError: null });
     const crawlAvecErreurs = renderCrawl({ site: "https://a", bing: { stats: [{ x: 1 }], issues: [{ y: 1 }, { y: 2 }] }, bingError: null });
 
+    const updatePleine = renderUpdate({
+      ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 10, deplacees: 2,
+      google: ok("sitemap soumis à sc-domain:a.fr"), bing: ok("sitemap soumis pour https://a.fr/"),
+      indexnow: { ok: true, status: 202, message: "Accepted", urls: 10 },
+    });
+    const updateMoteurMuet = renderUpdate({ ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
+      google: ok("soumis"), bingRaison: "non interrogé (clé absente)" });
+    const updateSansSitemap = renderUpdate({ ...vueMinimale, raisonSitemap: "aucun sitemap trouvé : ni déclaré dans …" });
+    const updateSimulee = renderUpdate({ ...vueMinimale, simule: true, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
+      google: ok("le sitemap https://www.a.fr/sitemap.xml partira vers sc-domain:a.fr") });
+
     const sorties = [
       sitesPleine, sitesSansSitemap, sitesSansDetail, sitesBingPeuple, sitesGoogleEnErreur,
       sitesSitemapsIllisibles, sitesFeedsIllisibles, sitesFeedsReels,
       inspectAvecLien, inspectMismatch, inspectSansEtat, inspectBingType, inspectBingConnue, inspectBingInconnue,
       crawlSansDonnees, crawlSansErreur, crawlAvecErreurs,
+      updatePleine, updateMoteurMuet, updateSansSitemap, updateSimulee,
     ];
     for (const o of sorties) expect(o).not.toContain("—");
   });

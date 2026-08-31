@@ -7,11 +7,18 @@ import { runConsole } from "../console";
 const KEY = "cle-de-test-bing-jamais-reelle";
 const SITES = '{"siteEntry":[{"siteUrl":"sc-domain:romain-ecarnot.com","permissionLevel":"siteOwner"}]}';
 const INSPECT = '{"inspectionResult":{"inspectionResultLink":"https://search.google.com/x","indexStatusResult":{"verdict":"NEUTRAL","coverageState":"Page with redirect","googleCanonical":"https://www.romain-ecarnot.com/","userCanonical":"https://romain-ecarnot.com/"}}}';
+// La fixture porte une vraie clé de 32 caractères hexadécimaux, que la machine masque à la lecture.
+// On ne la lit jamais : on la remplace par une valeur reconnaissable, valide au regard du lint
+// (8 à 128 caractères, lettres, chiffres, tirets).
+const STRAT = (await Bun.file(`${import.meta.dir}/../../../checklist/scripts/tests/fixtures/chico/strategy.md`).text())
+  .replace(/^IndexNow : .*$/m, "IndexNow : clepublique");
 
-type Call = { url: string; method: string };
+type Call = { url: string; method: string; body?: string };
 function deps(opts: {
   key?: string | null; bingSites?: string; inspectStatus?: number; urlInfo?: string; sitesStatus?: number;
   sitemapsStatus?: number; feedsError?: string;
+  fetcher?: (url: string, init?: { method?: string; body?: string }) => Promise<{ status: number; text: string; final?: string }>;
+  strategy?: string | null;
 }) {
   const calls: Call[] = [];
   const fetcher = async (url: string, init: { method?: string } = {}) => {
@@ -28,12 +35,17 @@ function deps(opts: {
   return {
     calls,
     deps: {
-      fetcher,
+      fetcher: opts.fetcher
+        ? async (url: string, init: { method?: string; body?: string } = {}) => {
+            calls.push({ url, method: init.method ?? "GET", body: init.body });
+            return opts.fetcher!(url, init);
+          }
+        : fetcher,
       env: { GSC_QUOTA_PROJECT: "p-123", BING_WMT_API_KEY: (opts.key === undefined ? KEY : opts.key ?? undefined) },
       // Un jeton reconnaissable : les tests de fuite cherchent ce préfixe dans les sorties.
       gcloud: async () => "ya29.JETON-SECRET",
       serviceAccount: async () => "sa.FAUX",
-      readStrategy: async () => null,
+      readStrategy: async () => opts.strategy ?? null,
     },
   };
 }
@@ -158,6 +170,65 @@ describe("console crawl", () => {
     const r = await runConsole(["crawl", "--site", "https://romain-ecarnot.com"], d);
     expect(r.out).toContain("ce site n'est pas dans le compte Bing");
     expect(r.out).not.toContain("aucun site dans ce compte Bing");
+  });
+});
+
+describe("console update", () => {
+  /** Faux serveur des quatre tests d'update. Chaque option force un refus, le reste répond juste. */
+  function serveur(o: { putStatus?: number; robots?: string; sitemapStatus?: number; cleServie?: string } = {}) {
+    return async (url: string, init: { method?: string; body?: string } = {}) => {
+      if (url.endsWith("/robots.txt")) return { status: 200, text: o.robots ?? "Sitemap: https://www.a.fr/sitemap.xml", final: "https://www.a.fr/robots.txt" };
+      if (url === "https://www.a.fr/sitemap.xml") return { status: o.sitemapStatus ?? 200, text: o.sitemapStatus ? "" : '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
+      if (url.includes("/sitemaps/")) return { status: o.putStatus ?? 204, text: o.putStatus ? '{"error":{"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}' : "" };
+      if (url.includes("/webmasters/v3/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "https://www.a.fr/", permissionLevel: "siteOwner" }] }) };
+      if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://www.a.fr/", IsVerified: true }] }) };
+      if (url.includes("SubmitFeed")) return { status: 200, text: '{"d":null}' };
+      if (url === "https://api.indexnow.org/indexnow") return { status: 202, text: "" };
+      if (url.endsWith(".txt")) return { status: 200, text: o.cleServie ?? "clepublique" };
+      return { status: 404, text: "" };
+    };
+  }
+
+  test("update soumet aux deux moteurs et poste les URL", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(0);
+    expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
+  });
+
+  test("un échec Google n'empêche ni Bing ni IndexNow, et vaut 1", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur({ putStatus: 403 }), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("gcloud auth application-default login");
+    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  });
+
+  test("sans clé Bing, la ligne bing dit sa raison et le code reste 0", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT, key: null });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(0);
+    expect(out).toContain("non interrogé");
+    expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(0);
+  });
+
+  test("une clé IndexNow différente de celle servie est un échec, pas un non applicable", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur({ cleServie: "uneautrecle" }), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("uneautrecle");
+    expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(0);
+  });
+
+  test("aucun sitemap trouvé : rien n'est soumis, code 1", async () => {
+    const { deps: d, calls } = deps({ fetcher: serveur({ robots: "User-agent: *", sitemapStatus: 404 }), strategy: STRAT });
+    const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+    expect(code).toBe(1);
+    expect(out).toContain("aucun sitemap");
+    expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
   });
 });
 

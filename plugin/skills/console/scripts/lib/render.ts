@@ -4,6 +4,7 @@
 import type { Property, BingSite } from "../../../../lib/resolve";
 import { canonicalMismatch, type Inspection, type SitemapInfo } from "../../../../lib/gsc";
 import { parseDotNetDate, DATE_JAMAIS } from "../../../../lib/bing";
+import type { ActionResult } from "../../../../lib/soumission";
 
 export type SitesView = {
   google: { property: Property; sitemaps: SitemapInfo[] | null }[] | null; googleError: string | null;
@@ -117,6 +118,41 @@ export function renderCrawl(v: CrawlView): string {
   else {
     out.push(`  ${v.bing.stats.length} entrée(s) de statistiques`);
     out.push(v.bing.issues.length === 0 ? "  aucune erreur de crawl remontée par Bing" : `  ${v.bing.issues.length} erreur(s) de crawl`);
+  }
+  return out.join("\n");
+}
+
+export type UpdateView = {
+  site: string; origine: string; sitemap: string | null; nbUrls: number; deplacees: number;
+  raisonSitemap: string | null;
+  google: ActionResult | null; googleRaison: string | null;
+  bing: ActionResult | null; bingRaison: string | null;
+  indexnow: ActionResult | null; indexnowRaison: string | null;
+  simule: boolean;
+};
+
+export function renderUpdate(v: UpdateView): string {
+  const out: string[] = [];
+  out.push(`site      : ${v.origine}${v.origine !== v.site ? ` (demandé : ${v.site})` : ""}`);
+  // La simulation se dit une fois, en tête. Le temps du verbe vit dans le message de chaque soumission :
+  // un préfixe « partirait » collé devant un message au passé donnerait « partirait : sitemap soumis ».
+  if (v.simule) out.push("mode      : simulation, aucune écriture ne part");
+  if (v.sitemap) {
+    const bouge = v.deplacees > 0 ? `, ${v.deplacees} ramenée(s) sur l'origine servie` : "";
+    out.push(`sitemap   : ${v.sitemap} (${v.nbUrls} URL${bouge})`);
+  } else if (v.raisonSitemap) out.push(`sitemap   : ${v.raisonSitemap}`);
+  const ligne = (nom: string, r: ActionResult | null, raison: string | null) => {
+    if (raison) return `${nom} : ${raison}`;
+    if (!r) return null;
+    return `${nom} : ${r.message}`;
+  };
+  for (const [nom, r, raison] of [
+    ["google  ", v.google, v.googleRaison],
+    ["bing    ", v.bing, v.bingRaison],
+    ["indexnow", v.indexnow, v.indexnowRaison],
+  ] as const) {
+    const l = ligne(nom, r, raison);
+    if (l) out.push(l);
   }
   return out.join("\n");
 }

@@ -1,12 +1,15 @@
-// Le verbe console : trois lectures, aucune écriture (D30). Toutes les dépendances entrent en paramètre,
-// jamais depuis process.env directement : c'est ce qui rend « aucune requête ne part » testable.
+// Le verbe console : trois lectures et une écriture, update (D50, chantier 7 ; D30 est remplacée).
 import { resolveProperty, resolveBingSite, type Property } from "../../../lib/resolve";
 import { getAccessToken, defaultGcloud, serviceAccountToken, type GoogleAuth } from "../../../lib/auth-google";
 import { listProperties, listSitemaps, inspectUrl, type Fetcher } from "../../../lib/gsc";
 import { bingUserSites, bingFeeds, bingUrlInfo, bingCrawlStats, bingCrawlIssues, redact } from "../../../lib/bing";
-import { renderSites, renderInspect, renderCrawl, type SitesView, type InspectView, type CrawlView } from "./lib/render";
+import { renderSites, renderInspect, renderCrawl, renderUpdate, type SitesView, type InspectView, type CrawlView, type UpdateView } from "./lib/render";
 import { parseStrategy } from "../../../lib/strategy";
 import { assertNoSecret } from "../../strategy/scripts/lib/keywords";
+// bingUserSites ne se réimporte pas d'ici : lib/bing en porte déjà une implémentation (ligne ci-dessus),
+// et un second import du même nom relierait silencieusement tout le fichier à celle-ci sans qu'aucune
+// erreur ne le signale sous bun (voir la table de T3).
+import { trouverSitemap, sitemapsFromRobots, urlsOnOrigin, verifierCleServie, submitSitemapGoogle, pingIndexNow, bingSubmitFeed, type ActionResult } from "../../../lib/soumission";
 
 export type Deps = {
   fetcher: Fetcher;
@@ -21,7 +24,7 @@ const NOKEY = "non interrogé (clé absente)";
 /** Deux états distincts, deux phrases : le compte n'a aucun site, ou il en a mais pas celui-là. */
 const COMPTE_VIDE = "aucun site dans ce compte Bing";
 const HOTE_ABSENT = "ce site n'est pas dans le compte Bing";
-const USAGE = "usage : console sites | console inspect <url> | console crawl [--site <url>]   [--json]";
+const USAGE = "usage : console sites | console inspect <url> | console crawl [--site <url>] | console update [--site <url>] [--url <u>]... [--dry-run]   [--json]";
 
 /** Un refus devient une raison lisible : le message, puis la consigne indentée. Jamais une trace. */
 function reason(e: unknown): string {
@@ -160,6 +163,100 @@ export async function runConsole(args: string[], d: Deps): Promise<{ out: string
     return done(view, renderCrawl(view), bing ? 0 : 1);
   }
 
+  if (cmd === "update") {
+    const i = rest.indexOf("--site");
+    if (i >= 0 && !rest[i + 1]) return { out: "--site attend une URL en argument", code: 1 };
+    let site = i >= 0 ? rest[i + 1] : undefined;
+
+    // La stratégie se lit une fois : elle donne le site et la clé IndexNow. Une stratégie présente mais
+    // invalide n'est pas une stratégie absente, et le dire évite de chercher un fichier qui existe déjà :
+    // c'est le motif de `crawl` (console.ts:134), on ne le contredit pas d'une commande à l'autre.
+    const md = await d.readStrategy();
+    let strategie: ReturnType<typeof parseStrategy> | null = null;
+    let raisonStrategie: string | null = null;
+    if (md) {
+      try { strategie = parseStrategy(md); }
+      catch (e) { raisonStrategie = `seo/strategy.md est présent mais ne s'analyse pas :\n  ${reason(e)}`; }
+    }
+    if (!site) site = strategie?.site;
+    if (!site) return { out: raisonStrategie ?? "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
+
+    let demandee: string;
+    try { demandee = new URL(site.startsWith("http") ? site : `https://${site}`).origin; }
+    catch { return { out: `« ${site} » n'est pas une URL valide. Exemple : console update --site https://exemple.fr`, code: 1 }; }
+
+    // L'origine réellement servie vient de la chaîne de redirections du robots.txt (D53) : un site peut
+    // déclarer l'apex partout et servir le www, et c'est l'origine finale qui vaut pour IndexNow.
+    // Le même GET donne les directives Sitemap: ; elles sont passées à trouverSitemap, qui ne relit rien.
+    const sonde = await d.fetcher(`${demandee}/robots.txt`);
+    let origine = demandee;
+    if (sonde.final) { try { origine = new URL(sonde.final).origin; } catch { /* on garde l'origine demandée */ } }
+    const declares = sonde.status === 200 ? sitemapsFromRobots(sonde.text) : [];
+
+    const simule = false; // T5 le branche sur --dry-run
+    const trouve = await trouverSitemap(d.fetcher, origine, declares);
+    if (trouve.url === null) {
+      const view: UpdateView = { site, origine, sitemap: null, nbUrls: 0, deplacees: 0, raisonSitemap: trouve.raison,
+        google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule: false };
+      return done(view, renderUpdate(view), 1);
+    }
+    const sitemapUrl = trouve.url;
+    const ramenees = urlsOnOrigin(trouve.urls, origine);
+    const urlsAPoster = ramenees.urls, deplacees = ramenees.moved;
+    const raisonSitemap: string | null = null;
+
+    // D57 distingue deux sortes de silence, et le code de sortie ne compte que la seconde.
+    // « Non applicable » est une liste fermée de trois cas, reprise mot pour mot de la spec : clé Bing
+    // absente, site hors du compte Bing, pas de clé IndexNow dans la stratégie. Tout le reste est un
+    // échec, y compris une clé IndexNow servie mais différente (D54 existe pour attraper ce cas précis)
+    // et l'absence de propriété Search Console. `console sites` et `console crawl` rendent déjà 1
+    // quand le moteur visé n'a rien pu dire : cette commande ne se comporte pas autrement.
+    let google: ActionResult | null = null, googleRaison: string | null = null;
+    const [a, authErr] = await auth();
+    if (!a) googleRaison = authErr;
+    else {
+      try {
+        const props = await listProperties(d.fetcher, a);
+        const p = resolveProperty(origine, props);
+        if (!p) googleRaison = "aucune propriété Search Console ne couvre ce site. Lance `console sites`.";
+        else google = await submitSitemapGoogle(d.fetcher, a, p.siteUrl, sitemapUrl);
+      } catch (e) { googleRaison = reason(e); }
+    }
+
+    let bing: ActionResult | null = null, bingRaison: string | null = null, bingNonApplicable: string | null = key ? null : NOKEY;
+    if (key) {
+      try {
+        const sites = await bingUserSites(d.fetcher, key);
+        const s = resolveBingSite(new URL(origine).hostname, sites);
+        if (!s) bingNonApplicable = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
+        else bing = await bingSubmitFeed(d.fetcher, key, s.Url, sitemapUrl);
+      } catch (e) { bingRaison = reason(e); }
+    }
+
+    let indexnow: ActionResult | null = null, indexnowRaison: string | null = null, indexnowNonApplicable: string | null = null;
+    const cle = strategie?.indexnow ?? null;
+    if (!cle) indexnowNonApplicable = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
+    else {
+      try {
+        const servie = await verifierCleServie(d.fetcher, origine, cle);
+        if (!servie.ok) indexnowRaison = servie.message;
+        else indexnow = await pingIndexNow(d.fetcher, { host: new URL(origine).host, key: cle, urls: urlsAPoster });
+      } catch (e) { indexnowRaison = reason(e); }
+    }
+
+    const view: UpdateView = {
+      site, origine, sitemap: sitemapUrl, nbUrls: urlsAPoster.length, deplacees, raisonSitemap,
+      google, googleRaison,
+      bing, bingRaison: bingRaison ?? bingNonApplicable,
+      indexnow, indexnowRaison: indexnowRaison ?? indexnowNonApplicable,
+      simule,
+    };
+    const echecs =
+      [google, bing, indexnow].filter((res) => res !== null && !res.ok).length +
+      [googleRaison, bingRaison, indexnowRaison].filter((rai) => rai !== null).length;
+    return done(view, renderUpdate(view), echecs > 0 ? 1 : 0);
+  }
+
   return { out: USAGE, code: 1 };
 }
 
@@ -167,7 +264,7 @@ if (import.meta.main) {
   const defaultFetcher: Fetcher = async (url, init = {}) => {
     try {
       const res = await fetch(url, { method: init.method ?? "GET", headers: init.headers, body: init.body, signal: AbortSignal.timeout(30000) });
-      return { status: res.status, text: await res.text() };
+      return { status: res.status, text: await res.text(), final: res.url };
     } catch (e) {
       // Jamais l'objet Error brut : sur un échec réseau il peut porter l'URL complète, donc la clé (leçon de keywords.ts).
       throw new Error(`service injoignable : ${e instanceof Error ? e.message : String(e)}`);
