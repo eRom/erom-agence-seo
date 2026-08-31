@@ -45,6 +45,24 @@ describe("verifier", () => {
     expect(rapportAvecCritique).not.toEqual(RAPPORT);
     expect(verifier(CLIENT, rapportAvecCritique).join("\n")).toContain("STRAT-01 (Critique)");
   });
+
+  test("refuse un couvre: échappé dans la synthèse d'ouverture, hors de tout bloc, en nommant la ligne", () => {
+    // Le cas démontré par la revue : sans ce refus, verifier() disait « conforme » alors que
+    // TAG-01 finissait lisible dans le HTML produit par rendre().
+    const complet = CLIENT.replace(
+      "<!-- couvre: SD-01, SD-02 -->",
+      "<!-- couvre: SD-01, SD-02, STRAT-01, STRAT-02 -->",
+    );
+    expect(verifier(complet, RAPPORT)).toEqual([]); // le témoin : sans la fuite, aucun refus.
+    const fuite = complet.replace(
+      "Votre site est en bonne santé technique",
+      "<!-- couvre: TAG-01 -->\nVotre site est en bonne santé technique",
+    );
+    const ligne = fuite.split("\n").findIndex((l) => l.trim() === "<!-- couvre: TAG-01 -->") + 1;
+    const refus = verifier(fuite, RAPPORT).join("\n");
+    expect(refus).toContain(`ligne ${ligne}`);
+    expect(refus).toContain("couvre");
+  });
 });
 
 describe("verifier, le site sain de D49", () => {

@@ -116,3 +116,31 @@ export function lignesEmDash(md: string): number[] {
   md.split("\n").forEach((l, i) => { if (l.includes("—")) out.push(i + 1); });
   return out;
 }
+
+/** Les numéros de ligne (1-based) de tous les commentaires couvre: du document, où qu'ils soient.
+ *  Même expression régulière et même .trim() que blocs() et idsVisibles : c'est cette solidarité
+ *  qui garantit qu'aucun commentaire n'échappe à la fois au parseur et au détecteur de fuite. */
+export function lignesCouvre(md: string): number[] {
+  const out: number[] = [];
+  md.split("\n").forEach((l, i) => { if (COUVRE_RE.test(l.trim())) out.push(i + 1); });
+  return out;
+}
+
+const SECTIONS_A_BLOCS: readonly string[] = [TITRES.action, TITRES.bloque, TITRES.freine];
+
+/** Les lignes de lignesCouvre() qui ne tombent dans aucun bloc ### d'une section à blocs
+ *  (À faire cette semaine, Ce qui bloque, Ce qui freine) : la synthèse d'ouverture, Méthode,
+ *  Ce qui marche déjà, ou le préambule d'une section à blocs avant son premier ###. blocs()
+ *  les ignore sans le dire, et idsVisibles() les exempte à tort parce qu'ils ressemblent à un
+ *  couvre: légitime : c'est cette combinaison qui laisse un identifiant fuiter jusqu'au client. */
+export function couvreMalPlaces(md: string): number[] {
+  const legit = new Set<number>();
+  let dansSectionABlocs = false;
+  let dansBloc = false;
+  md.split("\n").forEach((l, i) => {
+    if (/^## /.test(l)) { dansSectionABlocs = SECTIONS_A_BLOCS.includes(l.trimEnd()); dansBloc = false; return; }
+    if (/^### /.test(l)) { if (dansSectionABlocs) dansBloc = true; return; }
+    if (dansSectionABlocs && dansBloc) legit.add(i + 1);
+  });
+  return lignesCouvre(md).filter((n) => !legit.has(n));
+}

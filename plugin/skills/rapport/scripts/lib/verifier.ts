@@ -3,7 +3,7 @@
 // les sections d'inventaire ne portent que du Critique et de l'Important ; le compte de points mineurs
 // annoncé exclut celles que l'action a déjà remontées.
 import { parseReport, ReportError, type Severity } from "../../../../lib/report";
-import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash } from "./contrat";
+import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash, couvreMalPlaces } from "./contrat";
 
 const GRAVES: readonly Severity[] = ["Critique", "Important"];
 
@@ -65,6 +65,12 @@ export function verifier(clientMd: string, rapportMd: string): string[] {
   const restants = mineurs.filter((f) => !parAction.has(f.id)).length;
   if (client.mineursAnnonces !== restants) {
     refus.push(`compte de points mineurs faux : ${client.mineursAnnonces} annoncés, ${restants} attendus`);
+  }
+  // Un couvre: hors d'un bloc ### (synthèse, Méthode, Ce qui marche déjà) n'est jamais retiré
+  // par le parseur, et idsVisibles() l'exempte à tort parce qu'il en a la forme : sans ce refus,
+  // l'identifiant qu'il porte finit lisible, échappé, dans le HTML remis au client.
+  for (const ligne of couvreMalPlaces(clientMd)) {
+    refus.push(`ligne ${ligne} : commentaire couvre: hors d'un bloc de section, il fuira dans le document remis au client`);
   }
   for (const { ligne, id } of idsVisibles(clientMd)) {
     refus.push(`ligne ${ligne} : l'identifiant ${id} est visible par le client`);

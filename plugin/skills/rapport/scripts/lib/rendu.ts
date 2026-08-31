@@ -4,8 +4,11 @@
 import type { RapportClient, SectionClient } from "./contrat";
 import type { Theme } from "./theme";
 
+// Défense en profondeur (D46/D49bis) : même si un couvre: mal placé a échappé au lint, aucun
+// commentaire HTML résiduel ne doit atteindre l'écran du client. Dernière porte, retirée avant
+// l'échappement pour ne laisser aucune trace, même caviardée, du contenu qu'il portait.
 const echapper = (s: string): string =>
-  s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  s.replace(/<!--[\s\S]*?-->/g, "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 /** Un corps de section : paragraphes séparés par une ligne vide, listes numérotées reconnues. */
 function corpsHtml(corps: string): string {
@@ -67,8 +70,9 @@ ol,ul{padding-left:var(--esp-24)}
 @media print{
   @page{margin:18mm}
   body{padding:0;print-color-adjust:exact;-webkit-print-color-adjust:exact}
-  .trouvaille,.action,.marche{break-inside:avoid}
-  h2,h3{break-after:avoid}
+  p{orphans:3;widows:3}
+  .entete,.trouvaille,.action,.methode,.marche{break-inside:avoid;page-break-inside:avoid}
+  h2,h3{break-after:avoid;page-break-after:avoid}
 }
 `.trim();
 
@@ -91,9 +95,11 @@ ${FEUILLE}
 </head>
 <body>
 <main class="page">
+<header class="entete">
 <h1>${echapper(rapport.site)}</h1>
 <p class="date">Revue du ${echapper(rapport.date)}</p>
 <p class="synthese">${echapper(rapport.synthese)}</p>
+</header>
 ${action}
 ${groupeHtml("Ce qui bloque", rapport.bloque, "bloque")}
 ${groupeHtml("Ce qui freine", rapport.freine, "freine")}

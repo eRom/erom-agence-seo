@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test";
-import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash } from "../lib/contrat";
+import { parseRapportClient, RapportClientError, idsVisibles, lignesEmDash, lignesCouvre, couvreMalPlaces } from "../lib/contrat";
 
 const CONFORME = await Bun.file(`${import.meta.dir}/fixtures/client-conforme.md`).text();
 
@@ -86,5 +86,45 @@ describe("détecteurs de surface", () => {
   test("lignesEmDash rend le numéro de ligne fautive", () => {
     expect(lignesEmDash(CONFORME)).toEqual([]);
     expect(lignesEmDash("ligne une\nune phrase — coupée\n")).toEqual([2]);
+  });
+});
+
+describe("lignesCouvre et couvreMalPlaces, la fuite corrigée après la tâche 4", () => {
+  test("lignesCouvre trouve tout commentaire couvre:, attaché à un bloc ou non", () => {
+    // CONFORME : deux couvre: légitimes, lignes 8 et 16, chacun juste après un ###.
+    expect(lignesCouvre(CONFORME)).toEqual([8, 16]);
+    expect(lignesCouvre("a\n<!-- couvre: TAG-01 -->\nb\n")).toEqual([2]);
+  });
+
+  test("couvreMalPlaces ne signale rien quand tout couvre: est rattaché à un bloc ###", () => {
+    expect(couvreMalPlaces(CONFORME)).toEqual([]);
+  });
+
+  test("couvreMalPlaces repère un couvre: échappé dans la synthèse d'ouverture", () => {
+    // Le cas démontré par la revue : verifier() disait « conforme », rendre() affichait TAG-01.
+    const fuite = CONFORME.replace(
+      "Votre site est en bonne santé technique",
+      "<!-- couvre: TAG-01 -->\nVotre site est en bonne santé technique",
+    );
+    const ligne = fuite.split("\n").findIndex((l) => l.trim() === "<!-- couvre: TAG-01 -->") + 1;
+    expect(couvreMalPlaces(fuite)).toEqual([ligne]);
+  });
+
+  test("couvreMalPlaces repère un couvre: échappé en fin de Méthode", () => {
+    const fuite = CONFORME.replace(
+      "7 points mineurs figurent dans le rapport technique complet, disponible sur demande.",
+      "7 points mineurs figurent dans le rapport technique complet, disponible sur demande.\n<!-- couvre: TAG-01 -->",
+    );
+    const ligne = fuite.split("\n").findIndex((l) => l.trim() === "<!-- couvre: TAG-01 -->") + 1;
+    expect(couvreMalPlaces(fuite)).toEqual([ligne]);
+  });
+
+  test("couvreMalPlaces repère un couvre: dans « Ce qui marche déjà », qui n'a pas de blocs ###", () => {
+    const fuite = CONFORME.replace(
+      "- Vos pages se chargent vite",
+      "- Vos pages se chargent vite\n<!-- couvre: TAG-01 -->",
+    );
+    const ligne = fuite.split("\n").findIndex((l) => l.trim() === "<!-- couvre: TAG-01 -->") + 1;
+    expect(couvreMalPlaces(fuite)).toEqual([ligne]);
   });
 });
