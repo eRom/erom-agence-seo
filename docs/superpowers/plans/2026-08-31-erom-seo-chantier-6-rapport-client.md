@@ -1119,6 +1119,22 @@ Fautif  : « Votre canonical pointe vers une autre URL. »
 Juste   : « L'adresse canonique, celle que vous désignez à Google comme la version officielle d'une page, pointe aujourd'hui vers une autre adresse. »
 ```
 
+Une règle mérite son exemple à elle, parce que le cas est arrivé le premier jour et se reproduira à chaque nouveau client :
+
+```markdown
+## Une mesure prise sur un accès tout neuf se date au lieu de s'affirmer
+
+Contexte : la propriété Search Console de ce site a été vérifiée le jour de l'audit.
+Le rapport technique classe en Critique une page « inconnue de Google ».
+
+Fautif  : « Une de vos pages est invisible sur Google. »
+Juste   : « Une de vos pages n'a pas encore été explorée par Google. La connexion à
+           Search Console date d'aujourd'hui, c'est probablement un simple délai.
+           À revérifier au prochain point. »
+```
+
+La sévérité du rapport technique est une convention de catalogue, pas une traduction directe en inquiétude client.
+
 Terminer par la liste des quatre défauts de la relecture adversariale (spec, section 5, « Relecture adversariale avant de rendre ») : une affirmation qui va au-delà de la preuve, un terme technique non glosé, un passage qui submerge un débutant, une dramatisation.
 
 - [ ] **Step 3: écrire `SKILL.md`**
@@ -1213,9 +1229,23 @@ git commit -m "docs(rapport): la skill, le registre client et le gabarit"
 
 Cette tâche se fait avec Romain, sur le vrai site. Elle ne se simule pas.
 
-- [ ] **Step 1: produire un rapport client réel**
+- [ ] **Step 1: produire trois rapports clients réels**
 
-Depuis `clients/commentchercherbonheur.org/`, lancer `/erom-seo:rapport` sur l'audit le plus frais. Si la couche stratégique est active (`seo/strategy.md` présent), le rapport portera aussi les trouvailles STRAT.
+CHICO a été outillé le 31/08 (propriété Search Console vérifiée, site dans Bing, `seo/strategy.md` validé). Trois audits y coexistent et couvrent trois formes de rapport. Les produire tous les trois, dans cet ordre :
+
+```bash
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org
+```
+
+| Dossier | Ce qu'il éprouve | Attendu dans le rapport client |
+|---|---|---|
+| `seo/audits/2026-08-31-n1-2` | 1 Critique, 0 Important | « Ce qui bloque » présent, « Ce qui freine » **absent** |
+| `seo/audits/2026-08-31-n0` | 0 grave, cas D49 | ni l'un ni l'autre ; l'action porte une mineure |
+| `seo/audits/2026-08-28-n0-3` | 6 Important | plusieurs sections, le plus fourni des trois |
+
+Lancer `/erom-seo:rapport <dossier>` sur chacun. Le premier est le cas nominal du suivi client, c'est celui que Romain lira en priorité.
+
+**Piège de registre à surveiller sur le n1-2.** Son unique Critique est `IDX-06` : `/telekinesie` inconnue de Google, relevée le jour même où la propriété Search Console a été vérifiée. Le rapport technique le dit dans son correctif (« ça peut n'être qu'un délai de première exploration »). Le rapport client doit transmettre cette nuance et écrire « à revérifier au prochain point », jamais « votre page est invisible sur Google ». Aucun lint n'attrape ça : c'est le premier endroit où le jugement se prend en défaut, et c'est à vérifier à l'œil.
 
 - [ ] **Step 2: vérifier AC-1, AC-2, AC-3, AC-4, AC-5 par commande**
 

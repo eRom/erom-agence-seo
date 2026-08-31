@@ -232,6 +232,7 @@ Le commentaire `<!-- couvre: ID, ID -->` est la seule trace des identifiants. Il
 - **Deux-points français précédés d'une espace insécable**, comme le DS institut l'impose.
 - **Toute affirmation vient d'une preuve dans la collecte.** Le rapport client ne peut rien dire de plus que `report.md` ; il le dit autrement.
 - **Une donnée absente se dit « non mesuré »**, jamais « aucun résultat ». L'écart entre « Google n'a pas répondu » et « votre site n'a pas de trafic » est celui d'un client qui panique pour rien.
+- **Une mesure prise sur un accès tout neuf se date au lieu de s'affirmer.** Une page inconnue de Google le jour où la propriété Search Console est vérifiée n'est pas une page rejetée, c'est une page pas encore vue. Le rapport client écrit « à revérifier au prochain point », pas « votre page est invisible ». La sévérité du rapport technique est une convention de catalogue, pas une traduction directe en inquiétude client.
 - **Le client n'est jamais mis en cause.** On décrit l'état du site, pas les erreurs de son prestataire précédent.
 
 ### Relecture adversariale avant de rendre
@@ -319,4 +320,16 @@ Quand l'audit ne porte ni Critique ni Important, alors le rapport client est pro
 1. **Les valeurs exactes des tokens institut ne sont pas dans le digest.** Seuls `--papier-fond`, `--encre` et le bleu 700 y figurent. Le reste se copie depuis `src/styles/tokens.css` du repo institut à l'implémentation. Rien ne doit être inventé ni déduit ; si un token manque à la copie, il est demandé, pas approximé.
 2. **La qualité du saut de page n'est vérifiable qu'à l'impression réelle.** AC-6 l'impose sur le site cobaye avant de déclarer le chantier fini. Un rapport à deux trouvailles ne prouve rien : la vérification se fait sur un rapport à six sections au moins.
 3. **Le choix de l'action unique est du jugement non testable.** Le lint garantit qu'il y en a une et une seule, pas que c'est la bonne. C'est le point où ce verbe peut décevoir, et le seul recours est la relecture de Romain sur les premiers rapports réels.
-4. **Le site cobaye est CHICO** (`commentchercherbonheur.org`), tranché par Romain le 31/08. Deux constats mesurés le jour même, qui changent la recette : le site n'a de propriété **ni** dans Search Console **ni** dans Bing, donc le niveau 1 lui est inaccessible et la recette se fera au niveau 0 ; et son audit frais ne porte plus aucune trouvaille grave, ce qui en fait le cobaye du cas D49 plutôt que celui d'un rapport fourni. **AC-6, l'impression, ne peut donc pas être vérifiée sur son rapport réel** : il faut un Markdown étoffé à la main pour éprouver les sauts de page, comme le plan le prévoit.
+4. **Le site cobaye est CHICO** (`commentchercherbonheur.org`), tranché par Romain le 31/08. Il a été outillé dans la journée : propriété Search Console vérifiée, site ajouté dans Bing, `seo/strategy.md` écrit et validé, clé IndexNow déployée en production. Le niveau 1 lui est donc accessible, contrairement à ce qui était constaté le matin même.
+
+Trois audits réels y coexistent, et ils couvrent trois formes de rapport client. Relevé sur disque le 31/08 :
+
+| Dossier | Niveau | Couche | Critique | Important | Mineur | Info | Ce qu'il éprouve |
+|---|---|---|---|---|---|---|---|
+| `2026-08-28-n0-3` | 0 | oui | 0 | 6 | 6 | 1 | le rapport fourni, plusieurs sections |
+| `2026-08-31-n0` | 0 | non | 0 | 0 | 1 | 2 | le site sain de D49 |
+| `2026-08-31-n1-2` | 1 | oui | 1 | 0 | 1 | 2 | « Ce qui bloque » seul, sans « Ce qui freine » |
+
+**AC-6, l'impression, ne se vérifie sur aucun des trois** : le plus fourni tient en une page et demie. Il faut un Markdown étoffé à la main pour éprouver les sauts de page, comme le plan le prévoit.
+
+5. **Une trouvaille peut être grave par convention et anodine en fait.** L'unique Critique du 31/08 (`IDX-06`, `/telekinesie` inconnue de Google) tombe le jour où la propriété Search Console a été vérifiée : c'est très probablement un délai de première exploration, ce que le rapport technique dit déjà dans son correctif. Un rapport client qui traduirait cette ligne en « une de vos pages est invisible sur Google » alarmerait pour rien. Le registre porte la règle ; aucun lint ne peut l'attraper, et c'est le premier endroit où le jugement du modèle sera pris en défaut.
