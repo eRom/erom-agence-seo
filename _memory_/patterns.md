@@ -1,4 +1,4 @@
-# Patterns et conventions (mis à jour le 2026-08-31, 13 h 30)
+# Patterns et conventions (mis à jour le 2026-09-02, 17 h)
 
 **Nommage.** Vérifications `FAMILLE-NN` (ROBOTS, SNIP, IDX, SD, TAG, FRESH, REND, PERF, AI, STRAT, LVL1) ; lignes de la checklist `CL-NN` (01 à 15). Sévérités : Critique, Important, Mineur, Info. Verbes : audit, strategy, build, checklist (jamais « launch » : la skill ne déploie rien, D23), console. Entrées de référence `ACC-NN` pour `acces.md`. Dossiers : `seo/audits/<AAAA-MM-JJ>-n<niveau>[-k]/`, `seo/strategy/<AAAA-MM-JJ>[-k]/`, réservés atomiquement (`mkdir` non récursif, suffixe au premier libre, jamais écrasés).
 
@@ -55,3 +55,17 @@
 **Quand une décision amende une règle, la propager là où la règle est énoncée.** D49 a été écrite dans la spec et appliquée dans le lint, mais le `SKILL.md` a gardé la formulation d'avant pendant tout le chantier, et le CLI n'affichait pas la matière du cas concerné. Une règle vit à trois endroits : la spec qui la décide, le code qui l'applique, le mode d'emploi que le modèle lit.
 
 **Un compte de tests annoncé dans un plan est un piège.** Annoncé faux (8 au lieu de 11, 464 au lieu de 467), il fait lire une suite saine comme un échec. Formuler le critère en « zéro échec, aucun test sauté » et donner le compte à titre indicatif.
+
+## Patterns du chantier 7, la soumission (31/08)
+
+**La relecture par mutation, devenue la méthode du dépôt.** Un relecteur ne lit pas les tests, il casse le code et regarde **quel** test rougit. Cinq défauts sont sortis comme ça sur ce chantier, tous invisibles à la lecture : un drapeau `--dry-run` annoncé mais jamais lu, un jeton absent du seul appel d'écriture, un import rebranché en silence, deux jonctions d'appel dont personne ne vérifiait le contenu. Deux exigences qui font la différence : la mutation doit être **tuée**, et **par son propre test**, pas par un voisin. Une couverture obtenue par ricochet disparaît au premier nettoyage de fixture, et ce cas précis a coûté deux tours de correction ici.
+
+**Non applicable n'est pas un échec.** Quand une commande interroge plusieurs services, le code de sortie distingue deux silences : la raison d'échec (compte dans le code) et la raison de non-applicabilité (ne compte pas). La liste des cas non applicables est fermée et écrite dans la spec, pas déduite à l'implémentation. Sans ce partage, une commande crie tous les jours pour un état connu et voulu, ou bien elle rend succès sur une vraie panne.
+
+**Le garde-fou d'entre-deux-tâches.** Quand une tâche annonce dans son usage une option que la tâche suivante implémente, elle pose un refus explicite d'une ligne plutôt que de laisser le drapeau ignoré. Sans lui, quiconque lit l'usage entre les deux commits déclenche l'inverse de ce qu'il demande, et ici c'était une écriture irréversible chez un tiers.
+
+**Le déménagement se prouve par les tests qu'on ne touche pas.** Sortir des fonctions d'une skill vers le commun se fait en transformant l'ancien fichier en réexport : les appelants et leurs tests gardent leur import, et la non-régression se démontre par un `git diff` vide sur le dossier de tests. C'est le critère qui a gouverné tout le déménagement du chantier.
+
+**Un détecteur de changement se convertit, il ne se contourne pas.** Un test qui fige un compte d'entrées de catalogue casse à chaque addition légitime et ne prouve rien. Le remède est de calculer la valeur attendue depuis la source, comme le fichier le fait déjà ailleurs. Deux tests ont été convertis ainsi, et la conversion a été validée en mesurant qu'elle ne coûte aucun pouvoir de détection : le rejet d'un compte faux vit dans un test tiers, resté intact.
+
+**Une citation se vérifie entière.** Le format `URL « citation » [manuel]` est contrôlé par un parseur et le vérificateur va chercher chaque citation sur sa page. Il ne peut pas voir qu'une phrase a été **coupée** d'une manière qui change son sens : « You must have owner permissions to submit a sitemap » continue par « using the Sitemaps report », ce qui la fait parler de l'interface web et non de l'API. Une citation tronquée passe tous les contrôles et s'installe comme une source vérifiée.

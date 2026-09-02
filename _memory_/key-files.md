@@ -1,4 +1,4 @@
-# Fichiers clés (mis à jour le 2026-08-31, 13 h 30)
+# Fichiers clés (mis à jour le 2026-09-02, 17 h)
 
 **Contrats partagés (`plugin/lib/`)**
 - `lib/strategy.ts` : `parseStrategy`, `lintStrategy`, `normalizeText`, `keywordMatches`, `cadenceDays`, `INDEXNOW_KEY` ; le format strict de `seo/strategy.md`.
@@ -65,7 +65,7 @@
 
 - `plugin/lib/url.ts` — primitives d'URL partagées : `sameSite`, `pageKey`, `rewriteToOrigin`, plus deux aides privées. Extraites de `audit/lib/sitemap.ts` pour que le commun ne dépende d'aucune skill.
 - `plugin/lib/auth-google.ts` — un jeton, deux fournisseurs (`gcloud` aujourd'hui, compte de service prêt). Ne journalise jamais sa sortie.
-- `plugin/lib/gsc.ts` — les quatre lectures Search Console : `listProperties`, `listSitemaps`, `inspectUrl`, `searchAnalytics`. Aucune écriture, et il n'y en aura pas.
+- `plugin/lib/gsc.ts` — les quatre lectures Search Console : `listProperties`, `listSitemaps`, `inspectUrl`, `searchAnalytics`. Plus `submitSitemap`, la seule écriture, qui refuse explicitement les trois autres que le scope autorise (D51).
 - `plugin/lib/bing.ts` — **seul** endroit où vit `BING_API_BASE` et la table des codes d'erreur. Porte `parseDotNetDate` et la sentinelle `DATE_JAMAIS`.
 - `plugin/lib/resolve.ts` — résout une URL vers la propriété Search Console qui la couvre, en choisissant dans ce que `sites.list` a rendu, jamais en fabriquant un `siteUrl`.
 - `plugin/skills/audit/scripts/lib/level1.ts` — la collecte du niveau 1 et ses dérivés. Module **pur** (rien du réseau ni du disque n'y entre sans passer par un paramètre). Porte `collectLevel1`, `bingKnows`, `indexSummary`, `canonicalFindings`, `keywordChecks`, `deriveConsole`.
@@ -89,3 +89,22 @@
 | `plugin/skills/rapport/references/theme/OFL.txt` | Licence des fontes. **L'avis de copyright a dû être rempli ici**, la source du DS institut ne l'a pas |
 | `plugin/skills/rapport/scripts/tests/catalogue.test.ts` | Dérive `PREFIXES` du contenu réel de `references/checks/` et échoue en nommant la famille à ajouter |
 | `.claude/notes/2026-08-31-chantier-6-journal.md` | Le registre du chantier : 26 arbitrages avec leur coût si faux, les deux gotchas de harness |
+
+## Le chantier 7, soumettre aux moteurs (fusionné dans `main` le 02/09)
+
+| Fichier | Rôle |
+|---|---|
+| `plugin/lib/soumission.ts` | **Créé.** Les trois écritures vers les moteurs et elles seules (D52), plus `sitemapsFromRobots`, `trouverSitemap`, `verifierCleServie`, `submitSitemapGoogle`. Porte aussi un `bingUserSites` qui n'est **pas** celui de `lib/bing.ts` (voir gotchas) |
+| `plugin/lib/sitemap.ts` | **Créé.** `parseSitemap`, `decodeSitemapBody`, `sitemapCandidates`, remontés de la skill audit parce que `checklist` les importait déjà à travers elle |
+| `plugin/lib/gsc.ts` | Gagne `submitSitemap`, la seule écriture Google, hors de `call()` parce que le PUT rend un corps vide. `fail()` prend un paramètre `ecriture` : sans lui, un refus de scope renverrait vers la commande gcloud du scope de lecture, celle qui ne répare rien |
+| `plugin/lib/auth-google.ts` | `SCOPE_WRITE` et `SUBMIT_HINT` à côté de `SCOPE` et `LOGIN_HINT`. `FetchInit` admet `PUT`, le `Fetcher` rend `final?` (l'URL après redirections, d'où l'origine servie) |
+| `plugin/lib/bing.ts` | Inchangé sauf son commentaire de tête, qui affirmait que `checklist/lib/actions.ts` était le seul endroit écrivant vers l'extérieur |
+| `plugin/skills/checklist/scripts/lib/actions.ts` | Réduit à un fichier de réexport, ce qui laisse les 44 tests de la skill inchangés (AC-6) |
+| `plugin/skills/console/scripts/console.ts` | La branche `update` : sonde d'origine, recherche de sitemap, trois soumissions isolées, deux drapeaux. `bingUserSites` y vient de `lib/bing` et de nulle part ailleurs |
+| `plugin/skills/console/scripts/lib/render.ts` | `renderUpdate`, pur, sept branches, inscrit au filet anti tiret cadratin du fichier de tests |
+| `plugin/skills/console/SKILL.md` | Cinquième temps « Soumettre », la discipline dry-run puis OK puis envoi, qui vaut aussi pour `--url`. Frontmatter réécrit : il affirmait que le verbe n'écrit rien |
+| `plugin/skills/console/references/acces.md` | `ACC-07` (obtenir le scope d'écriture), `ACC-03` corrigé |
+| `plugin/skills/build/scripts/lib/plan.ts` | `TAG-05` dans `KINDS` en genre `texte`, et la condition ligne 120 qui pousse `title` dans les textes à réécrire |
+| `plugin/skills/audit/references/checks/tags.md` | `TAG-05`, une seule ligne `Source` (voir gotchas) |
+| `.claude/notes/2026-09-01-reprise-chantier-7.md` | La note de reprise : où est le travail, la première commande, ce qui reste ouvert |
+| `<worktree>/.superpowers/sdd/2026-08-31-.../progress.md` | Le journal d'exécution : 26 décisions prises en cours de route, chacune avec son coût si elle est fausse |

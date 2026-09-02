@@ -1,4 +1,4 @@
-# Pièges (mis à jour le 2026-08-31, 13 h 30)
+# Pièges (mis à jour le 2026-09-02, 17 h)
 
 **Sessions et outillage**
 - Checkout partagé : jamais `git switch` ni `checkout` dans `/Users/recarnot/dev/erom-agence-seo` ; une session déléguée qui l'a fait a basculé la session mère sur sa branche (28/08). Délégation = worktree frère.
@@ -52,7 +52,7 @@
 - Une case `action` qui a reçu une réponse en erreur ou un refus garde sa note d'un passage à l'autre (F1) ; « à faire : relance avec --agir » n'apparaît que si `--agir` peut agir (F2, `pending` : clé IndexNow absente de la stratégie, aucun sitemap en 200, clé Bing absente). Un `--agir` sur une case déjà cochée ne refait rien.
 - Une nouvelle `--mise-en-ligne` remet la moitié « Après » à zéro, actions comprises ; un n0 antérieur à la date ne juge pas la prod (`attention :` sur stderr).
 - `today` est en heure locale (`toLocaleDateString("sv-SE")`) : en UTC, entre 0 h et 2 h à Paris, `--mise-en-ligne` du jour était refusée comme future.
-- Soumettre un sitemap dans Search Console demande le rôle Owner (pas Full) ; l'agence ne le fera jamais par API (jeton `webmasters.readonly` par posture, note niveau 1). Chez Bing, une clé = tout le compte en écriture : un client délègue en lecture seule, on ne demande jamais sa clé ; `SubmitFeed` sera alors refusé (codes 11, 13, 14 présumés, jamais observés) et la ligne devient une consigne au propriétaire.
+- Soumettre un sitemap dans Search Console demande le rôle Owner (pas Full). **Fait par API depuis le chantier 7** : le jeton porte `auth/webmasters` en écriture, et la soumission réussit sur une propriété dont on est Owner (CHICO, 02/09). Ce qui reste non tranché est le comportement chez un client où l'agence est seulement Full user : jamais appelé, un seul appel réel suffirait à trancher. Chez Bing, une clé = tout le compte en écriture : un client délègue en lecture seule, on ne demande jamais sa clé ; `SubmitFeed` sera alors refusé (codes 11, 13, 14 présumés, jamais observés) et la ligne devient une consigne au propriétaire.
 - Ordre des vérifications dans `actionLine` : case cochée, puis `pending`, puis note conservée, puis « à faire » ; si une raison `pending` apparaît après un refus consigné, elle l'écrase (état courant prime, décision du 29/08, non testé).
 - R-2, parqué : la consigne J+1 garde le gabarit `https://<site>/sitemap.xml` (elle vient de `LINES`, pas du calcul).
 
@@ -120,3 +120,39 @@
 **Une garantie que personne ne peut faire tomber est imaginaire.** Un `@import url(https://…)` ajouté à la feuille de style et une balise de script injectée dans le corps laissaient les 495 tests au vert : le test d'autonomie ne regardait que les attributs `src` et `href`. Trois assertions ajoutées, chacune vérifiée en cassant ce qu'elle surveille. Le contrôle d'AC-2 par `grep -cE '(src|href)="https?://'` a la même cécité : il ne prouve pas l'absence de réseau, seulement l'absence d'attribut.
 
 **`PREFIXES` peut dériver du catalogue sans qu'un test tombe.** `contrat.ts` fige les dix familles de vérifications ; `plugin/lib/report.ts` accepte tout `[A-Z]+-\d{2}`. Une famille ajoutée au catalogue serait refusée bruyamment dans un `couvre:` mais **invisible** pour le détecteur d'identifiants en clair. `catalogue.test.ts` dérive désormais la liste des fichiers réels de `references/checks/` et nomme la famille à ajouter.
+
+## Chantier 7, la soumission (31/08)
+
+**Un import en double ne lève rien sous bun, il rebranche tout le fichier.** Deux `import` du même identifiant au niveau module : aucune erreur, aucun avertissement, et tout le fichier est relié au **dernier**. Il n'y a ni tsconfig ni linter dans ce dépôt, donc rien ne le voit. Mesuré sur `bingUserSites`, qui existe en deux exemplaires au comportement différent : celui de `lib/bing.ts` lit le champ `ErrorCode` d'un corps HTTP 200 et lève une erreur nommée avec sa consigne, celui de `lib/soumission.ts` ne le lit pas et lève « réponse sans tableau d ». Les rebrancher l'un sur l'autre laissait les 545 tests verts. `console.ts` importe `bingUserSites` de `lib/bing` et de nulle part ailleurs, et un test le tient désormais.
+
+**Le jeton `gcloud auth application-default login` ne porte que la lecture.** Relevé le 31/08 par `oauth2.googleapis.com/tokeninfo` : `email cloud-platform userinfo.email webmasters.readonly openid`. Toute écriture Search Console rend 403 `ACCESS_TOKEN_SCOPE_INSUFFICIENT` tant qu'un login n'a pas été refait avec `https://www.googleapis.com/auth/webmasters`. Piège du piège : un `application-default login` qui omet un scope **le retire**, donc la commande de réparation doit réénumérer les quatre.
+
+**Bing connaît un site sous une seule variante d'hôte, et ça ne gêne pas `SubmitFeed`.** `GetUserSites` rend `https://commentchercherbonheur.org/` (apex) alors que le site sert le www. Tranché à la recette du 02/09 : `SubmitFeed` accepte un `siteUrl` en apex avec un `feedUrl` en www (HTTP 200, corps `{"d":null}`), et `GetFeeds` rend **le même feed unique** que l'on interroge l'apex ou le www. Bing unifie donc les deux variantes sur cette propriété. `[candidat 1x - recette CHICO du 02/09]` : une seule propriété observée, un compte Bing pourrait les séparer.
+
+**`bingSubmitFeed` traite tout HTTP 200 comme un succès** sans lire `ErrorCode`, alors que `lib/bing.ts` teste `ErrorCode` **avant** le code HTTP, ce qui atteste que Bing sait renvoyer un refus dans un corps en 200. Corps brut d'un vrai succès capturé le 02/09 : `{"d":null}`, sans champ `ErrorCode`. Le raccourci rend donc le bon verdict **sur ce cas**, ce qui ne prouve pas qu'un refus en 200 n'existe pas : aucun n'a été observé, la faiblesse reste théorique et non exercée. Re-contrôle : `GetFeeds` avec la clé de `~/.zshenv`, voir la recette du 02/09.
+
+**Le masquage de secrets est plus large que les 32 hexa.** Une valeur de test non hexadécimale de 30 caractères s'est affichée `[REDACTED:env_secret]` parce qu'elle était affectée à une clé nommée `BING_WMT_API_KEY`. Le fichier, lui, portait bien la valeur en clair (vérifié par `grep -c -F`). Conséquence pratique : ne jamais écrire `<NOM_DE_CLE>: "<valeur>"` dans un plan ou un brief, préférer un champ neutre, sinon l'implémenteur recopie le masque.
+
+**Trois tests existants lisent le catalogue de vérifications.** Ajouter une entrée dans `references/checks/` fait rougir `plan.test.ts` (tout id du catalogue doit avoir un genre dans `KINDS`), `recipes.test.ts` (tout id de genre code ou texte doit avoir sa recette dans `nextjs.md`) et `lint-report.test.ts` (le compte annoncé en en-tête de rapport). Le catalogue s'écrit donc **en dernier**, après ces trois, sinon un commit intermédiaire fige un arbre rouge. Corollaire : le compte de l'en-tête est celui des vérifications **absolues de niveau 0** (27 après TAG-05), pas la taille du catalogue (36).
+
+**Une citation d'au moins 15 caractères.** `checks-format.test.ts` refuse toute citation de 15 caractères ou moins, `[manuel]` compris. « Titre trop long » en fait exactement 15, d'où l'absence de source Bing sur TAG-05 : l'incident daté vit dans le champ `Comment`.
+
+**Une page servie mais absente du sitemap n'est jamais collectée.** `collect.ts` construit sa liste depuis l'origine, les pages explicites et le sitemap. Ajouter un `case` au site jouet sans ajouter la page aux `<loc>` donne un test qui échoue sans que la cause soit visible.
+
+**`support.google.com` répond 404 en HEAD et 200 en GET** (déjà connu du 29/08, reconfirmé) ; les pages `bing.com/webmasters/help/*` sont des applications JavaScript dont seul le `<title>` est lisible par script, d'où le régime `[manuel]`.
+
+## Recette du chantier 7 (02/09)
+
+**Le projet de quota de l'ADC n'est pas celui du plugin.** Toute vérification manuelle de Search Console faite avec le `quota_project_id` du fichier `application_default_credentials.json` échoue en 403 « API has not been used in project … or it is disabled ». Le plugin ne s'en sert pas : il lit `GSC_QUOTA_PROJECT` depuis `~/.zshenv` (`plugin/lib/auth-google.ts:57`). Un curl de contrôle doit donc porter `x-goog-user-project: $GSC_QUOTA_PROJECT`, sinon on conclut à une panne là où le produit fonctionne. Re-contrôle :
+
+```bash
+source ~/.zshenv && T=$(gcloud auth application-default print-access-token) && curl -s -H "Authorization: Bearer $T" -H "x-goog-user-project: $GSC_QUOTA_PROJECT" "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3A<domaine>/sitemaps"
+```
+
+**Le compteur `deplacees` d'`urlsOnOrigin` compte aussi la normalisation du slash.** `rewriteToOrigin` (`plugin/lib/url.ts:33`) passe par `new URL(u).toString()`, qui transforme `https://exemple.org` en `https://exemple.org/`. `urlsOnOrigin` compare `r !== u` et incrémente `moved`. Un sitemap parfaitement sain dont la racine est listée sans slash final affichera donc « 1 ramenée sur l'origine servie » **à chaque lancement**, ce qui fait chercher un problème inexistant. Le vrai rabattage de domaine, lui, reste silencieux et indistinguable dans ce même compteur. Mesuré sur CHICO le 02/09 (10 URL, la seule « déplacée » étant la racine). Re-contrôle :
+
+```bash
+bun -e 'import { urlsOnOrigin } from "./plugin/lib/soumission"; console.log(urlsOnOrigin(["https://exemple.org"], "https://exemple.org"))'
+```
+
+**Le champ `indexed` de Google reste menteur, y compris juste après soumission.** `contents: [{type: web, submitted: 10, indexed: 0}]` une seconde après un `lastDownloaded` réussi et sans aucune erreur. Ne jamais lire ce champ comme un signal de santé (fait déjà consigné, reconfirmé le 02/09).
