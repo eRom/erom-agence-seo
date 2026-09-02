@@ -84,7 +84,7 @@ describe("lint-report : couche stratégique et niveau", () => {
     expect(errors.some((e) => e.includes("Couche stratégique"))).toBe(true);
   });
   test("couche active : les vérifications stratégiques sont exigées", async () => {
-    const head = "2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · 31 vérifications";
+    const head = `2026-08-28 · Niveau 0 (URL seule) · Couche stratégique : oui (seo/strategy.md, brouillon, 2026-08-28) · 10 pages collectées · ${absolute0.length + strategic0.length} vérifications`;
     const missing = await lintReport(report(absolute0, head), checksDir);
     for (const c of strategic0) expect(missing.some((e) => e.includes(c.id) && e.includes("absent")), c.id).toBe(true);
     expect(await lintReport(report([...absolute0, ...strategic0], head), checksDir)).toEqual([]);
@@ -111,7 +111,7 @@ describe("lint-report : couche stratégique et niveau", () => {
     expect(errors.some((e) => e.includes("nombre de vérifications manquant"))).toBe(true);
   });
   test("niveau 2 : PERF-01, IDX-03 et IDX-04 acceptés en non vues avec leur raison", async () => {
-    const head = "2026-08-28 · Niveau 2 (site en local) · Couche stratégique : non · 10 pages collectées · 26 vérifications";
+    const head = `2026-08-28 · Niveau 2 (site en local) · Couche stratégique : non · 10 pages collectées · ${absolute0.length} vérifications`;
     const na = ["PERF-01", "IDX-03", "IDX-04"];
     const rest = absolute0.filter((c) => !na.includes(c.id));
     const md = report(rest, head).replace("Couche stratégique, avec seo/strategy.md : aucune\n", `Couche stratégique, avec seo/strategy.md : aucune\n${na.map((id) => `${id} non applicable en local`).join("\n")}\n`);

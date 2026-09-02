@@ -17,7 +17,7 @@ export const KINDS: Record<string, KindEntry> = {
   "IDX-06": { kind: "hors-build", ou: "Search Console, URL Inspection, redemander l'indexation, une fois ROBOTS-*, IDX-01, IDX-02 et IDX-05 déjà passés : l'indexation elle-même ne se force pas par du code" },
   "SD-01": { kind: "code" }, "SD-02": { kind: "code" }, "SD-03": { kind: "code" },
   "TAG-01": { kind: "code" }, "TAG-02": { kind: "code" }, "TAG-04": { kind: "code" },
-  "TAG-03": { kind: "texte" },
+  "TAG-03": { kind: "texte" }, "TAG-05": { kind: "texte" },
   "FRESH-01": { kind: "code" }, "FRESH-02": { kind: "code" },
   "REND-01": { kind: "code" },
   "PERF-01": { kind: "hors-build", ou: "PageSpeed Insights (pagespeed.web.dev) pour lire les données de terrain, puis un chantier de performance à part" },
@@ -117,7 +117,7 @@ export function buildPlan(input: BuildPlanInput): BuildPlan {
     if (p.status !== 200) { warnings.push(`page ${plan.page} répond ${p.status} : à créer ou à rétablir, hors build`); return { ...base, current, missing: null, textes: [] }; }
     const missing = ev && ev.found ? { title: ev.inTitle === false, h1: ev.inH1 === false, opening: ev.inOpening === false } : null;
     const textes: TexteField[] = [];
-    if (missing?.title || p.title === null || open.has("TAG-01")) textes.push("title");
+    if (missing?.title || p.title === null || open.has("TAG-01") || open.has("TAG-05")) textes.push("title");
     if (p.description === null || open.has("TAG-02")) textes.push("description");
     if (missing?.h1 || p.h1.length === 0) textes.push("h1");
     if (missing?.opening) textes.push("opening");

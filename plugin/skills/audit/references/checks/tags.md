@@ -43,3 +43,17 @@ Comment    : derived/pages.json → lang null = trouvaille.
 Source     : https://www.w3.org/International/questions/qa-html-language-declarations « Always use a language attribute on the html tag to declare the default language of the text in the page. »
 Correctif  : <html lang="fr">.
 Effort     : rapide
+
+### TAG-05 : title trop long
+Couche     : absolue
+Niveau     : 0
+Sévérité   : Mineur
+Vérifie    : aucun <title> ne dépasse 65 caractères.
+Comment    : derived/pages.json → title.length > 65 = trouvaille (citer le slug et la longueur).
+             Le seuil de 65 est une convention d'agence : aucun moteur n'en publie. Google écrit
+             qu'il n'y a pas de limite et que le titre est tronqué à la largeur de l'écran ; Bing
+             signale « Titre trop long » dans le Site Scan de Webmaster Tools sans publier son
+             seuil (relevé le 31/08/2026 sur commentchercherbonheur.org : 3 pages sur 10).
+Source     : https://developers.google.com/search/docs/appearance/title-link « Also avoid unnecessarily long or verbose text in your <title> elements. »
+Correctif  : viser 60 caractères, l'information distinctive en premier, le nom de marque en dernier.
+Effort     : rapide

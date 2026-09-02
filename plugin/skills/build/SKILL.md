@@ -40,6 +40,8 @@ Si aucune page n'a de `textes` : passer à l'étape 3. Sinon, pour chaque page d
 
 Règles : mot-clé principal au début du title (la marque vient du `template` du layout racine, ne pas la répéter) ; title et description uniques par page ; description qui reprend le mot-clé et une secondaire ; h1 unique avec le mot-clé, dans le ton du site ; première phrase qui reprend le mot-clé. Guides, pas limites : ~60 caractères pour le title, ~155 pour la description. Aucune modification de fichier avant le OK. Romain répond OK ou amende (par page, par champ) ; boucler jusqu'au OK. Second passage : ne présenter que les pages non encore validées.
 
+Chaque `title` proposé est affiché avec sa longueur entre parenthèses, par exemple `Audit Karmique Gratuit : votre Trajectoire | C.H.I.C.O. (55)`. Au-dessus de 60, le raccourcir avant de le proposer plutôt que de demander à Romain d'arbitrer une longueur.
+
 ## 3. Appliquer
 
 Dans l'ordre de `findings`. Trouvaille `hors-build` : rien, gardée pour l'étape 6. Pour chaque `code` ou `texte` :

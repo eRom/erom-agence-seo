@@ -1,6 +1,6 @@
 # Audit SEO/GEO : {{site}}
 {{date}} · Niveau {{niveau}} ({{entree}}) · Couche stratégique : {{oui (seo/strategy.md, {{statut}}, {{date_strategie}}) | non}} · {{nb_pages}} pages collectées · {{nb_checks}} vérifications
-<!-- nb_checks = vérifications absolues de niveau inférieur ou égal au niveau exécuté (26 au niveau 0 et au niveau 2), plus 5 si la couche stratégique est active. {{entree}} : « URL seule » au niveau 0, « site en local » au niveau 2. -->
+<!-- nb_checks = vérifications absolues de niveau inférieur ou égal au niveau exécuté (27 au niveau 0 et au niveau 2), plus 5 si la couche stratégique est active. {{entree}} : « URL seule » au niveau 0, « site en local » au niveau 2. -->
 Stack détecté : {{stack}} (Info)
 
 ## En bref

@@ -17,7 +17,7 @@
 - **Aucun secret affiché.** La clé Bing passe par `redact`, le jeton Google par `assertNoSecret`. La clé IndexNow est publique par construction et s'affiche.
 - **Aucun tiret cadratin** dans le code, les commentaires, les messages ou la documentation. Le lint du dépôt le refuse.
 - **Tests par invariant.** Interdits : figer un compte d'entrées de catalogue, asserter sur le texte du source, calibrer un mock sur une convention non capturée.
-- **Toute commande de test se lance depuis `/Users/recarnot/dev/erom-agence-seo/plugin`.** Un `cd` absolu ouvre chaque commande qui écrit ou versionne.
+- **Toute commande de test se lance depuis `/Users/recarnot/dev/erom-seo-chantier-7/plugin`.** Un `cd` absolu ouvre chaque commande qui écrit ou versionne.
 - **Nommage.** Le code du dépôt est en français pour les identifiants métier (`verifierCleServie`, `soumissions`) et garde l'anglais pour ce qui reprend un nom d'API (`submitSitemap`, `pingIndexNow`).
 
 ## Écart assumé avec la section 3 de la spec
@@ -34,14 +34,19 @@ Raison : AC-6 exige que les 44 tests de `checklist` passent sans qu'une seule as
 | `plugin/lib/auth-google.ts` | `SCOPE_WRITE` et `SUBMIT_HINT` à côté de `SCOPE` et `LOGIN_HINT` | T2 |
 | `plugin/lib/gsc.ts` | `submitSitemap`, la seule écriture. `PUT` dans `FetchInit`, `final` dans le retour du `Fetcher` | T2 |
 | `plugin/lib/soumission.ts` | **Créé.** Les trois soumissions, `sitemapsFromRobots`, `verifierCleServie`, `trouverSitemap` | T3 |
+| `plugin/lib/bing.ts` | Son commentaire de tête, qui dit l'inverse de D52 | T3 |
 | `plugin/skills/checklist/scripts/lib/actions.ts` | Réduit à un fichier de réexport | T3 |
 | `plugin/skills/console/scripts/console.ts` | La branche `update` | T4, T5 |
-| `plugin/skills/console/scripts/lib/render.ts` | `renderUpdate`, pur | T4 |
-| `plugin/skills/console/SKILL.md` | Cinquième temps, la discipline du dry-run | T6 |
-| `plugin/skills/console/references/acces.md` | `ACC-07`, obtenir le scope d'écriture | T6 |
-| `plugin/skills/audit/references/checks/tags.md` | `TAG-05` | T7 |
-| `plugin/skills/audit/scripts/tests/fixtures/site.ts` | Option `longTitle` sur le site jouet | T7 |
-| `plugin/skills/build/references/nextjs.md` | La contrainte des 60 caractères | T8 |
+| `plugin/skills/console/scripts/lib/render.ts` | `renderUpdate`, pur, et son entrée au filet anti tiret cadratin | T4 |
+| `plugin/skills/console/scripts/tests/console-cli.test.ts` | Helper `deps()` étendu, faux serveur partagé, neuf tests | T4, T5 |
+| `plugin/skills/console/SKILL.md` | Cinquième temps, la discipline du dry-run, et le frontmatter | T6 |
+| `plugin/skills/console/references/acces.md` | `ACC-07` neuf, `ACC-03` corrigé | T6 |
+| `plugin/skills/build/scripts/lib/plan.ts` | `TAG-05` dans `KINDS`, et la réécriture du titre | T7 |
+| `plugin/skills/build/references/nextjs.md` | La recette rattachée à `TAG-05`, la contrainte des 60 caractères | T7 |
+| `plugin/skills/audit/scripts/tests/lint-report.test.ts` | Le compte figé à 26, converti en invariant | T7 |
+| `plugin/skills/audit/references/report-template.md` | Le compte du gabarit, 26 vers 27 | T7 |
+| `plugin/skills/audit/scripts/tests/fixtures/site.ts` | Option `longTitle`, page servie **et** listée au sitemap | T7 |
+| `plugin/skills/audit/references/checks/tags.md` | `TAG-05`, écrit **en dernier** | T7 |
 
 ---
 
@@ -151,7 +156,7 @@ test("sitemapCandidates met le robots en tête et ne répète jamais une URL", (
 - [ ] **Step 5: Lancer la suite entière**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test
 ```
 
 Attendu : tout vert, 506 tests plus les 3 nouveaux. **Aucune assertion existante n'a le droit de changer.** Un échec dans `skills/audit/scripts/tests/sitemap.test.ts` signifie que le réexport de l'étape 2 est incomplet, pas que le test est faux.
@@ -159,7 +164,7 @@ Attendu : tout vert, 506 tests plus les 3 nouveaux. **Aucune assertion existante
 - [ ] **Step 6: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/lib/sitemap.ts plugin/lib/tests/sitemap.test.ts plugin/skills/audit/scripts/lib/sitemap.ts plugin/skills/checklist/scripts/checklist.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/lib/sitemap.ts plugin/lib/tests/sitemap.test.ts plugin/skills/audit/scripts/lib/sitemap.ts plugin/skills/checklist/scripts/checklist.ts
 git commit -m "refactor(lib): remonter les primitives de sitemap dans le commun
 
 checklist les importait a travers la skill audit, ce que la regle du commun
@@ -249,7 +254,7 @@ test("un 403 sans reason de scope parle du rôle, pas du jeton", async () => {
 - [ ] **Step 2: Vérifier que les tests échouent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test lib/tests/gsc.test.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test lib/tests/gsc.test.ts
 ```
 
 Attendu : ÉCHEC, `submitSitemap` et `SUBMIT_HINT` ne sont pas exportés.
@@ -307,7 +312,7 @@ et la ligne du 403 générique par :
       "droits insuffisants sur cette propriété",
       status,
       ecriture
-        ? "soumettre un sitemap demande le rôle Owner sur la propriété. À faire par le propriétaire du site : Search Console, Sitemaps, coller l'URL du sitemap."
+        ? "le rôle de ce compte ne permet probablement pas de soumettre un sitemap. Google ne documente pas le rôle exigé par l'API, seulement qu'il faut « appropriate access (owner, full, read) » ; le rapport Sitemaps de l'interface web, lui, demande Owner. Repli sûr : le faire faire par le propriétaire du site, ou déclarer le sitemap dans robots.txt."
         : "le rôle de ce compte ne permet pas cette lecture. Voir references/acces.md, rôles Search Console.",
     );
   }
@@ -322,7 +327,10 @@ Enfin, à la fin du fichier, la seule écriture :
  * aucune des trois n'est implémentée, et ce refus est une décision. Un plugin capable de retirer la
  * propriété Search Console d'un client est un plugin qu'on n'ose plus lancer.
  * Chemin et encodage validés contre l'API le 31/08 (la requête atteint SitemapsService.Submit).
- * Réponse attendue : 204 sans corps ; 200 accepté par prudence, le discovery ne déclare aucun schéma.
+ * Le code de succès n'est documenté nulle part : la référence dit seulement « returns an empty response
+ * body », le discovery ne déclare aucun schéma de réponse. On accepte donc 200 et 204 sans en attester un.
+ * WMX_BASE reste sur www.googleapis.com : le discovery donne searchconsole.googleapis.com en rootUrl
+ * préféré, mais les deux hôtes routent ce chemin et le dépôt s'y appuie déjà pour ses quatre lectures.
  */
 export async function submitSitemap(f: Fetcher, auth: GoogleAuth, siteUrl: string, feedUrl: string): Promise<void> {
   const url = `${WMX_BASE}/sites/${encodeURIComponent(siteUrl)}/sitemaps/${encodeURIComponent(feedUrl)}`;
@@ -342,23 +350,35 @@ Corriger enfin le commentaire de tête du fichier, qui affirme aujourd'hui le co
 - [ ] **Step 5: Vérifier que les tests passent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test
 ```
 
 Attendu : tout vert, les 4 nouveaux tests compris.
 
 - [ ] **Step 6: Vérifier qu'aucune autre écriture n'est entrée (AC-8)**
 
+Le grep cible **l'appel**, jamais le mot : l'étape 4 vient d'écrire « sitemaps.delete, sites.add, sites.delete » dans le commentaire de tête de `gsc.ts`, et T6 réécrira la même phrase dans `acces.md`. Une vérification qui matche la phrase documentant le refus se déclenche sur sa propre documentation.
+
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && command grep -rnE 'method: "DELETE"|sites\.delete|sitemaps\.delete' plugin/ ; echo "exit $?"
+cd /Users/recarnot/dev/erom-seo-chantier-7 && command grep -rnE 'method: *"DELETE"' plugin/lib plugin/skills --include='*.ts' ; echo "exit $?"
 ```
 
 Attendu : aucune ligne, `exit 1` (grep ne trouve rien).
 
+Puis la seconde moitié du critère, qui elle est positive et vérifiable :
+
+```bash
+cd /Users/recarnot/dev/erom-seo-chantier-7 && head -3 plugin/lib/gsc.ts
+```
+
+Attendu : le commentaire de tête nomme les trois écritures refusées et pourquoi.
+
+La commande d'AC-8 dans la spec souffre du même défaut de ciblage : la corriger là-bas aussi, en même temps que la recette (T8 étape 9).
+
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/lib/gsc.ts plugin/lib/auth-google.ts plugin/lib/tests/gsc.test.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/lib/gsc.ts plugin/lib/auth-google.ts plugin/lib/tests/gsc.test.ts
 git commit -m "feat(gsc): sitemaps.submit, la seule ecriture Google du plugin
 
 D51 : le scope auth/webmasters autorise aussi delete et sites.add,
@@ -394,6 +414,18 @@ Le refus de scope renvoie SUBMIT_HINT (scope ecriture) et non LOGIN_HINT
 
 **Convention externe, échantillon.** Le corps IndexNow et celui de `SubmitFeed` sont repris **tels quels** du code existant, lui-même figé sur les exemples officiels capturés par curl le 29/08 (`docs/recherches/2026-08-29-checklist-indexnow-bing-gsc.md`, sections 3.1 et 3.2) et confirmé en production le 29/08 (HTTP 202, 10 URL sur `www.commentchercherbonheur.org`). Aucun octet n'est réécrit de mémoire.
 
+**Une duplication assumée, à écrire noir sur blanc.** `bingUserSites` existe déjà dans `plugin/lib/bing.ts:62`, et la version d'`actions.ts` que cette tâche déménage n'est pas la même :
+
+| | `lib/bing.ts:62` | `actions.ts:70`, déménagé ici |
+|---|---|---|
+| HTTP 200 portant `{"ErrorCode":3}` | lève une `BingError` nommée, avec sa consigne | ne lit pas `ErrorCode`, lève « réponse sans tableau d » |
+| type de l'erreur | `BingError` (code et `hint`) | `Error` nu, sans consigne |
+
+Le déménagement les laisse toutes les deux, et c'est délibéré : les fusionner changerait le comportement de `checklist`, dont les 44 tests doivent passer sans qu'une assertion bouge (AC-6). Deux conséquences à tenir dans les tâches suivantes :
+
+- **T4 n'importe jamais `bingUserSites` depuis `lib/soumission`.** `console.ts:6` l'importe déjà de `lib/bing`, et un second import du même nom au niveau module ne produit **aucune erreur** sous bun : il relie silencieusement tout le fichier au dernier import. Les trois commandes déjà recettées basculeraient sur l'autre implémentation et perdraient le message « la clé de ~/.zshenv n'est plus acceptée par Bing », sans qu'un seul test rougisse.
+- La convergence des deux fonctions est une dette, consignée en T8 étape 9 dans `_memory_/gotchas.md`, à traiter dans un chantier qui pourra toucher aux tests de `checklist`.
+
 - [ ] **Step 1: Écrire les tests des fonctions neuves**
 
 Créer `plugin/lib/tests/soumission.test.ts` :
@@ -413,6 +445,9 @@ test("sitemapsFromRobots lit les directives, ignore le reste", () => {
   expect(sitemapsFromRobots("Sitemap: /relatif.xml")).toEqual([]);
   expect(sitemapsFromRobots("# Sitemap: https://a.fr/commente.xml")).toEqual([]);
   expect(sitemapsFromRobots("User-agent: *\nDisallow:")).toEqual([]);
+  // Le protocole robots.txt admet un commentaire en fin de ligne : sans la clause (?:#.*)? de la
+  // regex, l'ancre \s*$ ne matche plus et la directive est perdue en silence.
+  expect(sitemapsFromRobots("Sitemap: https://a.fr/s.xml # le sitemap")).toEqual(["https://a.fr/s.xml"]);
 });
 
 test("verifierCleServie accepte la clé servie et nomme l'écart sinon", async () => {
@@ -478,7 +513,7 @@ test("trouverSitemap signale un 200 illisible plutôt que de le traiter comme vi
 - [ ] **Step 2: Vérifier que les tests échouent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test lib/tests/soumission.test.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test lib/tests/soumission.test.ts
 ```
 
 Attendu : ÉCHEC, le module `../soumission` n'existe pas.
@@ -515,7 +550,7 @@ const JSON_UTF8 = "application/json; charset=utf-8";
 export function sitemapsFromRobots(txt: string): string[] {
   const out: string[] = [];
   for (const raw of txt.split("\n")) {
-    const m = raw.match(/^\s*sitemap\s*:\s*(\S+)\s*$/i);
+    const m = raw.match(/^\s*sitemap\s*:\s*(\S+)\s*(?:#.*)?$/i);
     if (!m) continue;
     let u: string;
     // Une directive relative est hors protocole : le sitemap doit être une URL absolue.
@@ -534,13 +569,18 @@ export function sitemapsFromRobots(txt: string): string[] {
 export async function trouverSitemap(
   f: Fetcher,
   origine: string,
+  declares?: string[],
 ): Promise<{ url: string; urls: string[] } | { url: null; raison: string }> {
-  let declares: string[] = [];
-  const robots = await f(`${origine}/robots.txt`);
-  if (robots.status === 200) declares = sitemapsFromRobots(robots.text);
+  // `declares` évite un second GET quand l'appelant a déjà lu le robots.txt pour connaître
+  // l'origine servie : c'est le cas de console update, qui le sonde pour suivre ses redirections.
+  let liste = declares;
+  if (liste === undefined) {
+    const robots = await f(`${origine}/robots.txt`);
+    liste = robots.status === 200 ? sitemapsFromRobots(robots.text) : [];
+  }
 
   let illisible: string | null = null;
-  for (const cand of sitemapCandidates(declares, origine)) {
+  for (const cand of sitemapCandidates(liste, origine)) {
     const r = await f(cand);
     if (r.status !== 200) continue;
     const p = parseSitemap(r.text);
@@ -614,26 +654,47 @@ import type { ActionResult } from "../../../../lib/soumission";
 export type { ActionResult };
 ```
 
-- [ ] **Step 5: Vérifier que tout passe, tests de la checklist compris**
+- [ ] **Step 5: Corriger le commentaire de `lib/bing.ts` qui devient faux**
+
+`plugin/lib/bing.ts`, lignes 2 et 3, affirment aujourd'hui :
+
+```ts
+// Aucune écriture (D30) : SubmitFeed et SubmitUrlBatch ne sont pas ici, elles restent dans
+// skills/checklist/scripts/lib/actions.ts, seul endroit du plugin qui écrit vers l'extérieur.
+```
+
+C'est exactement la phrase que D52 remplace. Elle devient :
+
+```ts
+// Aucune écriture ici : SubmitFeed vit dans lib/soumission.ts (D52, chantier 7), seul endroit du
+// plugin qui écrit vers un moteur, appelé par console update et par checklist --agir.
+// Ce module garde les lectures Bing, le transport et la table des codes d'erreur.
+```
+
+Note pour l'implémenteur : ce fichier porte aussi un `bingUserSites` qui n'est **pas** celui déménagé dans `lib/soumission.ts` (voir la table en tête de tâche). Ne pas les fusionner, ne pas en supprimer un.
+
+- [ ] **Step 6: Vérifier que tout passe, tests de la checklist compris**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test
 ```
 
 Attendu : tout vert. **Les 44 tests de `skills/checklist` doivent passer sans qu'une seule de leurs assertions ait été touchée** (AC-6). Si l'un d'eux échoue, la copie de l'étape 3 a dérivé de l'original : la corriger, ne jamais ajuster le test.
 
-- [ ] **Step 6: Vérifier que le commun ne dépend d'aucune skill**
+- [ ] **Step 7: Vérifier que le commun ne dépend d'aucune skill**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && command grep -rn 'from "\.\./skills\|from "\./skills\|skills/' plugin/lib/*.ts ; echo "exit $?"
+cd /Users/recarnot/dev/erom-seo-chantier-7 && command grep -rn 'from ".*skills/' plugin/lib/*.ts ; echo "exit $?"
 ```
 
-Attendu : aucune ligne (`exit 1`). Une ligne trouvée casse la règle du commun.
+Attendu : aucune ligne (`exit 1`). Une ligne trouvée casse la règle du commun. (Le troisième motif de l'ancienne
+alternative, `skills/` nu, remontait aussi des commentaires de provenance sans rapport avec un import : corrigé
+en revue finale du chantier 7.)
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 8: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/lib/soumission.ts plugin/lib/tests/soumission.test.ts plugin/skills/checklist/scripts/lib/actions.ts plugin/skills/checklist/scripts/lib/checklist.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/lib/soumission.ts plugin/lib/tests/soumission.test.ts plugin/lib/bing.ts plugin/skills/checklist/scripts/lib/actions.ts plugin/skills/checklist/scripts/lib/checklist.ts
 git commit -m "feat(lib): reunir les trois soumissions dans lib/soumission.ts
 
 D52 : un seul endroit du code ecrit vers un moteur, deux appelants.
@@ -655,61 +716,133 @@ verifierCleServie, submitSitemapGoogle."
 - Consumes: tout T3, plus `listProperties` et `resolveProperty` et `resolveBingSite` déjà utilisés par les autres commandes.
 - Produces: `type UpdateView`, `renderUpdate(v: UpdateView): string`.
 
-- [ ] **Step 1: Écrire les tests qui échouent**
+- [ ] **Step 1: Étendre le helper `deps()` des tests, sans toucher à ses lignes existantes**
 
-Ajouter à `plugin/skills/console/scripts/tests/console-cli.test.ts`, dans le style des tests existants (fetcher injecté, `runConsole` appelé directement) :
+`console-cli.test.ts:12` porte déjà un helper `deps()`. Il prend **un seul argument objet** et rend `{ calls, deps }`, pas un objet `Deps` directement. Les tests neufs l'utilisent donc comme les anciens : `const { deps: d, calls } = deps({…}); await runConsole([…], d);`.
+
+Il lui manque deux choses pour `update` : injecter un fetcher complet, et injecter une `seo/strategy.md` (il rend `readStrategy: async () => null` en dur, ce qui laisserait la clé IndexNow toujours nulle et ferait taire tous les tests de POST).
+
+Trois ajouts, aucune ligne existante modifiée :
 
 ```ts
-test("update soumet aux deux moteurs et poste les URL", async () => {
-  const appels: { url: string; method: string }[] = [];
-  const f = async (url: string, init?: { method?: string }) => {
-    appels.push({ url, method: init?.method ?? "GET" });
-    if (url.endsWith("/robots.txt")) return { status: 200, text: "Sitemap: https://www.a.fr/sitemap.xml", final: "https://www.a.fr/robots.txt" };
-    if (url === "https://www.a.fr/sitemap.xml") return { status: 200, text: '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
-    if (url.includes("/webmasters/v3/sites") && !url.includes("/sitemaps/")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "https://www.a.fr/", permissionLevel: "siteOwner" }] }) };
-    if (url.includes("/sitemaps/")) return { status: 204, text: "" };
+type Call = { url: string; method: string; body?: string };
+```
+
+Puis deux champs dans `opts` :
+
+```ts
+  fetcher?: (url: string, init?: { method?: string; body?: string }) => Promise<{ status: number; text: string; final?: string }>;
+  strategy?: string | null;
+```
+
+Puis, dans l'objet rendu, le fetcher injecté reste enregistré dans `calls` et la stratégie devient injectable :
+
+```ts
+  return {
+    calls,
+    deps: {
+      fetcher: opts.fetcher
+        ? async (url: string, init: { method?: string; body?: string } = {}) => {
+            calls.push({ url, method: init.method ?? "GET", body: init.body });
+            return opts.fetcher!(url, init);
+          }
+        : fetcher,
+      env: { /* inchangé */ },
+      gcloud: async () => "ya29.JETON-SECRET",
+      serviceAccount: async () => "sa.FAUX",
+      readStrategy: async () => opts.strategy ?? null,
+    },
+  };
+```
+
+**Ne pas recopier la ligne `env:` ni la constante `KEY` à la main.** Le fichier porte une clé de test dont la valeur est masquée à l'affichage par la machine : ce qui s'affiche est `[REDACTED:env_secret]`, et le recopier écrirait le masque dans le source. Laisser ces lignes exactement où elles sont.
+
+La stratégie de test se dérive d'une fixture réelle, jamais écrite à la main, en y remplaçant la clé par une valeur non hexadécimale :
+
+```ts
+// La fixture porte une vraie clé de 32 caractères hexadécimaux, que la machine masque à la lecture.
+// On ne la lit jamais : on la remplace par une valeur reconnaissable, valide au regard du lint
+// (8 à 128 caractères, lettres, chiffres, tirets).
+const STRAT = (await Bun.file(`${import.meta.dir}/../../../../checklist/scripts/tests/fixtures/chico/strategy.md`).text())
+  .replace(/^IndexNow : .*$/m, "IndexNow : clepublique");
+```
+
+- [ ] **Step 2: Écrire les tests qui échouent**
+
+Ajouter à `plugin/skills/console/scripts/tests/console-cli.test.ts`, dans le style des tests existants :
+
+Le faux serveur est écrit une fois et paramétré, plutôt que recopié quatre fois. `calls` vient du helper : il enregistre déjà url, méthode et corps, il n'y a pas de second journal à tenir.
+
+```ts
+/** Faux serveur des quatre tests d'update. Chaque option force un refus, le reste répond juste. */
+function serveur(o: { putStatus?: number; robots?: string; sitemapStatus?: number; cleServie?: string } = {}) {
+  return async (url: string, init: { method?: string; body?: string } = {}) => {
+    if (url.endsWith("/robots.txt")) return { status: 200, text: o.robots ?? "Sitemap: https://www.a.fr/sitemap.xml", final: "https://www.a.fr/robots.txt" };
+    if (url === "https://www.a.fr/sitemap.xml") return { status: o.sitemapStatus ?? 200, text: o.sitemapStatus ? "" : '<urlset><url><loc>https://www.a.fr/</loc></url></urlset>' };
+    if (url.includes("/sitemaps/")) return { status: o.putStatus ?? 204, text: o.putStatus ? '{"error":{"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}]}}' : "" };
+    if (url.includes("/webmasters/v3/sites")) return { status: 200, text: JSON.stringify({ siteEntry: [{ siteUrl: "https://www.a.fr/", permissionLevel: "siteOwner" }] }) };
     if (url.includes("GetUserSites")) return { status: 200, text: JSON.stringify({ d: [{ Url: "https://www.a.fr/", IsVerified: true }] }) };
-    if (url.includes("SubmitFeed")) return { status: 200, text: JSON.stringify({ d: null }) };
-    if (url.endsWith(".txt")) return { status: 200, text: "clepublique" };
+    if (url.includes("SubmitFeed")) return { status: 200, text: '{"d":null}' };
     if (url === "https://api.indexnow.org/indexnow") return { status: 202, text: "" };
+    if (url.endsWith(".txt")) return { status: 200, text: o.cleServie ?? "clepublique" };
     return { status: 404, text: "" };
   };
-  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], deps(f, { BING_WMT_API_KEY: "cle-bing-test", GSC_QUOTA_PROJECT: "p" }));
+}
+
+test("update soumet aux deux moteurs et poste les URL", async () => {
+  const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
   expect(code).toBe(0);
-  expect(out).toContain("google");
-  expect(out).toContain("bing");
-  expect(out).toContain("indexnow");
-  expect(appels.filter((a) => a.method === "PUT")).toHaveLength(1);
-  expect(appels.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  expect(calls.filter((a) => a.method === "PUT")).toHaveLength(1);
+  expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
+  expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
 });
 
-test("un échec Google n'empêche pas Bing ni IndexNow", async () => {
-  // Même fetcher que ci-dessus, mais le PUT rend 403.
-  // Attendu : la ligne google porte son refus, les deux autres sont parties, code 1.
+test("un échec Google n'empêche ni Bing ni IndexNow, et vaut 1", async () => {
+  const { deps: d, calls } = deps({ fetcher: serveur({ putStatus: 403 }), strategy: STRAT });
+  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+  expect(code).toBe(1);
+  expect(out).toContain("gcloud auth application-default login");
+  expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(1);
+  expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(1);
 });
 
 test("sans clé Bing, la ligne bing dit sa raison et le code reste 0", async () => {
-  // BING_WMT_API_KEY absente de l'environnement injecté.
-  // Attendu : out contient "non interrogé (clé absente)", code 0 (D57 : non applicable n'est pas un échec).
+  const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT, key: null });
+  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+  expect(code).toBe(0);
+  expect(out).toContain("non interrogé");
+  expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(0);
+});
+
+test("une clé IndexNow différente de celle servie est un échec, pas un non applicable", async () => {
+  const { deps: d, calls } = deps({ fetcher: serveur({ cleServie: "uneautrecle" }), strategy: STRAT });
+  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+  expect(code).toBe(1);
+  expect(out).toContain("uneautrecle");
+  expect(calls.filter((a) => a.url === "https://api.indexnow.org/indexnow")).toHaveLength(0);
 });
 
 test("aucun sitemap trouvé : rien n'est soumis, code 1", async () => {
-  // robots.txt en 404, /sitemap.xml en 404, /sitemap_index.xml en 404.
-  // Attendu : aucun appel PUT ni POST, code 1, out contient "aucun sitemap".
+  const { deps: d, calls } = deps({ fetcher: serveur({ robots: "User-agent: *", sitemapStatus: 404 }), strategy: STRAT });
+  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr"], d);
+  expect(code).toBe(1);
+  expect(out).toContain("aucun sitemap");
+  expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
 });
 ```
 
-Les trois derniers tests sont écrits en entier par l'implémenteur sur le modèle du premier : même `deps()`, même forme de fetcher, seule la réponse qui change est nommée en commentaire. Le premier test est normatif et se transcrit tel quel.
+Ces cinq tests sont normatifs et se transcrivent tels quels. Le quatrième couvre D57 sur le point que la spec crée exprès : une clé IndexNow servie mais différente de celle déclarée est un **échec**, pas un cas non applicable.
 
-- [ ] **Step 2: Vérifier que les tests échouent**
+- [ ] **Step 3: Vérifier que les tests échouent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/console
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test skills/console
 ```
 
 Attendu : ÉCHEC, `update` tombe sur le message d'usage.
 
-- [ ] **Step 3: Ajouter la vue et son rendu**
+- [ ] **Step 4: Ajouter la vue et son rendu**
 
 Dans `plugin/skills/console/scripts/lib/render.ts`, ajouter le type et la fonction. `renderUpdate` est **pur** et suit les règles du fichier : une ligne par fait, jamais de tableau, un champ absent ne s'affiche pas.
 
@@ -725,8 +858,10 @@ export type UpdateView = {
 
 export function renderUpdate(v: UpdateView): string {
   const out: string[] = [];
-  const verbe = v.simule ? "partirait" : "";
   out.push(`site      : ${v.origine}${v.origine !== v.site ? ` (demandé : ${v.site})` : ""}`);
+  // La simulation se dit une fois, en tête. Le temps du verbe vit dans le message de chaque soumission :
+  // un préfixe « partirait » collé devant un message au passé donnerait « partirait : sitemap soumis ».
+  if (v.simule) out.push("mode      : simulation, aucune écriture ne part");
   if (v.sitemap) {
     const bouge = v.deplacees > 0 ? `, ${v.deplacees} ramenée(s) sur l'origine servie` : "";
     out.push(`sitemap   : ${v.sitemap} (${v.nbUrls} URL${bouge})`);
@@ -734,7 +869,7 @@ export function renderUpdate(v: UpdateView): string {
   const ligne = (nom: string, r: ActionResult | null, raison: string | null) => {
     if (raison) return `${nom} : ${raison}`;
     if (!r) return null;
-    return `${nom} : ${v.simule ? `${verbe} : ` : ""}${r.message}`;
+    return `${nom} : ${r.message}`;
   };
   for (const [nom, r, raison] of [
     ["google  ", v.google, v.googleRaison],
@@ -750,7 +885,55 @@ export function renderUpdate(v: UpdateView): string {
 
 `ActionResult` s'importe depuis `../../../../lib/soumission`.
 
-- [ ] **Step 4: Écrire la branche `update`**
+- [ ] **Step 5: Tester `renderUpdate` et l'inscrire au filet anti tiret cadratin**
+
+`renderUpdate` est une fonction pure exportée à sept branches. Les tests CLI ne l'exercent qu'indirectement, et `render.test.ts:245` porte un filet dont le commentaire dit pourquoi il est manuel : « Le filet doit voir chaque chaîne littérale de `render.ts` au moins une fois : sinon un tiret injecté dans une branche non exercée passerait la suite sans être vu. » Un quatrième renderer qui n'entre pas dans le tableau `sorties` sort du filet.
+
+Ajouter à `plugin/skills/console/scripts/tests/render.test.ts` :
+
+```ts
+const vueMinimale = {
+  site: "https://a.fr", origine: "https://www.a.fr", sitemap: null, nbUrls: 0, deplacees: 0,
+  raisonSitemap: null, google: null, googleRaison: null, bing: null, bingRaison: null,
+  indexnow: null, indexnowRaison: null, simule: false,
+};
+const ok = (message: string) => ({ ok: true, status: 200, message });
+
+test("renderUpdate : une ligne par soumission, aucune ligne vide", () => {
+  const out = renderUpdate({
+    ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 10, deplacees: 2,
+    google: ok("sitemap soumis à sc-domain:a.fr"), bing: ok("sitemap soumis pour https://a.fr/"),
+    indexnow: { ok: true, status: 202, message: "Accepted", urls: 10 },
+  });
+  expect(out).toContain("sitemap   : https://www.a.fr/sitemap.xml (10 URL, 2 ramenée(s)");
+  expect(out).toContain("(demandé : https://a.fr)");
+  expect(out.split("\n").filter((l) => l.trim().endsWith(":"))).toHaveLength(0);
+});
+
+test("renderUpdate : un moteur muet écrit sa raison, jamais un blanc", () => {
+  const out = renderUpdate({ ...vueMinimale, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
+    google: ok("soumis"), bingRaison: "non interrogé (clé absente)" });
+  expect(out).toContain("non interrogé (clé absente)");
+  expect(out).not.toContain("indexnow");
+});
+
+test("renderUpdate : sans sitemap, la raison remplace la ligne et aucun moteur n'apparaît", () => {
+  const out = renderUpdate({ ...vueMinimale, raisonSitemap: "aucun sitemap trouvé : ni déclaré dans …" });
+  expect(out).toContain("aucun sitemap trouvé");
+  expect(out).not.toContain("google");
+});
+
+test("renderUpdate : en simulation, rien n'est annoncé au passé", () => {
+  const out = renderUpdate({ ...vueMinimale, simule: true, sitemap: "https://www.a.fr/sitemap.xml", nbUrls: 1,
+    google: ok("le sitemap https://www.a.fr/sitemap.xml partira vers sc-domain:a.fr") });
+  expect(out).toContain("partira");
+  expect(out).not.toContain("soumis");
+});
+```
+
+Puis inscrire ces quatre sorties dans le filet, en les nommant et en les poussant dans le tableau `sorties` de `render.test.ts:245`. Sans cette inscription, la contrainte anti tiret cadratin cesse de couvrir le code neuf : il n'y a pas de linter dans ce dépôt, l'interdiction est portée par des assertions dispersées, chacune sur son fichier.
+
+- [ ] **Step 6: Écrire la branche `update`**
 
 Dans `plugin/skills/console/scripts/console.ts`, ajouter avant le `return { out: USAGE, code: 1 }` final. Le bloc réutilise le `reason()`, le `done()` et le `auth()` déjà en place dans `runConsole` :
 
@@ -759,11 +942,19 @@ Dans `plugin/skills/console/scripts/console.ts`, ajouter avant le `return { out:
     const i = rest.indexOf("--site");
     if (i >= 0 && !rest[i + 1]) return { out: "--site attend une URL en argument", code: 1 };
     let site = i >= 0 ? rest[i + 1] : undefined;
-    if (!site) {
-      const md = await d.readStrategy();
-      if (md) { try { site = parseStrategy(md).site; } catch { /* traité comme absent, message ci-dessous */ } }
+
+    // La stratégie se lit une fois : elle donne le site et la clé IndexNow. Une stratégie présente mais
+    // invalide n'est pas une stratégie absente, et le dire évite de chercher un fichier qui existe déjà :
+    // c'est le motif de `crawl` (console.ts:134), on ne le contredit pas d'une commande à l'autre.
+    const md = await d.readStrategy();
+    let strategie: ReturnType<typeof parseStrategy> | null = null;
+    let raisonStrategie: string | null = null;
+    if (md) {
+      try { strategie = parseStrategy(md); }
+      catch (e) { raisonStrategie = `seo/strategy.md est présent mais ne s'analyse pas :\n  ${reason(e)}`; }
     }
-    if (!site) return { out: "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
+    if (!site) site = strategie?.site;
+    if (!site) return { out: raisonStrategie ?? "aucun site : lance depuis un dossier qui a seo/strategy.md, ou passe --site <url>", code: 1 };
 
     let demandee: string;
     try { demandee = new URL(site.startsWith("http") ? site : `https://${site}`).origin; }
@@ -771,11 +962,13 @@ Dans `plugin/skills/console/scripts/console.ts`, ajouter avant le `return { out:
 
     // L'origine réellement servie vient de la chaîne de redirections du robots.txt (D53) : un site peut
     // déclarer l'apex partout et servir le www, et c'est l'origine finale qui vaut pour IndexNow.
+    // Le même GET donne les directives Sitemap: ; elles sont passées à trouverSitemap, qui ne relit rien.
     const sonde = await d.fetcher(`${demandee}/robots.txt`);
     let origine = demandee;
     if (sonde.final) { try { origine = new URL(sonde.final).origin; } catch { /* on garde l'origine demandée */ } }
+    const declares = sonde.status === 200 ? sitemapsFromRobots(sonde.text) : [];
 
-    const trouve = await trouverSitemap(d.fetcher, origine);
+    const trouve = await trouverSitemap(d.fetcher, origine, declares);
     if (trouve.url === null) {
       const view: UpdateView = { site, origine, sitemap: null, nbUrls: 0, deplacees: 0, raisonSitemap: trouve.raison,
         google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule: false };
@@ -783,6 +976,12 @@ Dans `plugin/skills/console/scripts/console.ts`, ajouter avant le `return { out:
     }
     const ramenees = urlsOnOrigin(trouve.urls, origine);
 
+    // D57 distingue deux sortes de silence, et le code de sortie ne compte que la seconde.
+    // « Non applicable » est une liste fermée de trois cas, reprise mot pour mot de la spec : clé Bing
+    // absente, site hors du compte Bing, pas de clé IndexNow dans la stratégie. Tout le reste est un
+    // échec, y compris une clé IndexNow servie mais différente (D54 existe pour attraper ce cas précis)
+    // et l'absence de propriété Search Console. `console sites` et `console crawl` rendent déjà 1
+    // quand le moteur visé n'a rien pu dire : cette commande ne se comporte pas autrement.
     let google: ActionResult | null = null, googleRaison: string | null = null;
     const [a, authErr] = await auth();
     if (!a) googleRaison = authErr;
@@ -791,49 +990,71 @@ Dans `plugin/skills/console/scripts/console.ts`, ajouter avant le `return { out:
         const props = await listProperties(d.fetcher, a);
         const p = resolveProperty(origine, props);
         if (!p) googleRaison = "aucune propriété Search Console ne couvre ce site. Lance `console sites`.";
-        else google = await submitSitemapGoogle(d.fetcher, a, p.siteUrl, trouve.url);
+        else google = await submitSitemapGoogle(d.fetcher, a, p.siteUrl, sitemapUrl);
       } catch (e) { googleRaison = reason(e); }
     }
 
-    let bing: ActionResult | null = null, bingRaison: string | null = key ? null : NOKEY;
+    let bing: ActionResult | null = null, bingRaison: string | null = null, bingNonApplicable: string | null = key ? null : NOKEY;
     if (key) {
       try {
         const sites = await bingUserSites(d.fetcher, key);
         const s = resolveBingSite(new URL(origine).hostname, sites);
-        if (!s) bingRaison = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
-        else bing = await bingSubmitFeed(d.fetcher, key, s.Url, trouve.url);
+        if (!s) bingNonApplicable = sites.length === 0 ? COMPTE_VIDE : HOTE_ABSENT;
+        else bing = await bingSubmitFeed(d.fetcher, key, s.Url, sitemapUrl);
       } catch (e) { bingRaison = reason(e); }
     }
 
-    let indexnow: ActionResult | null = null, indexnowRaison: string | null = null;
-    const md = await d.readStrategy();
-    let cle: string | null = null;
-    if (md) { try { cle = parseStrategy(md).indexnow; } catch { /* traité comme absente */ } }
-    if (!cle) indexnowRaison = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
+    let indexnow: ActionResult | null = null, indexnowRaison: string | null = null, indexnowNonApplicable: string | null = null;
+    const cle = strategie?.indexnow ?? null;
+    if (!cle) indexnowNonApplicable = "pas de clé IndexNow dans seo/strategy.md (Cadence de fraîcheur, IndexNow : non)";
     else {
       try {
         const servie = await verifierCleServie(d.fetcher, origine, cle);
         if (!servie.ok) indexnowRaison = servie.message;
-        else indexnow = await pingIndexNow(d.fetcher, { host: new URL(origine).host, key: cle, urls: ramenees.urls });
+        else indexnow = await pingIndexNow(d.fetcher, { host: new URL(origine).host, key: cle, urls: urlsAPoster });
       } catch (e) { indexnowRaison = reason(e); }
     }
 
     const view: UpdateView = {
-      site, origine, sitemap: trouve.url, nbUrls: ramenees.urls.length, deplacees: ramenees.moved, raisonSitemap: null,
-      google, googleRaison, bing, bingRaison, indexnow, indexnowRaison, simule: false,
+      site, origine, sitemap: sitemapUrl, nbUrls: urlsAPoster.length, deplacees, raisonSitemap,
+      google, googleRaison,
+      bing, bingRaison: bingRaison ?? bingNonApplicable,
+      indexnow, indexnowRaison: indexnowRaison ?? indexnowNonApplicable,
+      simule,
     };
-    // D57 : un échec réel vaut 1, un non applicable (clé absente, site hors compte) laisse 0.
-    const echecs = [google, bing, indexnow].filter((r) => r !== null && !r.ok).length;
+    const echecs =
+      [google, bing, indexnow].filter((r) => r !== null && !r.ok).length +
+      [googleRaison, bingRaison, indexnowRaison].filter((r) => r !== null).length;
     return done(view, renderUpdate(view), echecs > 0 ? 1 : 0);
   }
 ```
 
-Ajouter en tête de fichier les imports :
+Note pour l'implémenteur : `sitemapUrl`, `urlsAPoster`, `deplacees`, `raisonSitemap` et `simule` sont introduits par T5. En T4, les poser juste après `trouverSitemap` suffit :
 
 ```ts
-import { trouverSitemap, urlsOnOrigin, verifierCleServie, submitSitemapGoogle, pingIndexNow, bingUserSites, bingSubmitFeed, type ActionResult } from "../../../lib/soumission";
+    const simule = false; // T5 le branche sur --dry-run
+    const trouve = await trouverSitemap(d.fetcher, origine, declares);
+    if (trouve.url === null) { /* le bloc de sortie ci-dessus */ }
+    const sitemapUrl = trouve.url;
+    const r = urlsOnOrigin(trouve.urls, origine);
+    const urlsAPoster = r.urls, deplacees = r.moved;
+    const raisonSitemap: string | null = null;
+```
+
+Ajouter en tête de fichier les imports. **`bingUserSites` n'y est pas, et ce n'est pas un oubli** : `console.ts:6` l'importe déjà depuis `lib/bing`, et un second import du même nom au niveau module relierait silencieusement tout le fichier à l'autre implémentation, changeant le comportement des trois commandes déjà recettées sans qu'aucun test ne rougisse (voir la table en tête de T3).
+
+```ts
+import { trouverSitemap, sitemapsFromRobots, urlsOnOrigin, verifierCleServie, submitSitemapGoogle, pingIndexNow, bingSubmitFeed, type ActionResult } from "../../../lib/soumission";
 import { renderUpdate, type UpdateView } from "./lib/render";
 ```
+
+Vérification après écriture, un identifiant ne doit être importé qu'une fois :
+
+```bash
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && command grep -n "^import" skills/console/scripts/console.ts | command grep -c "bingUserSites"
+```
+
+Attendu : `1`.
 
 Mettre à jour `USAGE` :
 
@@ -847,7 +1068,7 @@ Et corriger le commentaire de tête, qui affirme aujourd'hui le contraire :
 // Le verbe console : trois lectures et une écriture, update (D50, chantier 7 ; D30 est remplacée).
 ```
 
-- [ ] **Step 5: Faire remonter l'URL finale au fetcher réel**
+- [ ] **Step 7: Faire remonter l'URL finale au fetcher réel**
 
 Dans le bloc `import.meta.main` de `console.ts`, ajouter `final` au retour du `defaultFetcher` :
 
@@ -857,18 +1078,18 @@ Dans le bloc `import.meta.main` de `console.ts`, ajouter `final` au retour du `d
 
 `res.url` porte l'URL après redirections : c'est ce qui donne l'origine réellement servie sans requête supplémentaire.
 
-- [ ] **Step 6: Vérifier que les tests passent**
+- [ ] **Step 8: Vérifier que les tests passent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test
 ```
 
 Attendu : tout vert.
 
-- [ ] **Step 7: Commit**
+- [ ] **Step 9: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/skills/console/
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/skills/console/
 git commit -m "feat(console): la commande update, sitemap aux deux moteurs et POST IndexNow
 
 D50 : console n est plus en lecture seule. L origine servie vient de la chaine
@@ -891,58 +1112,66 @@ applicable ne teinte pas le code de sortie (D57)."
 
 - [ ] **Step 1: Écrire les tests qui échouent**
 
+Le faux serveur et la stratégie de test sont ceux de T4 (`serveur()` et `STRAT`), déjà en place dans le fichier.
+
 ```ts
 test("--dry-run n'émet aucune écriture", async () => {
-  const appels: { url: string; method: string }[] = [];
-  const f = /* le même fetcher complet que le test nominal de T4, en poussant chaque appel dans `appels` */;
-  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr", "--dry-run"], deps(f, { BING_WMT_API_KEY: "cle-bing-test", GSC_QUOTA_PROJECT: "p" }));
+  const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
+  const { out, code } = await runConsole(["update", "--site", "https://www.a.fr", "--dry-run"], d);
   expect(code).toBe(0);
-  expect(appels.filter((a) => a.method === "PUT")).toHaveLength(0);
-  expect(appels.filter((a) => a.method === "POST")).toHaveLength(0);
+  expect(calls.filter((a) => a.method === "PUT" || a.method === "POST")).toHaveLength(0);
   // Les lectures nécessaires au calcul sont parties : sans elles, le dry-run serait décoratif.
-  expect(appels.some((a) => a.url.includes("/webmasters/v3/sites"))).toBe(true);
-  expect(out).toContain("partirait");
+  expect(calls.some((a) => a.url.includes("/webmasters/v3/sites"))).toBe(true);
+  expect(calls.some((a) => a.url.includes("GetUserSites"))).toBe(true);
+  // Le contrôle de la clé IndexNow est une lecture : il se joue aussi en simulation (D54).
+  expect(calls.some((a) => a.url.endsWith("/clepublique.txt"))).toBe(true);
+  expect(out).toContain("simulation");
 });
 
 test("--url pinge ces URL seules et ne soumet aucun sitemap", async () => {
-  const appels: { url: string; method: string; body?: string }[] = [];
-  const f = /* même fetcher, en capturant aussi init?.body */;
+  const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
   const { out, code } = await runConsole(
-    ["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/article"],
-    deps(f, { BING_WMT_API_KEY: "cle-bing-test", GSC_QUOTA_PROJECT: "p" }),
+    ["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/article"], d,
   );
   expect(code).toBe(0);
-  expect(appels.filter((a) => a.method === "PUT")).toHaveLength(0);
-  expect(appels.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(0);
-  const post = appels.find((a) => a.url === "https://api.indexnow.org/indexnow");
+  expect(calls.filter((a) => a.method === "PUT")).toHaveLength(0);
+  expect(calls.filter((a) => a.url.includes("SubmitFeed"))).toHaveLength(0);
+  const post = calls.find((a) => a.url === "https://api.indexnow.org/indexnow");
   expect(JSON.parse(post!.body!).urlList).toEqual(["https://www.a.fr/article"]);
   expect(out).not.toContain("google");
 });
 
+test("--url sans clé Bing n'écrit aucune ligne bing", async () => {
+  // Sans cette variante, une ligne « bing : non interrogé (clé absente) » passerait inaperçue
+  // en mode --url, où aucun sitemap n'est soumis et où Bing n'a donc rien à dire (D55, AC-4).
+  const { deps: d } = deps({ fetcher: serveur(), strategy: STRAT, key: null });
+  const { out } = await runConsole(["update", "--site", "https://www.a.fr", "--url", "https://www.a.fr/x"], d);
+  expect(out).not.toContain("bing");
+  expect(out).not.toContain("google");
+});
+
 test("--url refuse une URL hors origine sans appeler personne", async () => {
-  const appels: string[] = [];
-  const f = async (url: string) => { appels.push(url); return { status: 200, text: "clepublique" }; };
+  const { deps: d, calls } = deps({ fetcher: serveur(), strategy: STRAT });
   const { out, code } = await runConsole(
-    ["update", "--site", "https://www.a.fr", "--url", "https://autre.fr/x"],
-    deps(f, {}),
+    ["update", "--site", "https://www.a.fr", "--url", "https://autre.fr/x"], d,
   );
   expect(code).toBe(1);
   expect(out).toContain("autre.fr");
-  expect(appels.some((u) => u === "https://api.indexnow.org/indexnow")).toBe(false);
+  expect(calls.some((u) => u.url === "https://api.indexnow.org/indexnow")).toBe(false);
 });
 ```
 
 - [ ] **Step 2: Vérifier que les tests échouent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/console
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test skills/console
 ```
 
 Attendu : ÉCHEC. `--dry-run` et `--url` sont ignorés, donc les écritures partent.
 
 - [ ] **Step 3: Extraire les deux drapeaux**
 
-Au début de la branche `update`, avant la résolution du site :
+Au début de la branche `update`, avant la résolution du site. Remplacer le `const simule = false;` que T4 avait posé en attendant :
 
 ```ts
     const simule = rest.includes("--dry-run");
@@ -955,11 +1184,11 @@ Au début de la branche `update`, avant la résolution du site :
     }
 ```
 
-Attention : `--site` étant lu par `rest.indexOf("--site")`, l'ordre des drapeaux reste libre.
+`--site` étant lu par `rest.indexOf("--site")`, l'ordre des drapeaux reste libre.
 
 - [ ] **Step 4: Court-circuiter le sitemap quand `--url` est là**
 
-Remplacer l'appel à `trouverSitemap` par :
+Remplacer le bloc posé en T4 étape 6 (`const trouve = …` jusqu'à `const raisonSitemap`) par :
 
 ```ts
     // D55 : avec --url, aucune soumission de sitemap. Une URL hors origine est refusée ici plutôt
@@ -970,32 +1199,63 @@ Remplacer l'appel à `trouverSitemap` par :
       if (hors.length > 0) return { out: `hors du site : ${hors.join(", ")}\n  IndexNow n'accepte que des URL sur ${origine}`, code: 1 };
       urlsAPoster = urlsDemandees;
     } else {
-      const trouve = await trouverSitemap(d.fetcher, origine);
-      if (trouve.url === null) { /* le bloc de sortie de T4, inchangé */ }
-      else { sitemapUrl = trouve.url; const r = urlsOnOrigin(trouve.urls, origine); urlsAPoster = r.urls; deplacees = r.moved; }
+      const trouve = await trouverSitemap(d.fetcher, origine, declares);
+      if (trouve.url === null) {
+        raisonSitemap = trouve.raison;
+        const view: UpdateView = { site, origine, sitemap: null, nbUrls: 0, deplacees: 0, raisonSitemap,
+          google: null, googleRaison: null, bing: null, bingRaison: null, indexnow: null, indexnowRaison: null, simule };
+        return done(view, renderUpdate(view), 1);
+      }
+      sitemapUrl = trouve.url;
+      const r = urlsOnOrigin(trouve.urls, origine);
+      urlsAPoster = r.urls;
+      deplacees = r.moved;
     }
 ```
 
-Puis englober les deux blocs Google et Bing dans `if (sitemapUrl) { … }`, et alimenter la vue avec `sitemap: sitemapUrl`, `nbUrls: urlsAPoster.length`, `deplacees`, `raisonSitemap`.
+`raisonSitemap` n'est assignée que sur le chemin qui rend immédiatement : elle vaut donc toujours `null` dans la vue finale. C'est voulu et ce n'est pas une variable morte, la vue en a besoin dans les deux cas.
+
+Puis englober les blocs Google et Bing dans `if (sitemapUrl) { … }`. **La déclaration entre dans le `if`, pas seulement l'initialisation** : sinon, en mode `--url` sans clé Bing, `bingNonApplicable` vaudrait `NOKEY` et la sortie porterait une ligne `bing : non interrogé (clé absente)` alors qu'aucun sitemap n'est soumis. Concrètement :
+
+```ts
+    let google: ActionResult | null = null, googleRaison: string | null = null;
+    let bing: ActionResult | null = null, bingRaison: string | null = null, bingNonApplicable: string | null = null;
+    if (sitemapUrl) {
+      const [a, authErr] = await auth();
+      // … le bloc Google de T4 étape 6, inchangé …
+      bingNonApplicable = key ? null : NOKEY;
+      if (key) { /* … le bloc Bing de T4 étape 6, inchangé … */ }
+    }
+```
 
 - [ ] **Step 5: Court-circuiter les trois écritures en simulation**
 
-Chacune des trois soumissions devient, sur le même modèle :
+Chacune des trois soumissions devient, sur le même modèle. Le message simulé est **au futur** : `renderUpdate` ne préfixe rien, il dit seulement « mode : simulation » en tête, et un message au passé y donnerait une sortie qui ment sur ce qui s'est passé.
 
 ```ts
         google = simule
-          ? { ok: true, status: 0, message: `sitemap ${sitemapUrl} soumis à ${p.siteUrl}` }
+          ? { ok: true, status: 0, message: `le sitemap ${sitemapUrl} partira vers ${p.siteUrl}` }
           : await submitSitemapGoogle(d.fetcher, a, p.siteUrl, sitemapUrl);
 ```
 
-`renderUpdate` porte déjà le mot « partirait » quand `simule` est vrai : passer `simule` dans la vue suffit à ce que la sortie ne mente pas.
+```ts
+        bing = simule
+          ? { ok: true, status: 0, message: `le sitemap ${sitemapUrl} partira pour ${s.Url}` }
+          : await bingSubmitFeed(d.fetcher, key, s.Url, sitemapUrl);
+```
 
-Le contrôle de clé IndexNow (`verifierCleServie`) **reste joué en simulation** : c'est une lecture, et c'est exactement le contrôle qu'un dry-run doit exercer.
+```ts
+        indexnow = simule
+          ? { ok: true, status: 0, message: `${urlsAPoster.length} URL partiront vers IndexNow`, urls: urlsAPoster.length }
+          : await pingIndexNow(d.fetcher, { host: new URL(origine).host, key: cle, urls: urlsAPoster });
+```
+
+Le contrôle de clé IndexNow (`verifierCleServie`) **reste joué en simulation** : c'est une lecture, et c'est exactement le contrôle qu'un dry-run doit exercer. Les lectures Google (`listProperties`) et Bing (`bingUserSites`) restent jouées pour la même raison : sans elles, le dry-run ne saurait pas dire vers quelle propriété le sitemap partirait, et il serait décoratif.
 
 - [ ] **Step 6: Vérifier que les tests passent**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test
 ```
 
 Attendu : tout vert.
@@ -1003,15 +1263,14 @@ Attendu : tout vert.
 - [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/skills/console/
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/skills/console/
 git commit -m "feat(console): update --url et --dry-run
 
---url pinge des pages precises sans toucher aux sitemaps (D55) et refuse
-localement une URL hors origine. --dry-run joue toutes les lectures et
-n emet aucune ecriture (AC-1), verification de la cle IndexNow comprise."
+--url pinge des pages precises sans toucher aux sitemaps (D55), refuse
+localement une URL hors origine, et n ecrit aucune ligne google ni bing.
+--dry-run joue toutes les lectures, controle de la cle IndexNow compris,
+et n emet aucune ecriture (AC-1). Les messages simules sont au futur."
 ```
-
----
 
 ## Task 6: La procédure et la référence d'accès
 
@@ -1029,16 +1288,22 @@ Dans `plugin/skills/console/references/acces.md`, ajouter une entrée au format 
 ```markdown
 ### Obtenir le droit d'écrire dans Search Console (ACC-07)
 Chemin   : le jeton par défaut de `gcloud auth application-default login` ne porte que la lecture. Pour que `console update` puisse soumettre un sitemap, relancer une fois : `gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/webmasters`. Le scope `webmasters` couvre `webmasters.readonly` : aucune lecture ne se perd.
-Piège    : le scope suffit à parler à l'API, pas à soumettre. Il faut aussi le rôle Owner sur la propriété. Sur un site client où l'agence est Full user, `console update` rendra un refus qui nomme le propriétaire, et la soumission du sitemap reste un geste du client.
+Piège    : le scope suffit à parler à l'API, pas forcément à soumettre. Le rôle exigé par `sitemaps.submit` n'est écrit nulle part : la documentation API demande seulement « appropriate access (owner, full, read) », et la page d'aide qui exige Owner parle du rapport Sitemaps de l'interface web, pas de l'API. Sur un site client où l'agence est Full user, tester une fois : si Google refuse, le sitemap se déclare dans robots.txt, ou se soumet par le propriétaire.
 Piège    : ce même scope autorise `sitemaps.delete`, `sites.add` et `sites.delete`. Le plugin n'implémente aucune des trois, volontairement (D51). Le pouvoir est dans le jeton, pas dans le code.
 Source   : https://developers.google.com/webmaster-tools/v1/sitemaps/submit « Submits a sitemap for a site. »
-Source   : https://support.google.com/webmasters/answer/7451001 « You must have owner permissions on a property to submit a sitemap »
+Source   : https://developers.google.com/webmaster-tools/about « You must have appropriate access (owner, full, read) to any Google Search Console account that you wish to access using the API. »
 ```
 
-- [ ] **Step 2: Vérifier que les deux citations sont retrouvées**
+**La citation Owner que le plan portait d'abord était tronquée d'une manière qui la retournait.** La phrase entière de `support.google.com/webmasters/answer/7451001` est : « You must have owner permissions on a property to submit a sitemap **using the Sitemaps report**. If you don't have owner permissions, you can list the sitemap in your robots.txt file instead. » Le fragment « using the Sitemaps report » désigne l'interface web. Couper là transformait une règle d'interface en règle d'API, et `check-sources.ts` l'aurait validée sans broncher puisque le fragment existe bel et bien sur la page. C'est le seul défaut de ce plan qu'aucune commande n'aurait attrapé.
+
+- [ ] **Step 2: Corriger ACC-03, qui dit l'inverse**
+
+`references/acces.md:17` (ACC-03) affirme aujourd'hui : « `console` demande toujours `webmasters.readonly`, donc une soumission de sitemap lui est refusée par construction. » Cette phrase devient fausse à l'instant où ACC-07 existe. La remplacer par : « `console` demande `webmasters.readonly` pour ses trois lectures. La commande `update` a besoin du scope d'écriture, voir ACC-07. »
+
+- [ ] **Step 3: Vérifier que les deux citations sont retrouvées**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun skills/audit/scripts/check-sources.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun skills/audit/scripts/check-sources.ts
 ```
 
 Attendu : les deux nouvelles citations passent en `OK`, aucun `ÉCHEC` neuf. `support.google.com` répond 404 en HEAD et 200 en GET : le script est déjà en GET, c'est un piège connu du 29/08.
@@ -1049,7 +1314,7 @@ Si la citation `sitemaps/submit` n'est pas retrouvée (la page est rendue en Jav
 Source   : https://developers.google.com/webmaster-tools/v1/sitemaps/submit « Submits a sitemap for a site. » [manuel]
 ```
 
-- [ ] **Step 3: Ajouter le cinquième temps à la skill**
+- [ ] **Step 4: Ajouter le cinquième temps à la skill**
 
 Dans `plugin/skills/console/SKILL.md`, réécrire le paragraphe d'ouverture qui affirme aujourd'hui « Le verbe `console` lit, il n'agit pas », puis ajouter la section. Le paragraphe devient :
 
@@ -1083,18 +1348,27 @@ Le premier refus attendu la première fois est le scope : le jeton par défaut d
 Ce que `update` ne fait pas : demander l'indexation d'une URL (l'API ne l'expose pas, seule l'interface web le fait, avec un quota quotidien), ajouter une propriété, ni retirer quoi que ce soit.
 ```
 
-- [ ] **Step 4: Vérifier le format de la référence**
+- [ ] **Step 5: Mettre à jour le frontmatter de la skill**
+
+`SKILL.md` lignes 3 et 4 sont la surface de déclenchement de la skill, et aucun test ne les couvre. Après ce chantier, `description` affirme « sans rien écrire », ce qui est faux, et ne porte aucun déclencheur de soumission : « soumets le sitemap », « préviens les moteurs », « on vient de déployer » ne matcheraient rien. `argument-hint` ignore les trois nouveautés alors que la constante `USAGE` du script, elle, a été mise à jour en T4.
+
+```yaml
+description: Lit l'état des consoles Google Search Console et Bing Webmaster Tools depuis le terminal, sans ouvrir un onglet, et soumet aux deux moteurs quand on le lui demande : quelles propriétés et quels accès, quel sitemap est arrivé et ce qu'il en dit, si une URL est indexée et sous quel canonical Google l'a retenue, ce que Bing voit passer, et l'envoi du sitemap plus le POST IndexNow après une mise en production. Triggers : '/erom-seo:console', 'est-ce que cette page est indexée', 'quel canonical Google a retenu', 'j'ai bien accès à la Search Console de ce client', 'mon sitemap est-il arrivé', 'qu'est-ce que Bing voit', 'soumets le sitemap', 'préviens les moteurs', 'on vient de déployer', 'signale cette page aux moteurs'.
+argument-hint: "[sites | inspect <url> | crawl | update] [--site <url>] [--url <u>] [--dry-run] [--json]"
+```
+
+- [ ] **Step 6: Vérifier le format de la référence**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/console/scripts/tests/acces.test.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test skills/console/scripts/tests/acces.test.ts
 ```
 
 Attendu : vert. Le test valide la forme de chaque entrée ; il ne compte pas les entrées.
 
-- [ ] **Step 5: Commit**
+- [ ] **Step 7: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/skills/console/SKILL.md plugin/skills/console/references/acces.md
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/skills/console/SKILL.md plugin/skills/console/references/acces.md
 git commit -m "docs(console): le cinquieme temps, soumettre, et ACC-07
 
 La skill impose dry-run, OK de Romain, puis envoi reel. Elle dit aussi que
@@ -1103,139 +1377,56 @@ Google ne participe pas a IndexNow : seul le sitemap le previent."
 
 ---
 
-## Task 7: TAG-05, le titre trop long
+## Task 7: TAG-05, du câblage au catalogue
 
 **Files:**
-- Modify: `plugin/skills/audit/references/checks/tags.md`
-- Modify: `plugin/skills/audit/scripts/tests/fixtures/site.ts` (option `longTitle`)
-- Test: `plugin/skills/audit/scripts/tests/checks-format.test.ts` (couvre déjà par format), `plugin/skills/audit/scripts/tests/collect.test.ts`
-
-**Interfaces:** aucune signature. Le catalogue est déclaratif, lu par `parseChecks`.
-
-- [ ] **Step 1: Ajouter l'entrée au catalogue**
-
-À la fin de `plugin/skills/audit/references/checks/tags.md`, dans le format exact des quatre entrées existantes :
-
-```markdown
-### TAG-05 : title trop long
-Couche     : absolue
-Niveau     : 0
-Sévérité   : Mineur
-Vérifie    : aucun <title> ne dépasse 65 caractères.
-Comment    : derived/pages.json → title.length > 65 = trouvaille (citer le slug et la longueur).
-             Le seuil de 65 est une convention d'agence : aucun moteur n'en publie. Google écrit
-             qu'il n'y a pas de limite et que le titre est tronqué à la largeur de l'écran ; Bing
-             signale « Titre trop long » dans son Site Scan sans publier son seuil (relevé le
-             31/08/2026 sur commentchercherbonheur.org, 3 pages sur 10).
-Source     : https://developers.google.com/search/docs/appearance/title-link « Also avoid unnecessarily long or verbose text in your <title> elements. »
-Source     : https://www.bing.com/webmasters/sitescan « Titre trop long » [manuel]
-Correctif  : viser 60 caractères, l'information distinctive en premier, le nom de marque en dernier.
-Effort     : rapide
-```
-
-La syntaxe de la seconde source suit `parseChecks` à la lettre : URL, citation entre guillemets français, `[manuel]` en fin de ligne. Une autre forme ferait prendre la ligne entière pour une URL, que `check-sources.ts` tenterait d'aller chercher.
-
-- [ ] **Step 2: Vérifier le format et les sources**
-
-```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/audit/scripts/tests/checks-format.test.ts && bun skills/audit/scripts/check-sources.ts
-```
-
-Attendu : test vert ; la citation Google retrouvée en `OK`, la Bing listée en `MANUEL` et non vérifiée.
-
-- [ ] **Step 3: Donner un titre long au site jouet**
-
-Dans `plugin/skills/audit/scripts/tests/fixtures/site.ts`, ajouter une option au serveur, sur le modèle des options existantes (`homeInSitemap`, `prodHost`, …) :
-
-```ts
-  /** Une page dont le <title> fait 80 caractères, pour TAG-05. La home reste à un titre court. */
-  longTitle?: boolean;
-```
-
-et servir, quand elle est vraie, une page `/long` dont le `<title>` fait exactement 80 caractères :
-
-```ts
-"<title>Un titre delibererement tres long pour la verification TAG cinq du catalogue</title>"
-```
-
-Compter la longueur avant de la figer, et écrire le compte dans un commentaire :
-
-```bash
-cd /Users/recarnot/dev/erom-agence-seo && bun -e 'console.log("Un titre delibererement tres long pour la verification TAG cinq du catalogue".length)'
-```
-
-Ajuster le texte jusqu'à obtenir strictement plus de 65, puis noter la valeur obtenue. Ne pas asserter cette longueur dans un test : l'invariant est « ce titre dépasse le seuil », pas « ce titre fait 80 ».
-
-- [ ] **Step 4: Vérifier que la collecte relève bien la longueur**
-
-`derived/pages.json` porte déjà `title` par page ; TAG-05 se juge sur ce champ, aucun code de collecte n'est à écrire. Vérifier par un test dans `collect.test.ts` que la page longue est bien collectée avec son titre entier :
-
-```ts
-test("le titre long du site jouet arrive entier dans pages.json", async () => {
-  // Lancer le site jouet avec { longTitle: true }, collecter, lire derived/pages.json,
-  // et asserter que la page /long a un title de plus de 65 caractères.
-  // Invariant, jamais un nombre figé.
-});
-```
-
-- [ ] **Step 5: Lancer la suite**
-
-```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test
-```
-
-Attendu : tout vert.
-
-- [ ] **Step 6: Commit**
-
-```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/skills/audit/
-git commit -m "feat(audit): TAG-05, title trop long
-
-Detection a 65, correctif a 60. Aucun moteur ne publie de seuil : Google dit
-qu il n y en a pas, Bing signale sans dire le sien. Le 65 est une convention
-d agence, ecrite comme telle, ancree sur l export Site Scan du 31/08."
-```
-
----
-
-## Task 8: Câbler TAG-05 dans le build
-
-**Files:**
-- Modify: `plugin/skills/build/scripts/lib/plan.ts:19` (table `KINDS`) et `:121` (choix des textes à réécrire)
+- Modify: `plugin/skills/build/scripts/lib/plan.ts:20` (table `KINDS`) et `:120` (choix des textes à réécrire)
 - Modify: `plugin/skills/build/references/nextjs.md:215` (en-tête de la recette et un `Piège`)
 - Modify: `plugin/skills/build/SKILL.md` (étape 3, validation des textes)
-- Test: `plugin/skills/build/scripts/tests/plan.test.ts`
+- Modify: `plugin/skills/audit/scripts/tests/lint-report.test.ts:114` (compte figé converti en invariant)
+- Modify: `plugin/skills/audit/references/report-template.md:3` (le commentaire du gabarit)
+- Modify: `plugin/skills/audit/scripts/tests/fixtures/site.ts` (option `longTitle`)
+- Modify: `plugin/skills/audit/references/checks/tags.md` (l'entrée TAG-05, **en dernier**)
+- Test: `plugin/skills/build/scripts/tests/plan.test.ts`, `plugin/skills/audit/scripts/tests/collect.test.ts`
 
-**Interfaces:**
-- Consumes: `TAG-05` du catalogue, ajouté en T7.
-- Produces: rien de nouveau à l'extérieur ; `buildPlan` classe désormais `TAG-05` et propose le `title` à la réécriture.
+**Interfaces:** aucune signature nouvelle. Le catalogue est déclaratif, lu par `parseChecks`.
 
-**Pourquoi c'est du code et pas seulement de la documentation.** `buildPlan` classe chaque trouvaille par `KINDS[id]`, et un identifiant absent de cette table tombe sur le genre par défaut. Une trouvaille `TAG-05` arriverait donc dans le plan de build sans genre juste et sans déclencher la réécriture du titre : le check signalerait un défaut que le verbe suivant ne saurait pas corriger.
+**L'ordre des étapes est le cœur de cette tâche.** Trois tests existants se déclenchent sur le contenu du catalogue, et ajouter `TAG-05` en premier les fait rougir tous les trois :
+
+| Test | Ce qu'il exige | Refermé par |
+|---|---|---|
+| `plan.test.ts:130` | tout id du catalogue est dans `KINDS` | l'étape 3 |
+| `recipes.test.ts:56` | tout id de `KINDS` en genre `code` ou `texte` a sa recette dans `nextjs.md` | l'étape 5 |
+| `lint-report.test.ts:114` | l'en-tête d'un rapport annonce le bon compte de vérifications absolues | l'étape 7 |
+
+D'où la règle : **le catalogue s'écrit en dernier, quand tout ce qui le lit est prêt.** C'est aussi pourquoi ce chantier a une tâche et non deux : entre les deux, la suite est rouge et un commit intermédiaire fige un arbre cassé.
+
+**Pourquoi c'est du code et pas seulement de la documentation.** `buildPlan` classe chaque trouvaille par `KINDS[id]`, et un identifiant absent de cette table tombe sur le genre par défaut. Une trouvaille `TAG-05` arriverait dans le plan de build sans genre juste et sans déclencher la réécriture du titre : l'audit signalerait un défaut que le verbe suivant ne saurait pas corriger.
 
 - [ ] **Step 1: Écrire le test qui échoue**
 
-Ajouter à `plugin/skills/build/scripts/tests/plan.test.ts`, dans le style des tests existants (fixtures `chico`, `buildPlan` appelé directement) :
+Ajouter à `plugin/skills/build/scripts/tests/plan.test.ts`, dans le style des tests voisins (fixtures `chico`, `buildPlan` appelé directement) :
 
 ```ts
 test("TAG-05 ouverte classe le titre en texte à réécrire", () => {
-  // Partir du rapport de fixture, y ajouter une trouvaille TAG-05 ouverte sur une page.
-  const plan = buildPlan(/* … mêmes arguments que les tests voisins … */);
+  // Reprendre le montage du test voisin qui construit un plan depuis les fixtures chico,
+  // en ajoutant au rapport une trouvaille TAG-05 ouverte sur la page /ascension.
+  const plan = buildPlan(/* … mêmes arguments que le test voisin … */);
   const page = plan.pages.find((p) => p.page === "/ascension")!;
   expect(page.textes).toContain("title");
   expect(kindOf("TAG-05").kind).toBe("texte");
 });
 ```
 
-Le corps exact des arguments se recopie du test voisin qui construit déjà un plan à partir des fixtures : ce test n'introduit aucun montage nouveau, seulement une trouvaille de plus.
+Le corps exact des arguments se recopie du test voisin : ce test n'introduit aucun montage nouveau, seulement une trouvaille de plus.
 
 - [ ] **Step 2: Vérifier que le test échoue**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/build/scripts/tests/plan.test.ts
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test skills/build/scripts/tests/plan.test.ts
 ```
 
-Attendu : ÉCHEC. `kindOf("TAG-05")` rend le genre par défaut, et `textes` ne contient pas `title`.
+Attendu : ÉCHEC sur les deux assertions. `kindOf("TAG-05")` rend le genre par défaut, et `textes` ne contient pas `title`.
 
 - [ ] **Step 3: Déclarer le genre de TAG-05**
 
@@ -1245,11 +1436,11 @@ Dans `plugin/skills/build/scripts/lib/plan.ts`, ligne 20, à côté de `TAG-03` 
   "TAG-03": { kind: "texte" }, "TAG-05": { kind: "texte" },
 ```
 
-Un titre trop long se répare en réécrivant une phrase, pas en changeant du code : c'est le même genre que `TAG-03`, et cela le fait passer par la validation de Romain à l'étape 3 du build.
+Un titre trop long se répare en réécrivant une phrase, pas en changeant du code : même genre que `TAG-03`, ce qui le fait passer par la validation de Romain à l'étape 3 du build.
 
 - [ ] **Step 4: Déclencher la réécriture du titre**
 
-Ligne 121 du même fichier, ajouter la condition :
+Ligne **120** du même fichier (pas 121), ajouter la condition :
 
 ```ts
     if (missing?.title || p.title === null || open.has("TAG-01") || open.has("TAG-05")) textes.push("title");
@@ -1269,7 +1460,9 @@ Dans `plugin/skills/build/references/nextjs.md`, ligne 215, l'en-tête de la rec
 ### Title et description (TAG-01, TAG-02, TAG-05)
 ```
 
-et gagne un `Piège` de plus (plusieurs `Piège` par recette est le format normal, 31 dans le fichier) :
+Sans cet ajout, `recipes.test.ts:56` échoue : il exige qu'un id de `KINDS` en genre `texte` ait sa recette.
+
+La recette gagne un `Piège` de plus (plusieurs `Piège` par recette est le format normal, 31 dans le fichier) :
 
 ```markdown
 Piège    : un title proposé fait 60 caractères ou moins, nom de marque compris. TAG-05 le signalera au-dessus de 65 ; 60 est la marge, pour qu'une retouche de texte ne rouvre pas la trouvaille au prochain audit. L'information distinctive va en premier et la marque en dernier : c'est la fin qui est coupée.
@@ -1283,28 +1476,121 @@ Dans `plugin/skills/build/SKILL.md`, à l'étape 3 (validation des textes par Ro
 Chaque `title` proposé est affiché avec sa longueur entre parenthèses, par exemple `Audit Karmique Gratuit : votre Trajectoire | C.H.I.C.O. (55)`. Au-dessus de 60, le raccourcir avant de le proposer plutôt que de demander à Romain d'arbitrer une longueur.
 ```
 
-- [ ] **Step 7: Vérifier**
+- [ ] **Step 7: Convertir le compte figé de `lint-report.test.ts` en invariant**
 
-```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/build && bun skills/audit/scripts/check-sources.ts
+`lint-report.ts:80` compare le compte annoncé dans l'en-tête d'un rapport à `expectedIds(...).length`, calculé **dynamiquement** depuis le catalogue. Or `lint-report.test.ts:114` fige ce compte à 26 dans son en-tête, et attend zéro erreur. Ajouter une vérification au catalogue le fait passer à 27 et le test rougit.
+
+C'est un test détecteur de changement au sens de la doctrine du dépôt : il casse à chaque addition légitime et ne prouve rien de plus que la version dynamique. Le convertir est la réparation juste, pas un contournement. Le fichier le fait déjà à ses lignes 18, 100 et 104.
+
+Ligne 114, remplacer :
+
+```ts
+    const head = "2026-08-28 · Niveau 2 (site en local) · Couche stratégique : non · 10 pages collectées · 26 vérifications";
 ```
 
-Attendu : vert, le nouveau test compris. `check-sources.ts` doit toujours retrouver les citations de la recette modifiée : seul son en-tête et un `Piège` ont bougé, aucune ligne `Source`.
+par :
 
-- [ ] **Step 8: Commit**
+```ts
+    const head = `2026-08-28 · Niveau 2 (site en local) · Couche stratégique : non · 10 pages collectées · ${absolute0.length} vérifications`;
+```
+
+`absolute0` est déjà défini ligne 10 du même fichier. **Ne pas toucher à la ligne 83**, qui fige aussi `26 vérifications` mais n'assère que la présence d'une autre erreur : elle survit à l'ajout, et la modifier serait sortir du périmètre.
+
+- [ ] **Step 8: Corriger le commentaire du gabarit de rapport**
+
+`plugin/skills/audit/references/report-template.md:3` porte :
+
+```
+<!-- nb_checks = vérifications absolues de niveau inférieur ou égal au niveau exécuté (26 au niveau 0 et au niveau 2), plus 5 si la couche stratégique est active. -->
+```
+
+Le nombre devient **27**. C'est le compte des vérifications absolues de niveau 0, pas la taille du catalogue : le catalogue passe de 35 à 36 entrées, dont 27 absolues de niveau 0. La spec §5 confond les deux, la corriger en même temps que la recette (T8 étape 9).
+
+- [ ] **Step 9: Donner un titre long au site jouet, et le rendre collectable**
+
+Dans `plugin/skills/audit/scripts/tests/fixtures/site.ts`, ajouter une option au serveur, sur le modèle des options existantes (`homeInSitemap`, `prodHost`, …) :
+
+```ts
+  /** Sert une page /long dont le <title> dépasse le seuil de TAG-05. La home garde un titre court. */
+  longTitle?: boolean;
+```
+
+Deux endroits à toucher, et le second est celui qu'on oublie :
+
+1. Un `case "/long":` qui sert la page avec son titre long.
+2. **`/long` doit entrer dans le sitemap du site jouet.** `collect.ts` construit sa liste de pages à collecter depuis l'origine, les pages explicites et le sitemap : une page servie mais absente du sitemap n'est jamais visitée, et le test de l'étape suivante échouerait sans que la cause soit visible. Ajouter `/long` aux `<loc>` quand `opts.longTitle` est vrai.
+
+Le titre doit dépasser 65 caractères. Ne pas figer un nombre dans le commentaire sans l'avoir mesuré :
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add plugin/skills/build/
-git commit -m "feat(build): cabler TAG-05, un title trop long est un texte a reecrire
+cd /Users/recarnot/dev/erom-seo-chantier-7 && bun -e 'const t = "…le titre choisi…"; console.log(t.length)'
+```
 
-Sans entree dans KINDS, une trouvaille TAG-05 tombait sur le genre par defaut
-et ne declenchait pas la reecriture du titre : l audit aurait signale un defaut
-que le build ne savait pas corriger. Le build vise 60, l audit signale a 65."
+Écrire dans le JSDoc « dépasse le seuil de TAG-05 », pas une longueur précise : la valeur mesurée n'a pas à devenir une constante que quelqu'un devra maintenir.
+
+- [ ] **Step 10: Vérifier que la page longue est collectée entière**
+
+`derived/pages.json` porte déjà `title` par page ; TAG-05 se juge sur ce champ, aucun code de collecte n'est à écrire. Ajouter à `collect.test.ts` :
+
+```ts
+test("le titre long du site jouet arrive entier dans pages.json", async () => {
+  // Lancer le site jouet avec { longTitle: true }, collecter, lire derived/pages.json,
+  // et asserter que la page /long a un title de plus de 65 caractères.
+  // Invariant, jamais un nombre figé.
+});
+```
+
+- [ ] **Step 11: Ajouter l'entrée au catalogue, en dernier**
+
+Maintenant seulement, à la fin de `plugin/skills/audit/references/checks/tags.md` :
+
+```markdown
+### TAG-05 : title trop long
+Couche     : absolue
+Niveau     : 0
+Sévérité   : Mineur
+Vérifie    : aucun <title> ne dépasse 65 caractères.
+Comment    : derived/pages.json → title.length > 65 = trouvaille (citer le slug et la longueur).
+             Le seuil de 65 est une convention d'agence : aucun moteur n'en publie. Google écrit
+             qu'il n'y a pas de limite et que le titre est tronqué à la largeur de l'écran ; Bing
+             signale « Titre trop long » dans le Site Scan de Webmaster Tools sans publier son
+             seuil (relevé le 31/08/2026 sur commentchercherbonheur.org : 3 pages sur 10).
+Source     : https://developers.google.com/search/docs/appearance/title-link « Also avoid unnecessarily long or verbose text in your <title> elements. »
+Correctif  : viser 60 caractères, l'information distinctive en premier, le nom de marque en dernier.
+Effort     : rapide
+```
+
+**Une seule source, et c'est délibéré.** Le plan portait d'abord une seconde ligne `Source` citant Bing (`« Titre trop long » [manuel]`). Elle est retirée : `checks-format.test.ts:34` exige que toute citation dépasse 15 caractères, sans exempter les `[manuel]`, et « Titre trop long » en fait exactement 15. Les deux citations `[manuel]` déjà présentes dans le dépôt font 19 et 36 caractères : le précédent invoqué ne couvrait pas ce cas.
+
+L'incident Bing reste dans `Comment`, où il porte sa date et son compte. C'est plus honnête tant que le libellé complet du Site Scan n'a pas été capturé à l'écran : c'est l'incertitude 4 de la spec, et le jour où le verbatim existe, il devient une vraie ligne `Source`.
+
+- [ ] **Step 12: Vérifier l'ensemble**
+
+```bash
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test && bun skills/audit/scripts/check-sources.ts
+```
+
+Attendu : tout vert, les deux nouveaux tests compris ; la citation Google retrouvée en `OK`, aucun `ÉCHEC` neuf.
+
+- [ ] **Step 13: Commit**
+
+```bash
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add plugin/skills/audit/ plugin/skills/build/
+git commit -m "feat: TAG-05, title trop long, du cablage au catalogue
+
+Detection a 65, correctif a 60. Aucun moteur ne publie de seuil : Google dit
+qu il n y en a pas, Bing signale sans dire le sien. Le 65 est une convention
+d agence, ecrite comme telle, ancree sur l export Site Scan du 31/08.
+
+Le catalogue s ecrit en dernier : trois tests existants lisent son contenu
+et exigent que KINDS, la recette nextjs et le compte de l en-tete soient
+prets avant lui. lint-report.test.ts figeait 26 verifications en dur, un
+detecteur de changement converti en invariant."
 ```
 
 ---
 
-## Task 9: La recette sur CHICO
+## Task 8: La recette sur CHICO
 
 **Files:** aucun fichier du plugin. Produit `docs/superpowers/plans/2026-08-31-erom-seo-chantier-7-recette.md`.
 
@@ -1312,34 +1598,48 @@ que le build ne savait pas corriger. Le build vise 60, l audit signale a 65."
 
 Cette tâche **ne peut pas être déléguée à un sous-agent** : elle demande le OK de Romain avant chaque écriture réelle, et un élargissement de scope qu'il est le seul à pouvoir faire.
 
+**Deux dépôts, et il faut les deux.** Le dossier client `clients/commentchercherbonheur.org/` est ignoré par git : il n'existe **que** dans le checkout principal `/Users/recarnot/dev/erom-agence-seo`. Le code du chantier, lui, n'existe que dans le worktree. Chaque commande de recette se lance donc depuis le dossier client du checkout principal, en pointant le script du worktree par son chemin absolu. Le raccourci `.../console.ts` n'est jamais écrit tel quel : il se développe en entier à chaque fois.
+
+```bash
+CONSOLE=/Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts
+CLIENT=/Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org
+```
+
 - [ ] **Step 1: Relever l'état avant, pour pouvoir prouver l'après**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && bun /Users/recarnot/dev/erom-agence-seo/plugin/skills/console/scripts/console.ts sites
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && \
+  bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts sites
 ```
 
 Coller la sortie dans la recette : c'est la date de soumission du sitemap **avant**, la seule preuve que le PUT a fait quelque chose.
 
-- [ ] **Step 2: AC-3, capturer le refus de scope avant d'élargir**
+- [ ] **Step 2: AC-3, capturer le refus de scope, sans `--dry-run`**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && bun /Users/recarnot/dev/erom-agence-seo/plugin/skills/console/scripts/console.ts update --dry-run
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && \
+  bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts update ; echo "code $?"
 ```
 
-Attendu : la ligne `google` porte le refus de scope et la commande `gcloud` complète. Coller la sortie. **Ce cas ne se rejoue plus après l'étape 3** : c'est maintenant ou jamais.
+**Sans `--dry-run`, et c'est délibéré.** Le mode simulation fabrique le résultat Google au lieu d'appeler l'API : il ne peut donc pas produire le refus de scope, qui est exactement ce que ce critère doit capturer. L'appel réel est sans risque ici : le jeton n'a pas le scope d'écriture, Google refuse avant tout effet, et le refus est l'observation recherchée.
+
+Attendu : la ligne `google` porte le refus de scope et la commande `gcloud` complète ; les lignes `bing` et `indexnow`, elles, vont réellement partir. **Ce cas ne se rejoue plus après l'étape 3 : c'est maintenant ou jamais.**
 
 - [ ] **Step 3: Demander à Romain d'élargir le scope**
 
 Lui donner la commande et attendre qu'il l'ait lancée lui-même. Un `gcloud auth application-default login` ouvre un navigateur et demande un compte : ce n'est pas une commande à lancer à sa place.
 
 ```bash
-gcloud auth application-default login --scopes=openid,email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/webmasters
+gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,https://www.googleapis.com/auth/webmasters
 ```
+
+Cette commande est identique, au caractère près, à celle de `SUBMIT_HINT` (T2) et à celle d'`ACC-07` (T6). Les trois doivent le rester : c'est la commande que le message d'erreur donne à l'utilisateur, et une variante qui traîne dans la documentation est une variante que quelqu'un finira par coller.
 
 Vérifier ensuite, sans jamais afficher le jeton :
 
 ```bash
-source ~/.zshenv && T=$(gcloud auth application-default print-access-token) && curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$T" | python3 -c "import sys,json; print(json.load(sys.stdin).get('scope'))"
+source ~/.zshenv && T=$(gcloud auth application-default print-access-token) && \
+  curl -s "https://oauth2.googleapis.com/tokeninfo?access_token=$T" | python3 -c "import sys,json; print(json.load(sys.stdin).get('scope'))"
 ```
 
 Attendu : la chaîne contient `auth/webmasters` sans le suffixe `.readonly`.
@@ -1347,28 +1647,40 @@ Attendu : la chaîne contient `auth/webmasters` sans le suffixe `.readonly`.
 - [ ] **Step 4: AC-1 et AC-5, le dry-run**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && bun .../console.ts update --dry-run ; echo "code $?"
-BING_WMT_API_KEY= bun .../console.ts update --dry-run ; echo "code $?"
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && \
+  bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts update --dry-run ; echo "code $?"
+BING_WMT_API_KEY= bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts update --dry-run ; echo "code $?"
 ```
 
-Attendu : la première sortie annonce les trois envois au futur ; la seconde dit `non interrogé (clé absente)` sur la ligne Bing et sort quand même en 0. Relancer `console sites` pour confirmer que la date de soumission du sitemap n'a pas bougé.
+Attendu : la première sortie annonce les trois envois au futur ; la seconde dit `non interrogé (clé absente)` sur la ligne Bing et sort quand même en 0. Relancer `console sites` pour confirmer que la date de soumission du sitemap n'a pas bougé depuis l'étape 2.
 
 - [ ] **Step 5: AC-2, l'envoi réel, après le OK de Romain**
 
 Montrer la sortie du dry-run, demander le OK, puis :
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && bun .../console.ts update ; echo "code $?"
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && \
+  bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts update ; echo "code $?"
 ```
 
 Coller les trois réponses réelles dans la recette. Deux n'ont jamais été observées : le succès du PUT Google, et le comportement de `SubmitFeed` quand le compte Bing connaît le site en apex (`https://commentchercherbonheur.org/`) alors que le sitemap est sur le www. C'est l'incertitude 1 de la spec, et c'est ici qu'elle se lève.
 
-Si Bing refuse avec `InvalidUrl` (code 7), consigner le code exact et ouvrir une ligne de suite : la variante www est à ajouter dans le compte Bing, ce qui est un geste de compte, pas un correctif de code.
+**Consigner le corps brut de la réponse Bing, pas seulement la ligne rendue.** `bingSubmitFeed` traite tout HTTP 200 comme un succès sans regarder le champ `ErrorCode`, alors que `lib/bing.ts` teste `ErrorCode` avant le code HTTP, ce qui atteste que Bing sait renvoyer un refus dans un corps en 200. Si Bing refuse ainsi, la commande dira « soumis » et l'incertitude 1 serait close à tort. Capturer le corps par un curl direct en parallèle :
+
+```bash
+source ~/.zshenv && curl -s -X POST -H "content-type: application/json; charset=utf-8" \
+  -d '{"siteUrl":"https://commentchercherbonheur.org/","feedUrl":"https://www.commentchercherbonheur.org/sitemap.xml"}' \
+  "https://ssl.bing.com/webmaster/api.svc/json/SubmitFeed?apikey=$BING_WMT_API_KEY" \
+  | sed "s/$BING_WMT_API_KEY/[CLE]/g" ; echo
+```
+
+Attendu si tout va bien : `{"d":null}`. Tout autre corps, en particulier un `ErrorCode` non nul, ouvre une ligne de suite : soit `bingSubmitFeed` doit lire `ErrorCode` comme le fait `lib/bing.ts` (correctif hors de ce chantier, la copie devait rester à l'identique pour AC-6), soit la variante www est à ajouter dans le compte Bing, ce qui est un geste de compte.
 
 - [ ] **Step 6: AC-2 suite, la preuve côté consoles**
 
 ```bash
-bun .../console.ts sites
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && \
+  bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts sites
 ```
 
 Attendu : la date de soumission du sitemap chez Google a changé par rapport à l'étape 1.
@@ -1376,19 +1688,22 @@ Attendu : la date de soumission du sitemap chez Google a changé par rapport à 
 - [ ] **Step 7: AC-4, le ping d'une page seule**
 
 ```bash
-bun .../console.ts update --url https://www.commentchercherbonheur.org/methode ; echo "code $?"
-bun .../console.ts update --url https://exemple.fr/x ; echo "code $?"
+cd /Users/recarnot/dev/erom-agence-seo/clients/commentchercherbonheur.org && source ~/.zshenv && \
+  bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts update --url https://www.commentchercherbonheur.org/methode ; echo "code $?"
+bun /Users/recarnot/dev/erom-seo-chantier-7/plugin/skills/console/scripts/console.ts update --url https://exemple.fr/x ; echo "code $?"
 ```
 
 Attendu : la première ne porte aucune ligne `google` ni `bing` et rend 202 chez IndexNow ; la seconde refuse en nommant `exemple.fr` et sort en 1 sans requête.
 
-- [ ] **Step 8: AC-7, TAG-05 sur le site jouet**
+- [ ] **Step 8: AC-7, TAG-05, et ce que les tests ne prouvent pas**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo/plugin && bun test skills/audit
+cd /Users/recarnot/dev/erom-seo-chantier-7/plugin && bun test skills/audit
 ```
 
-Consigner que la vérification sur cible réelle est reportée : aucun site du portefeuille ne dépasse le seuil au 31/08. Mesuré ce jour-là : CHICO au plus long 58 caractères (`/institut`), `romain-ecarnot.com` 58, `lebonpote.romain-ecarnot.com` 55.
+**Ce que ce test prouve, et ce qu'il ne prouve pas.** Aucun code du dépôt ne calcule les trouvailles : le catalogue est déclaratif, `parseChecks` ne fait que le lire et `lint-report.ts` ne vérifie que la forme du rapport. C'est Claude qui juge, en lisant `references/checks/`. Le test prouve donc que le titre long du site jouet est collecté entier dans `derived/pages.json`, ce qui est la condition pour que TAG-05 soit jugeable. Il ne prouve pas qu'une trouvaille sort.
+
+La vérification du critère se fait à la main, sur une exécution d'audit réelle : lancer `/erom-seo:audit` sur un site portant un titre de plus de 65 caractères et lire le rapport. Aucun site du portefeuille n'en porte au 31/08, mesuré ce jour-là : CHICO au plus long 58 caractères (`/institut`), `romain-ecarnot.com` 58, `lebonpote.romain-ecarnot.com` 55. Consigner AC-7 comme **non vérifié sur cible réelle**, avec cette raison, plutôt que de l'arrondir au vert du test unitaire.
 
 - [ ] **Step 9: Écrire la recette et mettre à jour la mémoire du dépôt**
 
@@ -1397,17 +1712,16 @@ Créer `docs/superpowers/plans/2026-08-31-erom-seo-chantier-7-recette.md` avec, 
 Puis mettre à jour :
 - `_memory_/architecture.md` : la section du verbe `console` dit aujourd'hui « lentille **en lecture seule** » et « les deux écritures du plugin restent dans `checklist --agir` (D30) ». Les deux phrases sont fausses après ce chantier.
 - `_memory_/key-files.md` : `lib/soumission.ts`, `lib/sitemap.ts`, et la ligne de `gsc.ts` qui dit « Aucune écriture, et il n'y en aura pas ».
-- `_memory_/gotchas.md` : le jeton gcloud par défaut ne porte que `webmasters.readonly`, et un `application-default login` qui omet un scope le retire.
+- `_memory_/gotchas.md` : trois entrées. Le jeton gcloud par défaut ne porte que `webmasters.readonly`, et un `application-default login` qui omet un scope le retire. `bingUserSites` existe en deux exemplaires au comportement différent (`lib/bing.ts` lit `ErrorCode` avant le code HTTP, `lib/soumission.ts` non), donc un import qui mélange les deux change silencieusement le comportement de trois commandes. Le rôle Owner pour `sitemaps.submit` par API n'est documenté nulle part : la page d'aide qui l'affirme parle du rapport Sitemaps de l'interface web.
 
 - [ ] **Step 10: Commit**
 
 ```bash
-cd /Users/recarnot/dev/erom-agence-seo && git add docs/ _memory_/
+cd /Users/recarnot/dev/erom-seo-chantier-7 && git add docs/ _memory_/
 git commit -m "docs(recette): chantier 7, la soumission recettee sur CHICO"
 ```
 
 ---
-
 ## Ordre et dépendances
 
 ```
@@ -1417,21 +1731,33 @@ T1 (sitemap commun)
            └─> T4 (console update)
                 └─> T5 (--url, --dry-run)
                      └─> T6 (SKILL.md, acces.md)
-T7 (TAG-05 au catalogue)
- └─> T8 (TAG-05 cable dans le build)
-                     └─> T9 (recette, apres T6 et T8)
+
+T7 (TAG-05, du cablage au catalogue)   en parallele, des le depart
+
+                                       └─> T8 (recette, apres T6 et T7)
 ```
 
-T7 puis T8 ne touchent aucun fichier de T1 à T6 : cette branche peut partir en parallèle de l'autre dès le début. T8 suit T7 parce que son `Piège` renvoie à une entrée de catalogue qui doit exister.
+T7 ne touche aucun fichier de T1 à T6 : elle peut partir en parallèle de l'autre branche dès le début. Elle est indivisible : trois tests existants lisent le catalogue, et le scinder laisserait la suite rouge entre les deux moitiés.
 
 ## Auto-revue du plan
 
-**Couverture de la spec.** D50 est portée par T4 (branche `update`) et T6 (le paragraphe de tête du SKILL.md, qui affirme aujourd'hui le contraire). D51 par T2, y compris son commentaire de tête et sa vérification par grep en AC-8. D52 par T3. D53 par `trouverSitemap` en T3 et la sonde de redirection en T4. D54 par `verifierCleServie` en T3. D55 par T5. D56 par T5 (le drapeau) et T6 (la discipline). D57 par le calcul d'`echecs` en T4. D58 par T7 (le catalogue) et T8 (le câblage dans `KINDS` et la réécriture du titre). Les huit critères d'acceptation sont exécutés en T9, sauf AC-6 (T3, étape 5) et AC-8 (T2, étape 6), qui se jouent au moment où le risque existe plutôt qu'à la fin.
+**Couverture de la spec.** D50 est portée par T4 (branche `update`), T6 (le paragraphe de tête et le frontmatter du SKILL.md, qui affirment aujourd'hui le contraire) et T3 (le commentaire de `lib/bing.ts`). D51 par T2, y compris son commentaire de tête et sa vérification par grep en AC-8. D52 par T3. D53 par `trouverSitemap` en T3 et la sonde de redirection en T4. D54 par `verifierCleServie` en T3, et par le test de T4 qui vérifie qu'une clé différente est un échec. D55 par T5. D56 par T5 (le drapeau) et T6 (la discipline). D57 par le partage explicite entre raison d'échec et raison de non-applicabilité en T4. D58 par T7. Les huit critères d'acceptation sont exécutés en T8, sauf AC-6 (T3, étape 6) et AC-8 (T2, étape 6), qui se jouent au moment où le risque existe plutôt qu'à la fin.
 
-**Un trou trouvé à la relecture, et bouché.** T8 ne portait d'abord que de la documentation. La lecture de `plan.ts` a montré que `buildPlan` classe chaque trouvaille par la table `KINDS` : sans entrée pour `TAG-05`, l'audit aurait signalé un titre trop long que le verbe `build` n'aurait pas su corriger, faute de pousser `title` dans les textes à réécrire. T8 est devenue une tâche de code avec son test.
+**Ce que la revue adversariale a changé, avant qu'une ligne de code soit écrite.** Un relecteur sur modèle capable a passé le plan au crible, avec pour consigne de ne faire confiance à aucun de ses résumés et d'aller relire la documentation des trois API. Il a rendu 26 défauts, dont 8 bloquants, cinq reproduits par exécution. Les huit bloquants sont corrigés ici :
 
-**Code exécuté avant d'être écrit ici.** `sitemapsFromRobots` a passé ses 8 cas dans un scratch avant d'entrer dans le plan. La construction du chemin Google a été comparée caractère par caractère au chemin d'un `curl` réel qui a atteint `SitemapsService.Submit`. Le corps IndexNow et celui de `SubmitFeed` sont copiés d'un code en production, lui-même figé sur les exemples officiels du 29/08.
+1. **Les 32 chemins pointaient sur le checkout principal**, pas sur le worktree. Dans le mauvais arbre, `bun test` sort vert à 506 tests et **cache** tous les autres défauts au lieu de les révéler, et `git add` échoue en pathspec. Corrigé partout, avec l'exception documentée du dossier client de T8, qui n'existe que dans le checkout principal.
+2. **T4 importait `bingUserSites` en double.** `console.ts:6` l'importe déjà de `lib/bing`, et bun ne lève rien : il relie tout le module au dernier import. Les trois commandes déjà recettées auraient basculé en silence sur une implémentation qui ne lit pas `ErrorCode`, perdant le message « la clé n'est plus acceptée par Bing ». Aucun test n'aurait rougi.
+3, 4, 5. **Trois tests existants que T7 faisait rougir** : `plan.test.ts:130` (tout id du catalogue a un genre), `lint-report.test.ts:114` (compte figé à 26), `checks-format.test.ts:34` (citation d'au moins 15 caractères, et « Titre trop long » en fait exactement 15). D'où la fusion des deux tâches TAG-05 et l'ordre inversé : le catalogue s'écrit en dernier.
+6. **Les tests de T4 et T5 appelaient un helper `deps()` à la mauvaise signature** et n'injectaient aucune stratégie, donc aucun POST IndexNow n'aurait pu partir.
+7. **Le grep d'AC-8 se déclenchait sur sa propre documentation** : il cherchait `sitemaps.delete`, mot que T2 venait d'écrire dans un commentaire.
+8. **Le dry-run rendait AC-3 inobservable** : il court-circuite l'appel Google, donc il ne peut pas produire le refus de scope que ce critère doit capturer.
 
-**Blocs non normatifs, assumés comme tels.** Les trois derniers tests de T4 et les deux fetchers de T5 sont décrits par leur contrat (entrées, sortie attendue, invariant) plutôt qu'écrits en entier : ils sont des variations d'un fetcher long dont la copie intégrale quatre fois serait une source d'erreurs de transcription, pas une aide. Le premier test de T4 est normatif et fixe la forme à suivre.
+Un neuvième, non bloquant mais que rien n'aurait rattrapé : **la citation Owner était tronquée d'une manière qui la retournait**. « You must have owner permissions on a property to submit a sitemap » s'arrête en réalité sur « **using the Sitemaps report** », c'est-à-dire l'interface web. Aucune page ne pose Owner comme prérequis de l'API, qui demande seulement « appropriate access (owner, full, read) ». Une citation tronquée passe `check-sources.ts`, passe les tests, et s'installe comme une source vérifiée.
 
-**Cohérence des noms.** `ActionResult` est défini une fois en T3 et réexporté par `checklist.ts` et `actions.ts`. `Fetcher` a un seul retour, `{ status, text, final? }`, aligné en T2 dans `auth-google.ts` et `gsc.ts`. `submitSitemap` (gsc, lève) et `submitSitemapGoogle` (soumission, rend un `ActionResult`) sont deux noms pour deux couches, jamais confondus. `pingIndexNow` et `bingSubmitFeed` gardent leurs noms d'origine, écart avec la section 3 de la spec assumé et justifié en tête de plan.
+**Code exécuté avant d'être écrit ici.** `sitemapsFromRobots` a passé 10 cas dans un scratch, dont le commentaire de fin de ligne que la première version perdait. La construction du chemin Google a été comparée caractère par caractère au chemin d'un `curl` réel qui a atteint `SitemapsService.Submit`, et son refus 403 est l'échantillon littéral reproduit en T2. Le corps IndexNow et celui de `SubmitFeed` sont copiés d'un code en production, figé sur les exemples officiels du 29/08 et reconfirmés sur la documentation le 31/08.
+
+**Blocs non normatifs, assumés comme tels.** Deux seulement : le montage du test de T7 étape 1, qui recopie celui d'un test voisin, et le corps du test de T7 étape 10, décrit par son invariant. Tous les autres blocs de test sont normatifs et se transcrivent tels quels, le faux serveur de T4 étant paramétré une fois puis réutilisé par les neuf tests de T4 et T5.
+
+**Cohérence des noms.** `ActionResult` est défini une fois en T3 et réexporté par `checklist.ts` et `actions.ts`. `Fetcher` a un seul retour, `{ status, text, final? }`, aligné en T2 dans `auth-google.ts` et `gsc.ts`. `submitSitemap` (gsc, lève) et `submitSitemapGoogle` (soumission, rend un `ActionResult`) sont deux noms pour deux couches, jamais confondus. `pingIndexNow` et `bingSubmitFeed` gardent leurs noms d'origine, écart avec la section 3 de la spec assumé et justifié en tête de plan. La commande `gcloud` est identique au caractère près à ses trois occurrences (T2, T6, T8).
+
+**Une dette laissée en place, et nommée.** `bingUserSites` existe en deux exemplaires au comportement différent, et ce chantier n'y touche pas : les fusionner changerait le comportement de `checklist`, dont les 44 tests doivent passer sans qu'une assertion bouge. La table est en tête de T3, l'entrée de gotcha en T8 étape 9.

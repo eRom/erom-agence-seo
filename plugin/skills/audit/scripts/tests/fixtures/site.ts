@@ -8,8 +8,9 @@ const page = (title: string, extraHead: string, body: string) =>
  * `prodSitemaps` (avec `prodHost`) : robots.txt déclare le sitemap sur l'hôte de prod, et l'index de sitemaps y pointe
  * aussi ; sans cette option robots.txt et l'index restent sur l'origine servie, seules les locs a/b/c changent d'hôte.
  * `indexnowKey` : sert `/<indexnowKey>.txt` avec la clé en corps, pour simuler la vérification IndexNow.
+ * `longTitle` : sert une page /long dont le <title> dépasse le seuil de TAG-05. La home garde un titre court.
  */
-export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prodHost?: string; prodSitemaps?: boolean; indexnowKey?: string } = {}) {
+export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prodHost?: string; prodSitemaps?: boolean; indexnowKey?: string; longTitle?: boolean } = {}) {
   const server = Bun.serve({
     port,
     fetch(req) {
@@ -25,7 +26,7 @@ export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prod
         case "/sitemap-pages.xml": {
           // la dernière loc est volontairement hors site : elle doit être écartée ET comptée, jamais écartée en silence
           const base = opts.prodHost ? `https://${opts.prodHost}` : origin;
-          const locs = [...(opts.homeInSitemap ? [`${base}/`] : []), `${base}/a`, `${base}/b`, `${base}/c`, "https://autre.fr/hors-site"];
+          const locs = [...(opts.homeInSitemap ? [`${base}/`] : []), `${base}/a`, `${base}/b`, `${base}/c`, ...(opts.longTitle ? [`${base}/long`] : []), "https://autre.fr/hors-site"];
           return new Response(`<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">${locs.map((l) => `<url><loc>${l}</loc></url>`).join("")}</urlset>`, { headers: { "content-type": "application/xml" } });
         }
         case "/llms.txt":
@@ -38,6 +39,8 @@ export function startFixtureSite(port = 0, opts: { homeInSitemap?: boolean; prod
           return new Response(page("Page B", `<link rel="canonical" href="${origin}/b"><script type="application/ld+json">{"@context":"https://schema.org","@type":"Article","datePublished":"2026-06-01","dateModified":"2026-06-12"}</script>`, ""), { headers: { "content-type": "text/html", "last-modified": "Fri, 12 Jun 2026 07:00:00 GMT" } });
         case "/c":
           return new Response(page("Page C", `<meta name="robots" content="noindex">`, ""), { headers: { "content-type": "text/html" } });
+        case "/long":
+          return new Response(page("Page Longue : un titre volontairement beaucoup trop long pour TAG-05", "", ""), { headers: { "content-type": "text/html" } });
         default:
           // soft 404 volontaire : une page « introuvable » servie en 200
           return new Response(page("Page introuvable", "", ""), { status: 200, headers: { "content-type": "text/html" } });

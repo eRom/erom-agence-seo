@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test";
-import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, searchAnalytics, GscError, type Fetcher } from "../gsc";
-import type { GoogleAuth } from "../auth-google";
+import { listProperties, listSitemaps, inspectUrl, canonicalMismatch, searchAnalytics, submitSitemap, GscError, type Fetcher } from "../gsc";
+import { SUBMIT_HINT, LOGIN_HINT, type GoogleAuth } from "../auth-google";
 
 const AUTH: GoogleAuth = { token: "ya29.FAUX", quotaProject: "p-123", provider: "gcloud" };
 const SA: GoogleAuth = { token: "sa.FAUX", quotaProject: null, provider: "service-account" };
@@ -41,7 +41,9 @@ describe("listProperties", () => {
     const { f } = fake(() => ({ status: 403, text: '{"error":{"code":403,"details":[{"reason":"ACCESS_TOKEN_SCOPE_INSUFFICIENT"}],"message":"Request had insufficient authentication scopes."}}' }));
     const p = listProperties(f, AUTH);
     await expect(p).rejects.toBeInstanceOf(GscError);
-    await p.catch((e: GscError) => expect(e.hint).toContain("gcloud auth application-default login"));
+    // toBe(LOGIN_HINT), pas seulement toContain : SUBMIT_HINT contient aussi cette sous-chaîne,
+    // une lecture qui recevrait par erreur le hint d'écriture passerait un simple toContain.
+    await p.catch((e: GscError) => expect(e.hint).toBe(LOGIN_HINT));
   });
 });
 
@@ -91,7 +93,7 @@ describe("fail() : les six branches", () => {
     await expect(p).rejects.toBeInstanceOf(GscError);
     await p.catch((e: GscError) => {
       expect(e.message).toContain("jeton refusé");
-      expect(e.hint).toContain("gcloud auth application-default login");
+      expect(e.hint).toBe(LOGIN_HINT);
     });
   });
   test("403 générique (rôle insuffisant, sans reason reconnue) : renvoie vers les rôles Search Console", async () => {
@@ -220,7 +222,7 @@ describe("searchAnalytics", () => {
   });
 });
 
-describe("aucune écriture", () => {
+describe("les lectures ne visent aucune URL de soumission", () => {
   test("aucune URL appelée ne vise une soumission, quelle que soit la méthode", async () => {
     const body = await fx("sites");
     const { f, calls } = fake(() => ({ status: 200, text: body }));
@@ -232,4 +234,64 @@ describe("aucune écriture", () => {
     // une assertion qui ne regarde que la méthode.
     for (const c of calls) expect(/\/sitemaps\/|SubmitFeed|SubmitUrlBatch|indexnow/.test(c.url)).toBe(false);
   });
+});
+
+const auth = { token: "jeton-de-test-non-hex", quotaProject: "projet-test", provider: "gcloud" as const };
+
+test("submitSitemap construit le chemin exact validé contre l'API le 31/08, avec le jeton et le projet de quota", async () => {
+  const { f, calls } = fake(() => ({ status: 204, text: "" }));
+  await submitSitemap(f, auth, "sc-domain:commentchercherbonheur.org", "https://www.commentchercherbonheur.org/sitemap.xml");
+  expect(calls[0].method).toBe("PUT");
+  expect(calls[0].url).toBe(
+    "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3Acommentchercherbonheur.org" +
+    "/sitemaps/https%3A%2F%2Fwww.commentchercherbonheur.org%2Fsitemap.xml",
+  );
+  // Sans ces deux en-têtes, submitSitemap({ method: "PUT" }) sans headers passerait tout aussi bien :
+  // Google rendrait alors 401, lu comme le mauvais refus.
+  expect(calls[0].headers?.["authorization"]).toBe(`Bearer ${auth.token}`);
+  expect(calls[0].headers?.["x-goog-user-project"]).toBe(auth.quotaProject);
+});
+
+test("submitSitemap accepte 200 comme 204", async () => {
+  const f = async () => ({ status: 200, text: "" });
+  expect(await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml")).toBeUndefined();
+});
+
+test("un scope insuffisant donne la commande gcloud du scope d'écriture", async () => {
+  const corps = JSON.stringify({ error: { code: 403, message: "Request had insufficient authentication scopes.",
+    status: "PERMISSION_DENIED",
+    details: [{ reason: "ACCESS_TOKEN_SCOPE_INSUFFICIENT" }] } });
+  const f = async () => ({ status: 403, text: corps });
+  try {
+    await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml");
+    throw new Error("aurait dû lever");
+  } catch (e) {
+    const hint = (e as { hint: string }).hint;
+    expect(hint).toBe(SUBMIT_HINT);
+    expect(hint).toContain("auth/webmasters");
+    expect(hint).not.toContain("webmasters.readonly");
+  }
+});
+
+test("un 403 sans reason de scope parle du rôle, pas du jeton", async () => {
+  const f = async () => ({ status: 403, text: JSON.stringify({ error: { code: 403, message: "User does not have sufficient permission for site" } }) });
+  try {
+    await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml");
+    throw new Error("aurait dû lever");
+  } catch (e) {
+    expect((e as { hint: string }).hint).toContain("propriétaire");
+  }
+});
+
+// Les deux sens du même 401 : listProperties (lecture, ci-dessus dans « fail() : les six branches »)
+// reçoit LOGIN_HINT, submitSitemap (écriture) reçoit SUBMIT_HINT. Un jeton ADC expiré ne doit jamais
+// faire relancer un login en lecture seule alors que le scope d'écriture était déjà acquis.
+test("un 401 pendant une écriture renvoie SUBMIT_HINT, jamais LOGIN_HINT", async () => {
+  const f = async () => ({ status: 401, text: '{"error":{"code":401,"message":"Request had invalid authentication credentials."}}' });
+  try {
+    await submitSitemap(f, auth, "https://a.fr/", "https://a.fr/sitemap.xml");
+    throw new Error("aurait dû lever");
+  } catch (e) {
+    expect((e as { hint: string }).hint).toBe(SUBMIT_HINT);
+  }
 });

@@ -156,6 +156,17 @@ describe("runCollect", () => {
     expect(bySlug["c"].robotsMeta).toBe("noindex");
     expect(bySlug["index"].textChars).toBeGreaterThan(500);
   });
+  test("le titre long du site jouet arrive entier dans pages.json", async () => {
+    const s = startFixtureSite(0, { longTitle: true });
+    try {
+      const o = await mkdtemp(join(tmpdir(), "erom-seo-collect-"));
+      const m = await runCollect({ url: `http://localhost:${s.port}`, out: o, maxPages: 10, delayMs: 0, psiKey: null, level: 0 });
+      const pages = (await Bun.file(join(o, "derived/pages.json")).json()) as PageFacts[];
+      const long = pages.find((p) => p.slug === "long");
+      expect(m.pages.some((p) => p.final === `http://localhost:${s.port}/long`)).toBe(true);
+      expect(long?.title?.length).toBeGreaterThan(65);
+    } finally { s.stop(true); }
+  });
   test("sans clé PSI : psi.json explique l'absence", async () => {
     const psi = await Bun.file(join(out, "derived/psi.json")).json();
     expect(psi.ok).toBe(false);

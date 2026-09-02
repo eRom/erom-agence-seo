@@ -2,7 +2,7 @@
 // Collecte du niveau 1 : Search Console et Bing Webmaster Tools. Pure au sens de D4 (collecte par script,
 // octets exacts) : le Fetcher, le jeton et la clé entrent en paramètre, ce module n'écrit jamais lui-même
 // sur le disque ; collect.ts écrira les fichiers listés dans `raw`.
-// Aucune écriture vers Google ou Bing (D30) : ni sitemaps.submit, ni SubmitFeed, ni SubmitUrlBatch, ni ping
+// Aucune écriture vers Google ou Bing (D50) : ni sitemaps.submit, ni SubmitFeed, ni SubmitUrlBatch, ni ping
 // IndexNow. Le niveau 1 lit, jamais n'agit.
 import {
   listProperties, listSitemaps, inspectUrl, searchAnalytics,

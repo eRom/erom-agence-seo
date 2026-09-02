@@ -4,17 +4,28 @@ export type Provider = "gcloud" | "service-account";
 export type GoogleAuth = { token: string; quotaProject: string | null; provider: Provider };
 export type Env = { GSC_SA_KEY_FILE?: string; GSC_QUOTA_PROJECT?: string };
 export type GcloudRunner = () => Promise<string | null>;
-// auth-google déclare son propre Fetcher : gsc.ts (tâche 3) n'existe pas encore, et déclarera la même forme.
-export type FetchInit = { method?: "GET" | "POST"; headers?: Record<string, string>; body?: string };
-export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string }>;
+// Fetcher a la même forme ici et dans gsc.ts, par choix : une seule implémentation de fetcher sert les
+// deux (le jeton OAuth ici, les lectures et l'écriture Search Console là-bas), sans que les deux modules
+// ne dépendent l'un de l'autre.
+export type FetchInit = { method?: "GET" | "POST" | "PUT"; headers?: Record<string, string>; body?: string };
+// `final` porte l'URL après redirections. Optionnel : seul console update s'en sert, pour connaître
+// l'origine réellement servie (D53). Les appelants qui l'ignorent ne changent pas.
+export type Fetcher = (url: string, init?: FetchInit) => Promise<{ status: number; text: string; final?: string }>;
 
 export const SCOPE = "https://www.googleapis.com/auth/webmasters.readonly";
+/** Le scope d'écriture. Il couvre webmasters.readonly : demander celui-ci ne retire aucune lecture. */
+export const SCOPE_WRITE = "https://www.googleapis.com/auth/webmasters";
 export const TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
 
 export const LOGIN_HINT =
   `aucun jeton Google. Lance :\n` +
   `  gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,${SCOPE}\n` +
   `ou pose GSC_SA_KEY_FILE vers la clé JSON d'un compte de service (voir references/acces.md).`;
+
+export const SUBMIT_HINT =
+  `ce jeton n'a pas le droit d'écrire dans Search Console. Relance :\n` +
+  `  gcloud auth application-default login --scopes=openid,https://www.googleapis.com/auth/userinfo.email,https://www.googleapis.com/auth/cloud-platform,${SCOPE_WRITE}\n` +
+  `Ce scope couvre aussi toutes les lectures : rien d'autre ne change. Voir references/acces.md, ACC-07.`;
 
 export const QUOTA_HINT =
   `GSC_QUOTA_PROJECT absente. Avec le fournisseur gcloud, l'API Search Console exige un projet de quota. Pose :\n` +
