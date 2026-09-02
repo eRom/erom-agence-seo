@@ -12,7 +12,7 @@ Six skills, sans abonnement tiers. Chaque vérification cite la documentation of
 | `audit` | Le relevé daté d'un site, de sa seule URL jusqu'à son code lancé en local. Collecte brute conservée, rapport Markdown en français |
 | `build` | La correction du code, un commit par trouvaille, jusqu'à ce qu'un audit frais n'ait plus ni Critique ni Important |
 | `checklist` | Les quinze cases avant et après la mise en ligne, chacune avec sa preuve, plus les jalons J+1 à J+90 |
-| `console` | La lecture directe de Search Console et de Bing Webmaster Tools depuis le terminal, sans rien écrire |
+| `console` | La lecture directe de Search Console et de Bing Webmaster Tools depuis le terminal, et la soumission du sitemap aux deux moteurs avec le ping IndexNow |
 | `rapport` | Le livrable client : un HTML autonome et imprimable, bâti sur une seule action à faire dans la semaine |
 
 ## Démarrer

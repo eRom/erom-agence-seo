@@ -1,15 +1,24 @@
 {
   "$schema": "https://www.schemastore.org/claude-code-plugin-manifest.json",
   "name": "erom-seo",
-  "description": "Audit, stratégie, build, checklist de déploiement, lecture des consoles et rapport client SEO/GEO sans abonnement tiers : vérifications ancrées sur la documentation officielle des moteurs, rapport Markdown daté par site.",
-  "version": "0.1.0",
+  "description": "Audit, stratégie, build, checklist de déploiement, consoles Search Console et Bing (lecture, plus soumission du sitemap aux moteurs et IndexNow) et rapport client SEO/GEO sans abonnement tiers : chaque vérification cite mot pour mot la documentation officielle du moteur concerné, rapport Markdown daté par site et livrable HTML autonome pour le client.",
+  "version": "1.0.0",
   "author": {
     "name": "Romain Ecarnot",
     "url": "https://github.com/eRom"
   },
   "repository": "https://github.com/eRom/erom-agence-seo",
   "license": "MIT",
-  "keywords": ["seo", "geo", "audit", "robots.txt", "ai-overviews", "structured-data"],
+  "keywords": [
+    "seo",
+    "geo",
+    "audit",
+    "robots.txt",
+    "ai-overviews",
+    "structured-data",
+    "sitemap",
+    "indexnow"
+  ],
   "skills": "./skills/",
   "agents": []
 }
