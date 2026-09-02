@@ -107,4 +107,4 @@
 | `plugin/skills/build/scripts/lib/plan.ts` | `TAG-05` dans `KINDS` en genre `texte`, et la condition ligne 120 qui pousse `title` dans les textes à réécrire |
 | `plugin/skills/audit/references/checks/tags.md` | `TAG-05`, une seule ligne `Source` (voir gotchas) |
 | `.claude/notes/2026-09-01-reprise-chantier-7.md` | La note de reprise : où est le travail, la première commande, ce qui reste ouvert |
-| `<worktree>/.superpowers/sdd/2026-08-31-.../progress.md` | Le journal d'exécution : 26 décisions prises en cours de route, chacune avec son coût si elle est fausse |
+| `.claude/notes/2026-08-31-chantier-7-sdd/progress.md` | Le journal d'exécution : 26 décisions prises en cours de route, chacune avec son coût si elle est fausse. Sauvé du worktree le 02/09 avant son retrait, avec les briefs et rapports de chaque tâche |
