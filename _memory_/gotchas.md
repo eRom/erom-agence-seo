@@ -1,4 +1,4 @@
-# Pièges (mis à jour le 2026-09-02, 17 h)
+# Pièges (mis à jour le 2026-09-02, 17 h 15)
 
 **Sessions et outillage**
 - Checkout partagé : jamais `git switch` ni `checkout` dans `/Users/recarnot/dev/erom-agence-seo` ; une session déléguée qui l'a fait a basculé la session mère sur sa branche (28/08). Délégation = worktree frère.
@@ -149,10 +149,10 @@
 source ~/.zshenv && T=$(gcloud auth application-default print-access-token) && curl -s -H "Authorization: Bearer $T" -H "x-goog-user-project: $GSC_QUOTA_PROJECT" "https://www.googleapis.com/webmasters/v3/sites/sc-domain%3A<domaine>/sitemaps"
 ```
 
-**Le compteur `deplacees` d'`urlsOnOrigin` compte aussi la normalisation du slash.** `rewriteToOrigin` (`plugin/lib/url.ts:33`) passe par `new URL(u).toString()`, qui transforme `https://exemple.org` en `https://exemple.org/`. `urlsOnOrigin` compare `r !== u` et incrémente `moved`. Un sitemap parfaitement sain dont la racine est listée sans slash final affichera donc « 1 ramenée sur l'origine servie » **à chaque lancement**, ce qui fait chercher un problème inexistant. Le vrai rabattage de domaine, lui, reste silencieux et indistinguable dans ce même compteur. Mesuré sur CHICO le 02/09 (10 URL, la seule « déplacée » étant la racine). Re-contrôle :
+**Comparer des URL par leur chaîne compte la normalisation comme un changement. CORRIGÉ le 02/09 (`18f2d79`).** `rewriteToOrigin` (`plugin/lib/url.ts:33`) passe par `new URL(u).toString()`, qui transforme `https://exemple.org` en `https://exemple.org/`. `urlsOnOrigin` comparait `r !== u` et incrémentait `moved` : un sitemap parfaitement sain dont la racine est listée sans slash final annonçait « 1 ramenée sur l'origine servie » **à chaque lancement**, et `checklist` émettait un avertissement pour rien. Mesuré sur CHICO le 02/09 (10 URL, la seule « déplacée » étant la racine). La comparaison porte désormais sur `new URL(x).origin`, ce qui compte le rabattage d'hôte et le changement de protocole, et rien d'autre. **La leçon générale survit au correctif : dès qu'un parseur normalise, l'égalité de chaînes n'est pas l'égalité de valeurs, et il faut comparer le champ qui porte le sens.** Re-contrôle :
 
 ```bash
-bun -e 'import { urlsOnOrigin } from "./plugin/lib/soumission"; console.log(urlsOnOrigin(["https://exemple.org"], "https://exemple.org"))'
+bun -e 'import { urlsOnOrigin } from "./plugin/lib/soumission"; console.log(urlsOnOrigin(["https://exemple.org"], "https://exemple.org"))'  # attendu : moved 0
 ```
 
 **Le champ `indexed` de Google reste menteur, y compris juste après soumission.** `contents: [{type: web, submitted: 10, indexed: 0}]` une seconde après un `lastDownloaded` réussi et sans aucune erreur. Ne jamais lire ce champ comme un signal de santé (fait déjà consigné, reconfirmé le 02/09).
