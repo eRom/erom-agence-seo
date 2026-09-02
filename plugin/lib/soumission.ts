@@ -37,7 +37,8 @@ export const defaultFetcher: Fetcher = async (url, init = {}) => {
 
 /**
  * Ramène chaque URL sur l'origine réellement servie (www ou apex) : IndexNow exige que toutes les URL soient sur `host`,
- * et un sitemap peut lister l'apex alors que le site sert www (chico, R-3). `moved` compte les URL réécrites.
+ * et un sitemap peut lister l'apex alors que le site sert www (chico, R-3). `moved` compte les URL dont l'origine
+ * a réellement changé, et jamais la normalisation du slash de la racine que `new URL().toString()` opère au passage.
  */
 export function urlsOnOrigin(urls: string[], origin: string): { urls: string[]; moved: number } {
   const out: string[] = [];
@@ -45,7 +46,11 @@ export function urlsOnOrigin(urls: string[], origin: string): { urls: string[]; 
   for (const u of urls) {
     const r = rewriteToOrigin(u, origin);
     if (r === null) continue;
-    if (r !== u) moved++;
+    // Sur l'origine et non sur la chaîne : `new URL("https://x.org").toString()` rend
+    // "https://x.org/", donc comparer les chaînes faisait compter un déplacement là où
+    // l'hôte n'avait pas bougé, et annoncer une URL ramenée sur un sitemap sain (02/09).
+    // `u` et `r` sont parsables ici, sans quoi `rewriteToOrigin` aurait rendu null.
+    if (new URL(u).origin !== new URL(r).origin) moved++;
     if (!out.includes(r)) out.push(r);
   }
   return { urls: out, moved };

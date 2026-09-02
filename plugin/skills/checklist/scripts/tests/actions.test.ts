@@ -40,6 +40,21 @@ describe("urlsOnOrigin (R-3, recette chico du 29/08)", () => {
     expect(r.moved).toBe(2);
     expect(urlsOnOrigin(["https://www.chico.org/a"], "https://www.chico.org")).toEqual({ urls: ["https://www.chico.org/a"], moved: 0 });
   });
+
+  test("la racine sans slash final est normalisée sans compter comme une réécriture (recette du 02/09)", async () => {
+    const { urlsOnOrigin } = await import("../lib/actions");
+    // `new URL(u).toString()` ajoute le slash de la racine : la chaîne change alors que
+    // l'hôte ne bouge pas. Compter ce cas faisait annoncer « 1 ramenée sur l'origine
+    // servie » sur un sitemap parfaitement sain, à chaque lancement (CHICO, 02/09).
+    expect(urlsOnOrigin(["https://www.chico.org"], "https://www.chico.org"))
+      .toEqual({ urls: ["https://www.chico.org/"], moved: 0 });
+    // Le vrai rabattage d'hôte, lui, se compte toujours, y compris sur la racine.
+    expect(urlsOnOrigin(["https://chico.org"], "https://www.chico.org"))
+      .toEqual({ urls: ["https://www.chico.org/"], moved: 1 });
+    // Et le changement de protocole aussi.
+    expect(urlsOnOrigin(["http://www.chico.org/a"], "https://www.chico.org"))
+      .toEqual({ urls: ["https://www.chico.org/a"], moved: 1 });
+  });
 });
 
 describe("Bing Webmaster Tools", () => {
